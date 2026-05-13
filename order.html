@@ -1,1440 +1,734 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Order — Caricature.online</title>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Outfit:wght@300;400;500;600;700&display=swap"
-    rel="stylesheet">
-  <script src="https://js.stripe.com/v3/"></script>
-  <style>
-    :root {
-      --obsidian: #0f0d0a;
-      --charcoal: #1c1814;
-      --ink: #2a2420;
-      --parchment: #f8f0e3;
-      --cream: #fdf9f4;
-      --gold: #c8792a;
-      --gold-l: #e8932e;
-      --gold-pale: #f5e6d0;
-      --muted: #8a7968;
-      --border: #e8ddd0;
-      --display: 'Cormorant Garamond', Georgia, serif;
-      --body: 'Outfit', sans-serif;
-      --r: 12px;
-    }
-
-    *,
-    *::before,
-    *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    html {
-      scroll-behavior: smooth;
-    }
-
-    body {
-      font-family: var(--body);
-      background: var(--cream);
-      color: var(--ink);
-      min-height: 100vh;
-      font-size: 16px;
-    }
-
-    a {
-      color: inherit;
-      text-decoration: none;
-    }
-
-    button {
-      font-family: var(--body);
-      cursor: pointer;
-      border: none;
-      outline: none;
-    }
-
-    input,
-    textarea,
-    select {
-      font-family: var(--body);
-      outline: none;
-      font-size: 15px;
-    }
-
-    .nav {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      z-index: 100;
-      background: var(--obsidian);
-      height: 60px;
-      display: flex;
-      align-items: center;
-      padding: 0 24px;
-      justify-content: space-between;
-    }
-
-    .nav-logo {
-      font-family: var(--display);
-      font-size: 22px;
-      font-weight: 700;
-      color: var(--parchment);
-    }
-
-    .nav-logo span {
-      color: var(--gold);
-    }
-
-    .nav-back {
-      font-size: 14px;
-      color: rgba(255, 255, 255, .5);
-    }
-
-    .nav-back:hover {
-      color: var(--gold);
-    }
-
-    .page {
-      padding-top: 60px;
-      min-height: 100vh;
-    }
-
-    .container {
-      max-width: 920px;
-      margin: 0 auto;
-      padding: 40px 20px;
-    }
-
-    .progress {
-      display: flex;
-      align-items: center;
-      margin-bottom: 48px;
-      background: white;
-      border: 1px solid var(--border);
-      border-radius: 99px;
-      padding: 6px;
-      overflow: hidden;
-      gap: 0;
-    }
-
-    .prog-step {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      padding: 10px 8px;
-      border-radius: 99px;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--muted);
-      transition: all .3s;
-      white-space: nowrap;
-    }
-
-    .prog-step.active {
-      background: var(--obsidian);
-      color: white;
-    }
-
-    .prog-step.done {
-      color: var(--gold);
-    }
-
-    .prog-step .pn {
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      background: var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
-      font-weight: 700;
-      flex-shrink: 0;
-    }
-
-    .prog-step.active .pn {
-      background: var(--gold);
-      color: white;
-    }
-
-    .prog-step.done .pn {
-      background: var(--gold-pale);
-      color: var(--gold);
-    }
-
-    @media(max-width:600px) {
-      .prog-step span:not(.pn) {
-        display: none;
-      }
-
-      .prog-step {
-        flex: 0 0 auto;
-        padding: 10px;
-      }
-    }
-
-    .screen {
-      display: none;
-    }
-
-    .screen.active {
-      display: block;
-    }
-
-    .card {
-      background: white;
-      border: 1px solid var(--border);
-      border-radius: var(--r);
-      padding: 32px;
-    }
-
-    .card-title {
-      font-family: var(--display);
-      font-size: 34px;
-      font-weight: 600;
-      line-height: 1.1;
-      margin-bottom: 8px;
-    }
-
-    .card-title em {
-      color: var(--gold);
-      font-style: italic;
-    }
-
-    .card-sub {
-      font-size: 15px;
-      color: var(--muted);
-      margin-bottom: 28px;
-      line-height: 1.6;
-    }
-
-    .label-tag {
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: var(--gold);
-      margin-bottom: 20px;
-      display: block;
-    }
-
-    .occasion-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px;
-    }
-
-    @media(min-width:500px) {
-      .occasion-grid {
-        grid-template-columns: repeat(3, 1fr);
-      }
-    }
-
-    .occasion-card {
-      border: 2px solid var(--border);
-      border-radius: var(--r);
-      padding: 20px 16px;
-      text-align: center;
-      cursor: pointer;
-      transition: all .2s;
-      background: var(--cream);
-    }
-
-    .occasion-card:hover {
-      border-color: var(--gold);
-      background: var(--gold-pale);
-    }
-
-    .occasion-card.selected {
-      border-color: var(--gold);
-      background: var(--gold-pale);
-    }
-
-    .occasion-emoji {
-      font-size: 34px;
-      margin-bottom: 8px;
-    }
-
-    .occasion-name {
-      font-size: 15px;
-      font-weight: 700;
-    }
-
-    .occasion-desc {
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 2px;
-    }
-
-    .template-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      padding-right: 4px;
-    }
-
-    @media(min-width:500px) {
-      .template-grid {
-        grid-template-columns: repeat(4, 1fr);
-      }
-    }
-
-    .template-card {
-      border: 2px solid var(--border);
-      border-radius: 10px;
-      text-align: center;
-      cursor: pointer;
-      transition: all .2s;
-      background: var(--cream);
-      aspect-ratio: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 8px;
-      overflow: hidden;
-      position: relative;
-    }
-
-    .template-card:hover {
-      border-color: var(--gold);
-      transform: scale(1.02);
-    }
-
-    .template-card.selected {
-      border-color: var(--gold);
-      background: var(--gold-pale);
-    }
-
-    .template-card img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      border-radius: 7px;
-      position: absolute;
-      top: 0;
-      left: 0;
-    }
-
-    .template-card-overlay {
-      position: absolute;
-      inset: 0;
-      border-radius: 7px;
-      background: linear-gradient(to top, rgba(0, 0, 0, .7) 0%, transparent 55%);
-      opacity: 0;
-      transition: opacity .2s;
-    }
-
-    .template-card:hover .template-card-overlay,
-    .template-card.selected .template-card-overlay {
-      opacity: 1;
-    }
-
-    .template-card-info {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      padding: 8px;
-      z-index: 2;
-    }
-
-    .template-emoji {
-      font-size: 28px;
-      margin-bottom: 4px;
-    }
-
-    .template-name {
-      font-size: 11px;
-      font-weight: 600;
-      line-height: 1.2;
-      color: white;
-      text-shadow: 0 1px 3px rgba(0, 0, 0, .5);
-    }
-
-    .template-persons-badge {
-      position: absolute;
-      top: 5px;
-      right: 5px;
-      z-index: 3;
-      background: rgba(200, 121, 42, .9);
-      color: white;
-      font-size: 9px;
-      font-weight: 700;
-      padding: 2px 5px;
-      border-radius: 4px;
-    }
-
-    .template-no-img .template-emoji {
-      font-size: 32px;
-    }
-
-    .template-no-img .template-name {
-      color: var(--ink);
-      text-shadow: none;
-      font-size: 11px;
-    }
-
-    .template-load-more {
-      grid-column: 1/-1;
-      text-align: center;
-      padding: 14px;
-      background: var(--cream);
-      border: 1px dashed var(--border);
-      border-radius: 10px;
-      cursor: pointer;
-      color: var(--muted);
-      font-size: 14px;
-      font-weight: 600;
-      transition: all .2s;
-    }
-
-    .template-load-more:hover {
-      border-color: var(--gold);
-      color: var(--gold);
-    }
-
-    .form-group {
-      margin-bottom: 20px;
-    }
-
-    .form-group label {
-      display: block;
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--muted);
-      margin-bottom: 6px;
-      letter-spacing: .5px;
-      text-transform: uppercase;
-    }
-
-    .form-input {
-      width: 100%;
-      padding: 13px 14px;
-      background: var(--cream);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--ink);
-      font-size: 15px;
-      transition: border-color .2s;
-    }
-
-    .form-input:focus {
-      border-color: var(--gold);
-      background: white;
-    }
-
-    .form-input::placeholder {
-      color: var(--muted);
-    }
-
-    textarea.form-input {
-      resize: vertical;
-      min-height: 80px;
-    }
-
-    .person-section {
-      background: var(--cream);
-      border: 1px solid var(--border);
-      border-radius: var(--r);
-      padding: 20px;
-      margin-bottom: 20px;
-    }
-
-    .person-section-title {
-      font-family: var(--display);
-      font-size: 20px;
-      font-weight: 600;
-      color: var(--gold);
-      margin-bottom: 16px;
-    }
-
-    .upload-zones {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .upload-zone {
-      border: 2px dashed var(--border);
-      border-radius: var(--r);
-      padding: 28px 20px;
-      text-align: center;
-      cursor: pointer;
-      transition: all .2s;
-      position: relative;
-    }
-
-    .upload-zone:hover {
-      border-color: var(--gold);
-      background: var(--gold-pale);
-    }
-
-    .upload-zone.has-file {
-      border-color: var(--gold);
-      border-style: solid;
-      background: var(--gold-pale);
-    }
-
-    .upload-icon {
-      font-size: 34px;
-      margin-bottom: 8px;
-    }
-
-    .upload-label {
-      font-size: 15px;
-      font-weight: 600;
-      margin-bottom: 4px;
-    }
-
-    .upload-hint {
-      font-size: 13px;
-      color: var(--muted);
-    }
-
-    .upload-preview-img {
-      width: 100%;
-      max-height: 200px;
-      object-fit: cover;
-      border-radius: 8px;
-      margin-bottom: 8px;
-      display: none;
-    }
-
-    .upload-done {
-      color: #2d7a4f;
-      font-weight: 700;
-      font-size: 14px;
-      display: none;
-    }
-
-    .plan-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      margin-bottom: 24px;
-    }
-
-    @media(max-width:500px) {
-      .plan-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .plan-card {
-      border: 2px solid var(--border);
-      border-radius: var(--r);
-      padding: 24px 16px;
-      cursor: pointer;
-      transition: all .2s;
-      background: var(--cream);
-      position: relative;
-    }
-
-    .plan-card:hover {
-      border-color: var(--gold);
-    }
-
-    .plan-card.selected {
-      border-color: var(--gold);
-      background: var(--gold-pale);
-    }
-
-    .plan-card.featured {
-      border-color: var(--gold);
-    }
-
-    .plan-badge {
-      position: absolute;
-      top: -11px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--gold);
-      color: white;
-      font-size: 10px;
-      font-weight: 700;
-      padding: 3px 12px;
-      border-radius: 99px;
-      letter-spacing: 1px;
-      white-space: nowrap;
-    }
-
-    .plan-name {
-      font-size: 15px;
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-
-    .plan-price {
-      font-family: var(--display);
-      font-size: 30px;
-      font-weight: 700;
-      color: var(--gold);
-    }
-
-    .plan-desc {
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 6px;
-      line-height: 1.5;
-    }
-
-    .order-summary {
-      background: var(--cream);
-      border: 1px solid var(--border);
-      border-radius: var(--r);
-      padding: 20px;
-      margin-bottom: 24px;
-    }
-
-    .sum-row {
-      display: flex;
-      justify-content: space-between;
-      font-size: 14px;
-      color: var(--muted);
-      padding: 7px 0;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .sum-row:last-child {
-      border-bottom: none;
-      color: var(--ink);
-      font-weight: 700;
-      font-size: 16px;
-    }
-
-    .sum-val {
-      color: var(--ink);
-      font-weight: 600;
-    }
-
-    #card-element {
-      background: var(--cream);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 14px;
-      transition: border-color .2s;
-    }
-
-    #card-element.StripeElement--focus {
-      border-color: var(--gold);
-    }
-
-    #card-error {
-      color: #c0392b;
-      font-size: 14px;
-      margin-top: 8px;
-    }
-
-    .pay-btn {
-      width: 100%;
-      padding: 18px;
-      border-radius: 8px;
-      background: var(--gold);
-      color: white;
-      font-size: 17px;
-      font-weight: 700;
-      margin-top: 20px;
-      transition: all .2s;
-      letter-spacing: .3px;
-    }
-
-    .pay-btn:hover:not(:disabled) {
-      background: var(--gold-l);
-    }
-
-    .pay-btn:disabled {
-      opacity: .6;
-      cursor: not-allowed;
-    }
-
-    .pay-notice {
-      font-size: 12px;
-      color: var(--muted);
-      text-align: center;
-      margin-top: 12px;
-      line-height: 1.6;
-    }
-
-    .success-screen {
-      text-align: center;
-      padding: 40px 0;
-    }
-
-    .success-icon {
-      font-size: 64px;
-      margin-bottom: 24px;
-    }
-
-    .success-title {
-      font-family: var(--display);
-      font-size: 42px;
-      font-weight: 700;
-      margin-bottom: 12px;
-    }
-
-    .success-title em {
-      color: var(--gold);
-      font-style: italic;
-    }
-
-    .success-sub {
-      font-size: 17px;
-      color: var(--muted);
-      line-height: 1.7;
-      max-width: 420px;
-      margin: 0 auto 32px;
-    }
-
-    .steps-list {
-      text-align: left;
-      max-width: 340px;
-      margin: 0 auto 32px;
-    }
-
-    .step-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 0;
-      font-size: 15px;
-      color: var(--muted);
-      border-bottom: 1px solid var(--border);
-    }
-
-    .step-item:last-child {
-      border: none;
-    }
-
-    .step-item.done {
-      color: #2d7a4f;
-    }
-
-    .step-item.active {
-      color: var(--ink);
-      font-weight: 600;
-    }
-
-    .step-icon {
-      font-size: 18px;
-      width: 24px;
-      text-align: center;
-    }
-
-    .flow-nav {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 32px;
-      padding-top: 24px;
-      border-top: 1px solid var(--border);
-    }
-
-    .btn-back {
-      background: transparent;
-      color: var(--muted);
-      font-size: 15px;
-      font-weight: 600;
-      padding: 10px 20px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      transition: all .2s;
-    }
-
-    .btn-back:hover {
-      border-color: var(--ink);
-      color: var(--ink);
-    }
-
-    .btn-next {
-      background: var(--obsidian);
-      color: white;
-      font-size: 15px;
-      font-weight: 700;
-      padding: 13px 28px;
-      border-radius: 8px;
-      transition: all .2s;
-    }
-
-    .btn-next:hover:not(:disabled) {
-      background: var(--ink);
-    }
-
-    .btn-next:disabled {
-      opacity: .4;
-      cursor: not-allowed;
-    }
-
-    #toast {
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      background: var(--obsidian);
-      color: white;
-      padding: 14px 20px;
-      border-radius: 8px;
-      font-size: 14px;
-      z-index: 999;
-      transform: translateY(100px);
-      opacity: 0;
-      transition: all .3s;
-      max-width: 300px;
-    }
-
-    #toast.show {
-      transform: translateY(0);
-      opacity: 1;
-    }
-
-    #toast.error {
-      background: #c0392b;
-    }
-
-    .hidden {
-      display: none !important;
-    }
-
-    .free-banner {
-      background: linear-gradient(135deg, #2d7a4f, #1e5c3a);
-      border-radius: var(--r);
-      padding: 20px 24px;
-      margin-bottom: 24px;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      color: white;
-    }
-
-    .free-banner-icon {
-      font-size: 36px;
-      flex-shrink: 0;
-    }
-
-    .free-banner-text strong {
-      display: block;
-      font-size: 17px;
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-
-    .free-banner-text span {
-      font-size: 13px;
-      opacity: .85;
-    }
-
-    .free-btn {
-      width: 100%;
-      padding: 18px;
-      border-radius: 8px;
-      background: linear-gradient(135deg, #2d7a4f, #1e5c3a);
-      color: white;
-      font-size: 17px;
-      font-weight: 700;
-      margin-top: 20px;
-      transition: all .2s;
-      letter-spacing: .3px;
-      border: none;
-      cursor: pointer;
-    }
-
-    .free-btn:hover:not(:disabled) {
-      background: linear-gradient(135deg, #3a9962, #2d7a4f);
-    }
-
-    .free-btn:disabled {
-      opacity: .6;
-      cursor: not-allowed;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Order Your Caricature — Caricature.online</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://js.stripe.com/v3/"></script>
+<style>
+:root{--obsidian:#0f0d0a;--charcoal:#1c1814;--ink:#2a2420;--parchment:#f8f0e3;--cream:#fdf9f4;--gold:#c8792a;--gold-l:#e8932e;--gold-pale:#f5e6d0;--muted:#8a7968;--border:#e8ddd0;--success:#2d7a4f;--warning:#b45309;--error:#c0392b;--display:"Cormorant Garamond",Georgia,serif;--body:"Outfit",sans-serif;--r:12px;}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{font-family:var(--body);background:var(--cream);color:var(--ink);min-height:100vh;font-size:16px;}
+a{color:inherit;text-decoration:none;}
+button{font-family:var(--body);cursor:pointer;border:none;outline:none;}
+input,textarea,select{font-family:var(--body);outline:none;font-size:15px;}
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;background:var(--obsidian);height:60px;display:flex;align-items:center;padding:0 24px;justify-content:space-between;}
+.nav-logo{font-family:var(--display);font-size:22px;font-weight:700;color:var(--parchment);}
+.nav-logo span{color:var(--gold);}
+.nav-back{font-size:14px;color:rgba(255,255,255,.5);transition:color .2s;}
+.nav-back:hover{color:var(--gold);}
+.page{padding-top:60px;min-height:100vh;}
+.container{max-width:780px;margin:0 auto;padding:40px 20px;}
+.progress{display:flex;align-items:center;margin-bottom:48px;gap:0;background:white;border:1px solid var(--border);border-radius:99px;padding:5px;overflow:hidden;}
+.prog-step{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 6px;border-radius:99px;font-size:12px;font-weight:600;color:var(--muted);transition:all .3s;white-space:nowrap;}
+.prog-step.active{background:var(--obsidian);color:white;}
+.prog-step.done{color:var(--gold);}
+.prog-step .pn{width:20px;height:20px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;}
+.prog-step.active .pn{background:var(--gold);color:white;}
+.prog-step.done .pn{background:var(--gold-pale);color:var(--gold);}
+@media(max-width:600px){.prog-step span:not(.pn){display:none;}.prog-step{flex:0 0 auto;padding:9px;}}
+.screen{display:none;animation:fadeIn .3s ease;}
+.screen.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.card{background:white;border:1px solid var(--border);border-radius:var(--r);padding:32px;}
+.card-title{font-family:var(--display);font-size:34px;font-weight:600;line-height:1.1;margin-bottom:8px;}
+.card-title em{color:var(--gold);font-style:italic;}
+.card-sub{font-size:15px;color:var(--muted);margin-bottom:28px;line-height:1.6;}
+.label-tag{font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:18px;display:block;}
+.path-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:8px;}
+@media(max-width:500px){.path-grid{grid-template-columns:1fr;}}
+.path-card{border:2px solid var(--border);border-radius:var(--r);padding:28px 24px;text-align:center;cursor:pointer;transition:all .25s;background:var(--cream);position:relative;overflow:hidden;}
+.path-card:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:0 8px 24px rgba(200,121,42,.12);}
+.path-card.selected{border-color:var(--gold);background:var(--gold-pale);}
+.path-icon{font-size:44px;margin-bottom:12px;}
+.path-name{font-family:var(--display);font-size:22px;font-weight:700;margin-bottom:6px;}
+.path-desc{font-size:13px;color:var(--muted);line-height:1.6;}
+.path-badge{position:absolute;top:12px;right:12px;background:var(--gold);color:white;font-size:10px;font-weight:700;padding:3px 10px;border-radius:99px;letter-spacing:.5px;}
+.occasion-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
+@media(min-width:500px){.occasion-grid{grid-template-columns:repeat(3,1fr);}}
+.occasion-card{border:2px solid var(--border);border-radius:var(--r);padding:20px 14px;text-align:center;cursor:pointer;transition:all .2s;background:var(--cream);}
+.occasion-card:hover,.occasion-card.selected{border-color:var(--gold);background:var(--gold-pale);}
+.occasion-emoji{font-size:34px;margin-bottom:8px;}
+.occasion-name{font-size:15px;font-weight:700;}
+.occasion-desc{font-size:12px;color:var(--muted);margin-top:2px;}
+.template-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-height:500px;overflow-y:auto;padding-right:4px;margin-bottom:8px;}
+@media(min-width:500px){.template-grid{grid-template-columns:repeat(4,1fr);}}
+.template-card{border:2px solid var(--border);border-radius:10px;text-align:center;cursor:pointer;transition:all .2s;background:var(--cream);aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px;overflow:hidden;position:relative;}
+.template-card:hover{border-color:var(--gold);transform:scale(1.03);}
+.template-card.selected{border-color:var(--gold);box-shadow:0 0 0 3px rgba(200,121,42,.3);}
+.template-card img{width:100%;height:100%;object-fit:cover;border-radius:7px;position:absolute;top:0;left:0;}
+.template-card-overlay{position:absolute;inset:0;border-radius:7px;background:linear-gradient(to top,rgba(0,0,0,.75) 0%,transparent 55%);opacity:0;transition:opacity .2s;}
+.template-card:hover .template-card-overlay,.template-card.selected .template-card-overlay{opacity:1;}
+.template-card-info{position:absolute;bottom:0;left:0;right:0;padding:8px;z-index:2;}
+.template-name-card{font-size:11px;font-weight:600;line-height:1.2;color:white;text-shadow:0 1px 3px rgba(0,0,0,.5);}
+.template-persons-badge{position:absolute;top:5px;right:5px;z-index:3;background:rgba(200,121,42,.9);color:white;font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;}
+.template-emoji-fb{font-size:26px;margin-bottom:4px;}
+.template-name-fb{font-size:11px;font-weight:600;color:var(--ink);}
+.form-group{margin-bottom:20px;}
+.form-group label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;letter-spacing:.5px;text-transform:uppercase;}
+.form-input{width:100%;padding:13px 14px;background:var(--cream);border:1px solid var(--border);border-radius:8px;color:var(--ink);font-size:15px;transition:border-color .2s;}
+.form-input:focus{border-color:var(--gold);background:white;}
+.form-input::placeholder{color:var(--muted);}
+textarea.form-input{resize:vertical;min-height:100px;}
+.persons-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
+@media(max-width:560px){.persons-grid{grid-template-columns:repeat(3,1fr);}}
+.person-btn{border:2px solid var(--border);border-radius:10px;padding:16px 8px;text-align:center;cursor:pointer;transition:all .2s;background:var(--cream);}
+.person-btn:hover,.person-btn.selected{border-color:var(--gold);background:var(--gold-pale);}
+.person-btn-count{font-family:var(--display);font-size:26px;font-weight:700;color:var(--gold);}
+.person-btn-label{font-size:12px;color:var(--muted);margin-top:2px;}
+.person-section{background:var(--cream);border:1px solid var(--border);border-radius:var(--r);padding:22px;margin-bottom:20px;}
+.person-section-title{font-family:var(--display);font-size:20px;font-weight:700;color:var(--gold);margin-bottom:16px;}
+.photos-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.upload-zone{border:2px dashed var(--border);border-radius:var(--r);padding:22px 14px;text-align:center;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;min-height:140px;}
+.upload-zone:hover{border-color:var(--gold);background:var(--gold-pale);}
+.upload-zone.has-file{border-color:var(--gold);border-style:solid;background:var(--gold-pale);}
+.upload-zone.uploading{opacity:.7;pointer-events:none;}
+.upload-zone.upload-error{border-color:var(--error);background:#fff5f5;}
+.upload-icon-d{font-size:28px;margin-bottom:6px;}
+.upload-label-d{font-size:13px;font-weight:600;margin-bottom:3px;}
+.upload-hint-d{font-size:11px;color:var(--muted);}
+.upload-preview{width:100%;max-height:120px;object-fit:cover;border-radius:8px;margin-bottom:6px;display:none;}
+.upload-status{font-size:12px;font-weight:700;margin-top:4px;min-height:18px;}
+.upload-status.ok{color:var(--success);}
+.upload-status.warn{color:var(--warning);}
+.upload-status.err{color:var(--error);}
+input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;}
+.photo-tip{font-size:12px;color:var(--muted);background:var(--gold-pale);border:1px solid var(--gold);border-radius:8px;padding:10px 14px;margin-bottom:16px;line-height:1.6;}
+.plan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;}
+@media(max-width:500px){.plan-grid{grid-template-columns:1fr;}}
+.plan-card{border:2px solid var(--border);border-radius:var(--r);padding:24px 16px;cursor:pointer;transition:all .2s;background:var(--cream);position:relative;}
+.plan-card:hover,.plan-card.selected{border-color:var(--gold);background:var(--gold-pale);}
+.plan-badge{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:var(--gold);color:white;font-size:10px;font-weight:700;padding:3px 12px;border-radius:99px;letter-spacing:1px;white-space:nowrap;}
+.plan-name{font-size:15px;font-weight:700;margin-bottom:4px;}
+.plan-price{font-family:var(--display);font-size:30px;font-weight:700;color:var(--gold);}
+.plan-desc{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5;}
+.order-summary{background:var(--cream);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:24px;}
+.sum-row{display:flex;justify-content:space-between;font-size:14px;color:var(--muted);padding:7px 0;border-bottom:1px solid var(--border);}
+.sum-row:last-child{border-bottom:none;color:var(--ink);font-weight:700;font-size:16px;}
+.sum-val{color:var(--ink);font-weight:600;}
+#card-element{background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:14px;transition:border-color .2s;}
+#card-element.StripeElement--focus{border-color:var(--gold);}
+#card-error{color:var(--error);font-size:14px;margin-top:8px;min-height:20px;}
+.pay-btn{width:100%;padding:18px;border-radius:8px;background:var(--gold);color:white;font-size:17px;font-weight:700;margin-top:20px;transition:all .2s;letter-spacing:.3px;}
+.pay-btn:hover:not(:disabled){background:var(--gold-l);}
+.pay-btn:disabled{opacity:.6;cursor:not-allowed;}
+.pay-notice{font-size:12px;color:var(--muted);text-align:center;margin-top:12px;line-height:1.6;}
+.btn-row{display:flex;gap:12px;margin-top:28px;}
+.btn-back{flex:0 0 auto;padding:14px 24px;border-radius:8px;border:1px solid var(--border);background:white;font-size:15px;font-weight:600;color:var(--muted);transition:all .2s;}
+.btn-back:hover{border-color:var(--gold);color:var(--gold);}
+.btn-next{flex:1;padding:15px 28px;border-radius:8px;background:var(--obsidian);color:white;font-size:16px;font-weight:700;transition:all .2s;}
+.btn-next:hover:not(:disabled){background:var(--charcoal);}
+.btn-next:disabled{opacity:.5;cursor:not-allowed;}
+.alert-info{border-radius:8px;padding:14px 16px;font-size:13px;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;margin-bottom:16px;line-height:1.6;}
+.spinner{display:inline-block;width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:8px;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.success-page{text-align:center;padding:60px 20px;}
+.success-icon{font-size:72px;margin-bottom:24px;animation:pop .5s ease;}
+@keyframes pop{0%{transform:scale(0)}80%{transform:scale(1.1)}100%{transform:scale(1)}}
+.success-title{font-family:var(--display);font-size:42px;font-weight:700;margin-bottom:12px;}
+.success-title em{color:var(--gold);}
+.success-sub{font-size:16px;color:var(--muted);line-height:1.7;max-width:480px;margin:0 auto 32px;}
+</style>
 </head>
-
 <body>
-  <nav class="nav">
-    <div class="nav-logo">Caricature<span>.</span>online</div>
-    <a href="index.html" class="nav-back">← Back to Home</a>
-  </nav>
-  <div class="page">
-    <div class="container">
+<nav class="nav">
+  <div class="nav-logo">Caricature<span>.</span>online</div>
+  <a href="/" class="nav-back">Back to home</a>
+</nav>
+<div class="page"><div class="container">
 
-      <!-- PROGRESS 5 steps -->
-      <div class="progress">
-        <div class="prog-step active" id="ps1"><span class="pn">1</span><span>Occasion</span></div>
-        <div class="prog-step" id="ps2"><span class="pn">2</span><span>Template</span></div>
-        <div class="prog-step" id="ps3"><span class="pn">3</span><span>Details</span></div>
-        <div class="prog-step" id="ps4"><span class="pn">4</span><span>Photos</span></div>
-        <div class="prog-step" id="ps5"><span class="pn">5</span><span>Pay</span></div>
-      </div>
+<div class="progress" id="progressBar">
+  <div class="prog-step active" id="ps1"><span class="pn">1</span><span>Style</span></div>
+  <div class="prog-step" id="ps2"><span class="pn">2</span><span>Occasion</span></div>
+  <div class="prog-step" id="ps3"><span class="pn">3</span><span>Persons</span></div>
+  <div class="prog-step" id="ps4"><span class="pn">4</span><span>Design</span></div>
+  <div class="prog-step" id="ps5"><span class="pn">5</span><span>Photos</span></div>
+  <div class="prog-step" id="ps6"><span class="pn">6</span><span>Pay</span></div>
+</div>
 
-      <!-- S1: OCCASION -->
-      <div class="screen active" id="sc1">
-        <div class="card">
-          <span class="label-tag">Step 1 of 5</span>
-          <h2 class="card-title">What's the <em>Occasion?</em></h2>
-          <p class="card-sub">Choose the theme — we'll show you the best matching templates.</p>
-          <div class="occasion-grid" id="occasionGrid"></div>
-          <div class="flow-nav">
-            <div></div><button class="btn-next" id="btn1" disabled>Pick Template →</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- S2: TEMPLATE -->
-      <div class="screen" id="sc2">
-        <div class="card">
-          <span class="label-tag">Step 2 of 5</span>
-          <h2 class="card-title">Pick Your <em>Template</em></h2>
-          <p class="card-sub">Your face will be drawn in Antonos's signature style. Templates marked 👥 include multiple
-            people.</p>
-          <div class="template-grid" id="templateGrid"></div>
-          <div class="flow-nav">
-            <button class="btn-back" onclick="goTo(1)">← Back</button>
-            <button class="btn-next" id="btn2" disabled>Add Details →</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- S3: DETAILS -->
-      <div class="screen" id="sc3">
-        <div class="card">
-          <span class="label-tag">Step 3 of 5</span>
-          <h2 class="card-title">Tell Us <em>More</em></h2>
-          <p class="card-sub">These details help our AI personalise the caricature — hair, expression, accessories and
-            more.</p>
-          <div id="dynamicQuestions"></div>
-          <div class="flow-nav">
-            <button class="btn-back" onclick="goTo(2)">← Back</button>
-            <button class="btn-next" onclick="goTo(4)">Upload Photos →</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- S4: PHOTOS -->
-      <div class="screen" id="sc4">
-        <div class="card">
-          <span class="label-tag">Step 4 of 5</span>
-          <h2 class="card-title">Upload <em>Photos</em></h2>
-          <p class="card-sub" id="uploadSubtitle">Upload one clear, front-facing photo per person. Well-lit photos give
-            the best results.</p>
-          <div class="upload-zones" id="uploadZones"></div>
-          <div class="flow-nav">
-            <button class="btn-back" onclick="goTo(3)">← Back</button>
-            <button class="btn-next" id="btn4" disabled>Choose Plan →</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- S5: PAY -->
-      <div class="screen" id="sc5">
-        <div class="card">
-          <span class="label-tag">Step 5 of 5</span>
-          <h2 class="card-title">Almost <em>There!</em></h2>
-          <p class="card-sub" id="paySubtitle">Choose your plan and complete your order. Your caricature arrives in ~90
-            seconds.</p>
-
-          <!-- Free token banner (hidden by default) -->
-          <div class="free-banner hidden" id="freeBanner">
-            <div class="free-banner-icon">🎁</div>
-            <div class="free-banner-text">
-              <strong>Your free caricature is ready!</strong>
-              <span>Thank you for your review — this one is completely on us. No payment needed.</span>
-            </div>
-          </div>
-
-          <!-- Plans (hidden in free mode) -->
-          <div id="planGridWrap">
-            <div class="plan-grid" id="planGrid"></div>
-          </div>
-
-          <div class="order-summary" id="orderSummary"></div>
-          <div class="form-group">
-            <label>Email — where we send your caricature</label>
-            <input type="email" class="form-input" id="emailInput" placeholder="you@email.com">
-          </div>
-          <div class="form-group">
-            <label>Full Name</label>
-            <input type="text" class="form-input" id="nameInput" placeholder="Your name">
-          </div>
-
-          <!-- Card payment (hidden in free mode) -->
-          <div id="cardWrap">
-            <div class="form-group">
-              <label>Card Details</label>
-              <div id="card-element"></div>
-              <div id="card-error"></div>
-            </div>
-            <button class="pay-btn" id="payBtn" disabled>🔒 Pay & Generate Caricature</button>
-            <p class="pay-notice">🔒 Secured by Stripe · SSL encrypted · Your photo is deleted 72h after delivery</p>
-          </div>
-
-          <!-- Free order button (shown in free mode) -->
-          <button class="free-btn hidden" id="freeBtn" disabled>🎨 Generate My Free Caricature</button>
-
-          <div class="flow-nav" style="border:none;padding:0;margin-top:12px">
-            <button class="btn-back" onclick="goTo(4)">← Back</button>
-            <div></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- S6: SUCCESS -->
-      <div class="screen" id="sc6">
-        <div class="card">
-          <div class="success-screen">
-            <div class="success-icon">🎨</div>
-            <h2 class="success-title">Creating Your <em>Caricature!</em></h2>
-            <p class="success-sub">Payment confirmed. We're generating your personalised caricature — check your email
-              in ~90 seconds!</p>
-            <div class="steps-list">
-              <div class="step-item done" id="genStep1"><span class="step-icon">✓</span> Payment confirmed</div>
-              <div class="step-item active" id="genStep2"><span class="step-icon">⟳</span> Analysing your photo with AI
-              </div>
-              <div class="step-item" id="genStep3"><span class="step-icon">○</span> Generating your caricature</div>
-              <div class="step-item" id="genStep4"><span class="step-icon">○</span> Sending to your email</div>
-            </div>
-            <div
-              style="background:var(--gold-pale);border:1px solid var(--gold);border-radius:var(--r);padding:20px 24px;margin-top:24px;text-align:left">
-              <h4 style="font-family:var(--display);font-size:21px;font-weight:700;margin-bottom:6px">Want a handmade
-                version?</h4>
-              <p style="font-size:14px;color:var(--muted);line-height:1.6">Our artist Antonos creates premium hand-drawn
-                caricatures at <a href="https://caricature.photo"
-                  style="color:var(--gold);font-weight:700">caricature.photo</a></p>
-            </div>
-          </div>
-        </div>
-      </div>
-
+<!-- STEP 1: PATH -->
+<div class="screen active" id="screen1">
+<div class="card">
+  <div class="card-title">Create Your <em>Caricature</em></div>
+  <div class="card-sub">Choose how to personalise your art.</div>
+  <span class="label-tag">Select your path</span>
+  <div class="path-grid">
+    <div class="path-card" id="path-template" onclick="selectPath('template')">
+      <div class="path-icon">🎨</div>
+      <div class="path-name">Pick a Template</div>
+      <div class="path-desc">Choose from 60+ professional scenes. The template background is used as the base — we place your face on it.</div>
+    </div>
+    <div class="path-card" id="path-free" onclick="selectPath('free')">
+      <div class="path-badge">CREATIVE</div>
+      <div class="path-icon">✏️</div>
+      <div class="path-name">Describe Your Own</div>
+      <div class="path-desc">Describe any scene you can imagine. Full creative freedom — any background, theme, or setting.</div>
     </div>
   </div>
-  <div id="toast"></div>
-  <script>
-    const API = 'https://caricature-api-52458434183.us-central1.run.app';
+  <div class="btn-row"><button class="btn-next" id="btn1" onclick="goTo(2)" disabled>Continue →</button></div>
+</div>
+</div>
 
-    // ── FREE TOKEN (from URL ?free_token=...) ──────────────────────
-    const FREE_TOKEN = new URLSearchParams(window.location.search).get('free_token') || null;
-    let freeMode = false;
+<!-- STEP 2: OCCASION -->
+<div class="screen" id="screen2">
+<div class="card">
+  <div class="card-title">What's the <em>Occasion?</em></div>
+  <div class="card-sub">This filters the right templates and style.</div>
+  <span class="label-tag">Select occasion</span>
+  <div class="occasion-grid" id="occasionGrid"></div>
+  <div class="btn-row">
+    <button class="btn-back" onclick="goTo(1)">Back</button>
+    <button class="btn-next" id="btn2" onclick="goTo(S.flow==='template'?4:3)" disabled>Continue →</button>
+  </div>
+</div>
+</div>
 
-    async function initFreeToken() {
-      if (!FREE_TOKEN) return;
-      try {
-        const res = await fetch(`${API}/api/free-order/validate`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ free_token: FREE_TOKEN })
-        });
-        const data = await res.json();
-        if (!data.success) { toast('This free link has expired or already been used.', true); return; }
-        // Activate free mode
-        freeMode = true;
-        // Pre-fill email and name
-        const emailEl = document.getElementById('emailInput');
-        const nameEl = document.getElementById('nameInput');
-        if (emailEl) emailEl.value = data.email || '';
-        if (nameEl) nameEl.value = data.name || '';
-        toast('🎁 Free caricature activated! Complete the steps to claim it.');
-      } catch (e) {
-        console.warn('Free token validation failed:', e);
-      }
+<!-- STEP 3: PERSONS -->
+<div class="screen" id="screen3">
+<div class="card">
+  <div class="card-title">How Many <em>People?</em></div>
+  <div class="card-sub">We ask for 2 photos per person for better likeness.</div>
+  <span class="label-tag">Number of persons</span>
+  <div class="persons-grid">
+    <div class="person-btn" id="pb1" onclick="selectPersons(this,'1')"><div class="person-btn-count">1</div><div class="person-btn-label">person</div></div>
+    <div class="person-btn" id="pb2" onclick="selectPersons(this,'2')"><div class="person-btn-count">2</div><div class="person-btn-label">people +€5</div></div>
+    <div class="person-btn" id="pb3" onclick="selectPersons(this,'3')"><div class="person-btn-count">3</div><div class="person-btn-label">people +€10</div></div>
+    <div class="person-btn" id="pb4" onclick="selectPersons(this,'4')"><div class="person-btn-count">4</div><div class="person-btn-label">people +€15</div></div>
+    <div class="person-btn" id="pb5" onclick="selectPersons(this,'5')"><div class="person-btn-count">5</div><div class="person-btn-label">people +€20</div></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn-back" onclick="goTo(2)">Back</button>
+    <button class="btn-next" id="btn3" onclick="goTo(4)" disabled>Continue →</button>
+  </div>
+</div>
+</div>
+
+<!-- STEP 4T: TEMPLATE -->
+<div class="screen" id="screen4template">
+<div class="card">
+  <div class="card-title">Choose Your <em>Template</em></div>
+  <div class="card-sub">Your face will be placed on the selected scene using AI image-to-image generation.</div>
+  <span class="label-tag">Templates for <span id="occasionLabel">—</span></span>
+  <div class="template-grid" id="templateGrid"></div>
+  <div class="btn-row">
+    <button class="btn-back" onclick="goTo(prevStep(4))">Back</button>
+    <button class="btn-next" id="btn4t" onclick="goTo(5)" disabled>Continue →</button>
+  </div>
+</div>
+</div>
+
+<!-- STEP 4F: FREE -->
+<div class="screen" id="screen4free">
+<div class="card">
+  <div class="card-title">Describe Your <em>Scene</em></div>
+  <div class="card-sub">The more detail you give, the better the result.</div>
+  <div class="alert-info">
+    💡 <strong>Example:</strong> "Santa Claus carrying a big red bag of gifts, snowy blue night sky with stars and snowflakes, bright festive colours, the person is smiling and carrying the bag over the shoulder"
+  </div>
+  <div class="form-group">
+    <label>Scene description *</label>
+    <textarea class="form-input" id="sceneDescription" rows="5"
+      placeholder="Describe the scene, background, what the person is doing, props, clothing, mood..."
+      oninput="checkDesc()"></textarea>
+    <div id="descCount" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>
+  </div>
+  <div class="form-group">
+    <label>Extra notes (optional)</label>
+    <input type="text" class="form-input" id="extraNotes" placeholder="Any special requests, personalisation...">
+  </div>
+  <div class="btn-row">
+    <button class="btn-back" onclick="goTo(3)">Back</button>
+    <button class="btn-next" id="btn4f" onclick="goTo(5)" disabled>Continue →</button>
+  </div>
+</div>
+</div>
+
+<!-- STEP 5: PHOTOS -->
+<div class="screen" id="screen5">
+<div class="card">
+  <div class="card-title">Upload <em>Photos</em></div>
+  <div class="card-sub">2 photos per person gives us the best facial reference for your caricature.</div>
+  <div class="photo-tip">
+    📸 <strong>Best results:</strong> Clear face, good lighting, front or slight angle.<br>
+    Upload 2 different shots (eg. smiling + neutral) for better likeness.<br>
+    <strong>Avoid:</strong> Sunglasses, very small face, dark or backlit photos.
+  </div>
+  <div id="personSections"></div>
+  <div class="btn-row">
+    <button class="btn-back" id="btn5back">Back</button>
+    <button class="btn-next" id="btn5" onclick="goTo(6)" disabled>Continue →</button>
+  </div>
+</div>
+</div>
+
+<!-- STEP 6: PAY -->
+<div class="screen" id="screen6">
+<div class="card">
+  <div class="card-title">Almost <em>Done!</em></div>
+  <div class="card-sub">Choose your plan and complete your order.</div>
+  <span class="label-tag">Plan</span>
+  <div class="plan-grid" id="planGrid"></div>
+  <div class="order-summary" id="orderSummary"></div>
+  <span class="label-tag">Your details</span>
+  <div class="form-group">
+    <label>Full name</label>
+    <input type="text" class="form-input" id="nameInput" placeholder="Your name" oninput="checkPay()">
+  </div>
+  <div class="form-group">
+    <label>Email address</label>
+    <input type="email" class="form-input" id="emailInput" placeholder="your@email.com" oninput="checkPay()">
+  </div>
+  <span class="label-tag" style="margin-top:20px;">Payment</span>
+  <div id="card-element"></div>
+  <div id="card-error"></div>
+  <button class="pay-btn" id="payBtn" disabled>🎨 Complete Order</button>
+  <p class="pay-notice">Secured by Stripe · Results emailed in 60–90 seconds</p>
+  <div class="btn-row" style="margin-top:16px;"><button class="btn-back" onclick="goTo(5)">Back</button></div>
+</div>
+</div>
+
+<!-- SUCCESS -->
+<div class="screen" id="screenSuccess">
+<div class="success-page">
+  <div class="success-icon">🎨</div>
+  <div class="success-title">Your Caricature is <em>Being Created!</em></div>
+  <div class="success-sub">We are generating your Antonos-style caricature right now. Check your email in 60–90 seconds.</div>
+  <div id="successOrderId" style="font-size:13px;color:var(--muted);margin-top:8px;"></div>
+</div>
+</div>
+
+</div></div><!-- /container /page -->
+
+<script>
+const API_URL = 'https://caricature-api-52458434183.us-central1.run.app';
+const OCCASIONS = [
+  {id:'wedding',  emoji:'💒', name:'Wedding',   desc:'For the happy couple'},
+  {id:'birthday', emoji:'🎂', name:'Birthday',  desc:'Celebrate in style'},
+  {id:'business', emoji:'💼', name:'Business',  desc:'Professional & fun'},
+  {id:'kids',     emoji:'🧸', name:'Kids',      desc:'For little ones'},
+  {id:'superhero',emoji:'🦸', name:'Superhero', desc:'Mighty caricatures'},
+  {id:'family',   emoji:'👨‍👩‍👧‍👦',name:'Family',   desc:'For everyone'},
+  {id:'sports',   emoji:'⚽', name:'Sports',    desc:'Active & energetic'},
+  {id:'other',    emoji:'✨', name:'Other',     desc:'Custom occasion'},
+];
+const PERSON_EXTRA = {'1':0,'2':5,'3':10,'4':15,'5':20};
+const PLANS_DEF = {
+  standard:{name:'Standard',  base:14.99, desc:'Digital art · Email delivery'},
+  premium: {name:'Premium',   base:24.99, desc:'Free revision · Priority queue'},
+  gift:    {name:'Gift Pack', base:49.99, desc:'3 prints · 4K resolution'},
+};
+const S = {
+  flow:null, occasion:null, persons:null,
+  templateId:null, templateName:null,
+  description:'', notes:'',
+  plan:'standard', personUploads:[], step:1,
+};
+
+// ── INIT ─────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', ()=>{
+  renderOccasions();
+  renderPlans();
+  initStripe();
+  document.getElementById('btn5back').onclick = ()=> goTo(prevStep(5));
+});
+
+async function initStripe(){
+  try{
+    const r = await fetch(`${API_URL}/api/pricing`);
+    const d = await r.json();
+    const stripe = Stripe(d.publishable_key || 'pk_test_REPLACE_ME');
+    const els = stripe.elements();
+    window._stripe = stripe;
+    const card = els.create('card',{style:{base:{fontFamily:"'Outfit',sans-serif",fontSize:'16px',color:'#2a2420'}}});
+    card.mount('#card-element');
+    card.on('change', e=>{
+      document.getElementById('card-error').textContent = e.error?e.error.message:'';
+      window._cardOk = e.complete;
+      checkPay();
+    });
+    window._card = card;
+  }catch(e){console.warn('Stripe init:',e);}
+}
+
+// ── NAVIGATION ───────────────────────────────────────────
+// Flow B skips Persons step — template defines person count
+// Flow A: 1→2→3→4→5→6  (Style→Occasion→Persons→Desc→Photos→Pay)
+// Flow B: 1→2→4→5→6     (Style→Occasion→Template→Photos→Pay)
+
+function nextStep(from){
+  if(S.flow==='template'){
+    const map = {1:2, 2:4, 4:5, 5:6};
+    return map[from] || from+1;
+  }
+  return from+1;
+}
+function prevStep(from){
+  if(S.flow==='template'){
+    const map = {2:1, 4:2, 5:4, 6:5};
+    return map[from] || from-1;
+  }
+  return from-1;
+}
+
+function goTo(step){
+  if(step > S.step){
+    if(step===2 && !S.flow) return;
+    if(step===3 && !S.occasion) return;
+    if(step===4){
+      // Flow A needs persons, Flow B needs occasion only
+      if(S.flow==='free' && !S.persons) return;
+      if(!S.occasion) return;
     }
-
-    const OCCASIONS = {
-      wedding: { name: 'Wedding', emoji: '💒', desc: 'For the big day' },
-      birthday: { name: 'Birthday', emoji: '🎂', desc: 'Celebrate in style' },
-      business: { name: 'Business', emoji: '💼', desc: 'Professional & fun' },
-      kids: { name: 'Kids', emoji: '👶', desc: 'Little ones' },
-      superhero: { name: 'Superhero', emoji: '🦸', desc: 'Become a hero' },
-      family: { name: 'Family', emoji: '👨‍👩‍👧', desc: 'Friends & family' },
-      sports: { name: 'Sports', emoji: '⚽', desc: 'Hobbies & sports' },
-    };
-
-    const PLANS = {
-      basic: { name: 'Basic', base: 899, desc: '4K caricature · 1 free revision' },
-      standard: { name: 'Standard', base: 1499, desc: '4K caricature · 2 free revisions', featured: true },
-      premium: { name: 'Premium', base: 1999, desc: '4K caricature · 3 free revisions' },
-    };
-
-    const PERSON_EXTRA = { '1': 0, '2': 500, '3': 1000, '4': 1500 };
-
-    let allTemplates = {};
-    let visibleCount = 12;
-
-    let state = {
-      step: 1, occasion: null,
-      templateId: null, templatePersons: 1, templateName: '',
-      uploadIds: [], answers: {},
-      plan: 'basic', orderId: null,
-      stripe: null, card: null, stripeReady: false,
-    };
-
-    function toast(msg, err = false) {
-      const el = document.getElementById('toast');
-      el.textContent = msg; el.className = 'show' + (err ? ' error' : '');
-      clearTimeout(el._t); el._t = setTimeout(() => el.className = '', 3500);
+    if(step===5){
+      if(S.flow==='template' && !S.templateId) return;
+      if(S.flow==='free' && S.description.trim().length < 20) return;
     }
+    if(step===6 && !photosOk()) return;
+  }
+  const oldId = screenId(S.step);
+  document.getElementById(oldId)?.classList.remove('active');
+  S.step = step;
+  const newId = screenId(step);
+  document.getElementById(newId)?.classList.add('active');
+  updateProgress(step);
+  if(step===4) renderStep4();
+  if(step===5) renderPhotos();
+  if(step===6) renderPay();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
 
-    function goTo(step) {
-      for (let i = 1; i <= 6; i++) {
-        const sc = document.getElementById('sc' + i);
-        if (sc) sc.classList.toggle('active', i === step);
-        const ps = document.getElementById('ps' + i);
-        if (ps) { ps.classList.remove('active', 'done'); if (i === step) ps.classList.add('active'); if (i < step) ps.classList.add('done'); }
-      }
-      state.step = step;
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      if (step === 2) loadTemplates();
-      if (step === 3) renderQuestions();
-      if (step === 4) renderUploadZones();
-      if (step === 5) { renderPlans(); renderSummary(); initStripe(); }
+function updateProgress(step){
+  if(S.flow==='template'){
+    // Flow B: 5 steps — hide step 3 (Persons)
+    document.getElementById('ps3').style.display='none';
+    // Map real steps to visual positions
+    const active = {1:1, 2:2, 4:3, 5:4, 6:5}[step] || step;
+    const total  = [1,2,4,5,6];
+    total.forEach((realStep, idx) => {
+      const ps = document.getElementById(`ps${realStep}`);
+      if(!ps) return;
+      ps.classList.remove('active','done');
+      if(realStep===step) ps.classList.add('active');
+      else if(total.indexOf(realStep) < total.indexOf(step)) ps.classList.add('done');
+    });
+  } else {
+    document.getElementById('ps3').style.display='';
+    for(let i=1;i<=6;i++){
+      const p=document.getElementById(`ps${i}`);
+      if(!p) continue;
+      p.classList.remove('active','done');
+      if(i===step) p.classList.add('active');
+      else if(i<step) p.classList.add('done');
     }
+  }
+}
 
-    function renderOccasions() {
-      const grid = document.getElementById('occasionGrid');
-      grid.innerHTML = Object.entries(OCCASIONS).map(([id, o]) => `
-    <div class="occasion-card" data-id="${id}" onclick="selectOccasion('${id}')">
+function screenId(s){
+  if(s===4) return S.flow==='template'?'screen4template':'screen4free';
+  return `screen${s}`;
+}
+
+// ── STEP 1 ────────────────────────────────────────────────
+function selectPath(p){
+  S.flow=p;
+  document.getElementById('path-template').classList.toggle('selected',p==='template');
+  document.getElementById('path-free').classList.toggle('selected',p==='free');
+  document.getElementById('btn1').disabled=false;
+  // Flow B: Step 1 Continue goes straight to Occasion (step 2)
+}
+
+// ── STEP 2 ────────────────────────────────────────────────
+function renderOccasions(){
+  document.getElementById('occasionGrid').innerHTML =
+    OCCASIONS.map(o=>`<div class="occasion-card" id="occ-${o.id}" onclick="pickOcc('${o.id}','${o.name}')">
       <div class="occasion-emoji">${o.emoji}</div>
       <div class="occasion-name">${o.name}</div>
       <div class="occasion-desc">${o.desc}</div>
     </div>`).join('');
-    }
+}
+function pickOcc(id){
+  S.occasion=id;
+  document.querySelectorAll('.occasion-card').forEach(c=>c.classList.remove('selected'));
+  document.getElementById(`occ-${id}`)?.classList.add('selected');
+  document.getElementById('btn2').disabled=false;
+}
 
-    function selectOccasion(id) {
-      state.occasion = id; state.templateId = null; allTemplates = {}; visibleCount = 12;
-      document.querySelectorAll('.occasion-card').forEach(c => c.classList.toggle('selected', c.dataset.id === id));
-      document.getElementById('btn1').disabled = false;
-    }
+// ── STEP 3 ────────────────────────────────────────────────
+function selectPersons(el, val){
+  S.persons=val;
+  document.querySelectorAll('.person-btn').forEach(b=>b.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('btn3').disabled=false;
+}
 
-    async function loadTemplates() {
-      const grid = document.getElementById('templateGrid');
-      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">Loading templates…</div>';
-      try {
-        const res = await fetch(`${API}/api/templates?occasion=${state.occasion}`);
-        const data = await res.json();
-        if (!data.success) throw new Error('Failed');
-        allTemplates = data.templates; visibleCount = 12;
-        renderTemplateGrid();
-      } catch (e) {
-        grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">Could not load templates. Please try again.</div>';
-      }
-    }
+// ── STEP 4 ────────────────────────────────────────────────
+async function renderStep4(){
+  if(S.flow==='template'){
+    document.getElementById('occasionLabel').textContent = S.occasion;
+    await loadTemplates();
+  }
+}
 
-    function renderTemplateGrid() {
-      const grid = document.getElementById('templateGrid');
-      const entries = Object.entries(allTemplates);
-      const visible = entries.slice(0, visibleCount);
-      const hasMore = entries.length > visibleCount;
-      grid.innerHTML = visible.map(([id, t]) => {
-        const imgUrl = `https://storage.googleapis.com/caricature-files/templates/${id}.jpg`;
-        const personsLabel = t.persons > 1 ? `👥 ${t.persons}` : '';
-        return `<div class="template-card" data-id="${id}" data-persons="${t.persons}" onclick="selectTemplate('${id}',${t.persons},'${t.name.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')">
-      <img src="${imgUrl}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('template-no-img')" alt="${t.name}">
-      <div class="template-card-overlay"></div>
-      ${personsLabel ? `<div class="template-persons-badge">${personsLabel}</div>` : ''}
-      <div class="template-card-info">
-        <div class="template-emoji">${t.emoji}</div>
-        <div class="template-name">${t.name}</div>
+async function loadTemplates(){
+  const grid = document.getElementById('templateGrid');
+  grid.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--muted)">Loading templates…</div>';
+  try{
+    const [tr, gr] = await Promise.all([
+      fetch(`${API_URL}/api/templates?occasion=${S.occasion}&persons=${S.persons}`),
+      fetch(`${API_URL}/api/gallery`)
+    ]);
+    const td = await tr.json();
+    const gd = await gr.json();
+    const tmpl = Object.entries(td.templates||{});
+    const gal  = gd.gallery||{};
+    if(!tmpl.length){
+      grid.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--muted)">No templates for this occasion. Try another occasion or use Describe Your Own.</div>';
+      return;
+    }
+    grid.innerHTML = tmpl.map(([id,t])=>{
+      const imgUrl = gal[S.occasion]?.image_url || null;
+      return `<div class="template-card" id="tmpl-${id}" onclick="pickTemplate('${id}','${t.name.replace(/'/g,"\\'")}',${ t.persons||1})">
+        ${imgUrl?`<img src="${imgUrl}" alt="${t.name}" loading="lazy">`:''}
+        <div class="template-card-overlay"></div>
+        <div class="template-card-info">
+          ${!imgUrl?`<div class="template-emoji-fb">${t.emoji||'🎨'}</div>`:''}
+          <div class="template-name-card">${t.name}</div>
+        </div>
+        <div class="template-persons-badge">${t.persons}👤</div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    grid.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--error)">Failed to load. Please refresh.</div>';
+  }
+}
+
+function pickTemplate(id, name, personsCount){
+  S.templateId=id; S.templateName=name;
+  // Auto-set persons from template definition
+  S.persons = String(personsCount || 1);
+  document.querySelectorAll('.template-card').forEach(c=>c.classList.remove('selected'));
+  document.getElementById(`tmpl-${id}`)?.classList.add('selected');
+  document.getElementById('btn4t').disabled=false;
+}
+
+function checkDesc(){
+  const v = document.getElementById('sceneDescription').value.trim();
+  S.description = v;
+  const count = document.getElementById('descCount');
+  count.textContent = v.length < 20 ? `${20-v.length} more characters needed` : `${v.length} characters ✓`;
+  document.getElementById('btn4f').disabled = v.length < 20;
+}
+
+// ── STEP 5: PHOTOS ────────────────────────────────────────
+function renderPhotos(){
+  const container = document.getElementById('personSections');
+  const n = Math.min(parseInt(S.persons)||1, 5);
+  while(S.personUploads.length < n) S.personUploads.push({p:S.personUploads.length+1, u:[null,null]});
+  S.personUploads = S.personUploads.slice(0,n);
+  container.innerHTML = S.personUploads.map((pu,pi)=>`
+    <div class="person-section">
+      <div class="person-section-title">👤 Person ${pi+1}</div>
+      <div class="photos-row">
+        ${[0,1].map(qi=>`
+          <div class="upload-zone" id="z-${pi}-${qi}">
+            <img class="upload-preview" id="prev-${pi}-${qi}">
+            <div id="icon-${pi}-${qi}">
+              <div class="upload-icon-d">${qi===0?'📸':'🤳'}</div>
+              <div class="upload-label-d">${qi===0?'Photo 1 (required)':'Photo 2 (optional)'}</div>
+              <div class="upload-hint-d">Click · JPG/PNG · max 15MB</div>
+            </div>
+            <div class="upload-status" id="st-${pi}-${qi}"></div>
+            <input type="file" accept="image/*" onchange="onFile(event,${pi},${qi})">
+          </div>`).join('')}
       </div>
-    </div>`;
-      }).join('');
-      if (hasMore) {
-        const btn = document.createElement('div');
-        btn.className = 'template-load-more';
-        btn.textContent = `Show more (${entries.length - visibleCount} more)`;
-        btn.onclick = () => { visibleCount += 12; renderTemplateGrid(); };
-        grid.appendChild(btn);
-      }
-      if (state.templateId) document.querySelectorAll('.template-card').forEach(c => c.classList.toggle('selected', c.dataset.id === state.templateId));
-    }
-
-    function selectTemplate(id, persons, name) {
-      state.templateId = id;
-      state.templatePersons = parseInt(persons) || 1;
-      state.templateName = name;
-      state.persons = String(state.templatePersons);
-      state.uploadIds = new Array(state.templatePersons).fill(null);
-      document.querySelectorAll('.template-card').forEach(c => c.classList.toggle('selected', c.dataset.id === id));
-      document.getElementById('btn2').disabled = false;
-      const sub = document.getElementById('uploadSubtitle');
-      if (sub) sub.textContent = state.templatePersons > 1
-        ? `This template features ${state.templatePersons} people — upload one clear photo for each person.`
-        : 'Upload one clear, front-facing photo. Well-lit photos give the best results.';
-    }
-
-    const BASE_QUESTIONS = [
-      { id: 'hair_color', label: 'Hair colour', type: 'select', options: ['Black', 'Brown', 'Blonde', 'Red', 'Grey/Silver', 'White', 'Other'] },
-      { id: 'skin_tone', label: 'Skin tone', type: 'select', options: ['Very light', 'Light', 'Medium', 'Olive/tan', 'Dark', 'Very dark'] },
-      { id: 'expression', label: 'Preferred expression', type: 'select', options: ['Happy smile', 'Big laugh', 'Serious/cool', 'Surprised', 'Winking/playful'] },
-      { id: 'glasses', label: 'Glasses?', type: 'select', options: ['No glasses', 'Regular glasses', 'Sunglasses', 'Reading glasses'] },
-      { id: 'extras', label: 'Extra details to include', type: 'text', placeholder: 'Beard, clothing, accessories, hat, earrings…' },
-    ];
-
-    function renderQuestions() {
-      const container = document.getElementById('dynamicQuestions');
-      const count = state.templatePersons || 1;
-      if (count === 1) {
-        container.innerHTML = renderPersonQuestions('');
-      } else {
-        container.innerHTML = Array.from({ length: count }, (_, i) => `
-      <div class="person-section">
-        <div class="person-section-title">👤 Person ${i + 1}</div>
-        ${renderPersonQuestions('_p' + (i + 1))}
-      </div>`).join('');
-      }
-    }
-
-    function renderPersonQuestions(suffix) {
-      return BASE_QUESTIONS.map(q => {
-        const fid = `q_${q.id}${suffix}`, sk = `${q.id}${suffix}`;
-        if (q.type === 'select') return `<div class="form-group"><label>${q.label}</label>
-      <select class="form-input" id="${fid}" onchange="state.answers['${sk}']=this.value">
-        <option value="">— Select —</option>
-        ${q.options.map(o => `<option value="${o}">${o}</option>`).join('')}
-      </select></div>`;
-        return `<div class="form-group"><label>${q.label}</label>
-      <textarea class="form-input" id="${fid}" placeholder="${q.placeholder || ''}" rows="2"
-        oninput="state.answers['${sk}']=this.value"></textarea></div>`;
-      }).join('');
-    }
-
-    function renderUploadZones() {
-      const count = state.templatePersons || 1;
-      const zones = document.getElementById('uploadZones');
-      zones.innerHTML = Array.from({ length: count }, (_, i) => `
-    <div class="upload-zone" id="uz${i}" onclick="document.getElementById('fi${i}').click()">
-      <input type="file" id="fi${i}" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="handleUpload(${i},this.files[0])">
-      <img class="upload-preview-img" id="uprev${i}">
-      <div class="upload-icon">📸</div>
-      <div class="upload-label">${count > 1 ? `Person ${i + 1} — Click to upload` : 'Click to upload your photo'}</div>
-      <div class="upload-hint">JPG · PNG · WEBP · Max 10MB · Front-facing works best</div>
-      <div class="upload-done" id="udone${i}">✓ Photo uploaded</div>
     </div>`).join('');
-      if (state.uploadIds.length !== count) state.uploadIds = new Array(count).fill(null);
-      checkUploads();
+  checkPhotosBtn();
+}
+
+async function onFile(e, pi, qi){
+  const file = e.target.files[0];
+  if(!file) return;
+  const z  = document.getElementById(`z-${pi}-${qi}`);
+  const st = document.getElementById(`st-${pi}-${qi}`);
+  const ic = document.getElementById(`icon-${pi}-${qi}`);
+  const pv = document.getElementById(`prev-${pi}-${qi}`);
+
+  z.classList.add('uploading');
+  z.classList.remove('upload-error');
+  st.className='upload-status';
+  st.textContent='⏳ Uploading & checking face…';
+
+  // Local preview
+  const reader = new FileReader();
+  reader.onload = ev => { pv.src=ev.target.result; pv.style.display='block'; ic.style.display='none'; };
+  reader.readAsDataURL(file);
+
+  try{
+    const fd = new FormData();
+    fd.append('file', file);
+    const res  = await fetch(`${API_URL}/api/upload?quality=true`, {method:'POST', body:fd});
+    const data = await res.json();
+    if(!data.success) throw new Error(data.error||'Upload failed');
+
+    S.personUploads[pi].u[qi] = {upload_id:data.upload_id, photo_url:data.photo_url, quality:data.quality||{}};
+    z.classList.remove('uploading');
+    z.classList.add('has-file');
+
+    const score = data.score || data.quality?.score || 5;
+    const warns = data.warnings || data.quality?.warnings || [];
+    const strategy = data.quality?.recovery_strategy || 'full_analysis';
+
+    if(warns.includes('no_face')){
+      // Hard reject
+      z.classList.remove('has-file'); z.classList.add('upload-error');
+      st.className='upload-status err';
+      st.innerHTML='❌ <strong>No face detected.</strong> Please upload a photo showing the person's face clearly.';
+      S.personUploads[pi].u[qi]=null;
+      pv.style.display='none'; ic.style.display='';
+      showQualityAlert(pi, qi, 'no_face', warns);
+    } else if(score>=7){
+      st.className='upload-status ok';
+      st.textContent='✅ Excellent — great photo!';
+      clearQualityAlert(pi, qi);
+    } else if(score>=5){
+      st.className='upload-status warn';
+      const msg = buildQualityMsg(warns);
+      st.innerHTML='⚠️ ' + msg.short;
+      if(msg.tip) showQualityAlert(pi, qi, 'warn', warns, msg.tip);
+    } else {
+      // Low quality — show prominent warning but don't reject
+      z.classList.add('upload-error');
+      st.className='upload-status err';
+      const msg = buildQualityMsg(warns);
+      st.innerHTML='⚠️ <strong>Low quality.</strong> ' + msg.short;
+      showQualityAlert(pi, qi, 'low', warns, msg.tip);
     }
+  }catch(err){
+    z.classList.remove('uploading'); z.classList.add('upload-error');
+    st.className='upload-status err'; st.textContent=err.message;
+    S.personUploads[pi].u[qi]=null;
+    pv.style.display='none'; ic.style.display='';
+  }
+  checkPhotosBtn();
+}
 
-    async function handleUpload(idx, file) {
-      if (!file) return;
-      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { toast('Use JPG, PNG or WEBP', true); return; }
-      if (file.size > 10 * 1024 * 1024) { toast('Max 10MB', true); return; }
-      const zone = document.getElementById('uz' + idx);
-      zone.style.opacity = '.6';
-      const reader = new FileReader();
-      reader.onload = e => { const p = document.getElementById('uprev' + idx); p.src = e.target.result; p.style.display = 'block'; };
-      reader.readAsDataURL(file);
-      const fd = new FormData(); fd.append('file', file);
-      try {
-        const res = await fetch(`${API}/api/upload`, { method: 'POST', body: fd });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || 'Upload failed');
-        state.uploadIds[idx] = data.upload_id;
-        document.getElementById('udone' + idx).style.display = 'block';
-        document.querySelector(`#uz${idx} .upload-icon`).style.display = 'none';
-        document.querySelector(`#uz${idx} .upload-label`).style.display = 'none';
-        document.querySelector(`#uz${idx} .upload-hint`).style.display = 'none';
-        zone.classList.add('has-file');
-        toast(`Photo ${idx + 1} uploaded ✓`);
-        checkUploads();
-      } catch (e) { toast(e.message || 'Upload failed', true); }
-      finally { zone.style.opacity = '1'; }
-    }
+function photosOk(){ return S.personUploads.every(pu=>pu.u[0]!==null); }
 
-    function checkUploads() {
-      const allDone = state.uploadIds.length > 0 && state.uploadIds.every(id => id !== null);
-      document.getElementById('btn4').disabled = !allDone;
-    }
+const QUALITY_TIPS = {
+  no_face:    {short:'No face detected.', tip:'Use a photo where the face is clearly visible, front-facing, not covered by hands or objects.'},
+  backlit:    {short:'Photo is backlit.', tip:'Try a photo taken facing a light source (window or lamp in front of you), not behind you.'},
+  blurred:    {short:'Photo is blurry.',  tip:'Make sure the photo is sharp and in focus. Hold the camera steady or use portrait mode.'},
+  dark:       {short:'Photo is too dark.', tip:'Take the photo in good natural light or a well-lit room.'},
+  face_too_small:{short:'Face is too small in the frame.', tip:'Use a closer photo where the face takes up at least 1/3 of the image.'},
+  multiple_faces:{short:'Multiple faces detected.', tip:'Upload a photo with only the one person you want in the caricature.'},
+  obstructed: {short:'Face is partially covered.', tip:'Remove sunglasses, hats, or anything covering the face.'},
+  low_resolution:{short:'Low resolution photo.', tip:'Use a higher resolution photo — avoid heavily compressed or screenshot images.'},
+};
 
-    function renderPlans() {
-      if (freeMode) {
-        // Hide plan grid, show free banner
-        document.getElementById('planGridWrap').classList.add('hidden');
-        document.getElementById('freeBanner').classList.remove('hidden');
-        document.getElementById('cardWrap').classList.add('hidden');
-        document.getElementById('freeBtn').classList.remove('hidden');
-        document.getElementById('paySubtitle').textContent = 'Your free caricature is one click away — no payment needed.';
-        return;
-      }
-      const personExtra = PERSON_EXTRA[String(state.templatePersons)] || 0;
-      const grid = document.getElementById('planGrid');
-      grid.innerHTML = Object.entries(PLANS).map(([id, p]) => {
-        const cents = p.base + personExtra;
-        return `<div class="plan-card ${p.featured ? 'featured' : ''}" data-id="${id}" onclick="selectPlan('${id}')">
-      ${p.featured ? '<div class="plan-badge">★ Most Popular</div>' : ''}
-      <div class="plan-name">${p.name}</div>
-      <div class="plan-price">€${(cents / 100).toFixed(2)}</div>
-      <div class="plan-desc">${p.desc}</div>
-    </div>`;
-      }).join('');
-      if (!state.plan) selectPlan('basic');
-      else document.querySelectorAll('.plan-card').forEach(c => c.classList.toggle('selected', c.dataset.id === state.plan));
-    }
+function buildQualityMsg(warns){
+  // Find the most important warning
+  const priority = ['no_face','backlit','blurred','dark','face_too_small','obstructed','low_resolution','multiple_faces'];
+  for(const w of priority){
+    if(warns.includes(w)) return QUALITY_TIPS[w] || {short:'Quality could be better.', tip:'Try a clearer, well-lit photo.'};
+  }
+  return {short:'Could be clearer.', tip:'A sharper, well-lit front-facing photo gives the best caricature result.'};
+}
 
-    function selectPlan(id) {
-      state.plan = id;
-      document.querySelectorAll('.plan-card').forEach(c => c.classList.toggle('selected', c.dataset.id === id));
-      renderSummary(); checkPayReady();
-    }
+function showQualityAlert(pi, qi, type, warns, tip){
+  const alertId = `qa-${pi}-${qi}`;
+  let el = document.getElementById(alertId);
+  if(!el){
+    el = document.createElement('div');
+    el.id = alertId;
+    el.style.cssText = 'border-radius:8px;padding:12px 14px;font-size:13px;margin-top:8px;line-height:1.6;';
+    const zone = document.getElementById(`z-${pi}-${qi}`);
+    zone.parentNode.insertBefore(el, zone.nextSibling);
+  }
+  if(type==='no_face'){
+    el.style.cssText += 'background:#fef2f2;border:1px solid #fecaca;color:#991b1b;';
+    el.innerHTML = `<strong>❌ No face detected</strong><br>${QUALITY_TIPS.no_face.tip}`;
+  } else if(type==='low'){
+    el.style.cssText += 'background:#fffbeb;border:1px solid #fde68a;color:#92400e;';
+    el.innerHTML = `<strong>⚠️ Low quality photo</strong><br>${tip || 'Try a clearer, well-lit photo.'}<br><em style="font-size:12px;opacity:.8">You can still proceed, but the result may be less accurate.</em>`;
+  } else {
+    el.style.cssText += 'background:#fffbeb;border:1px solid #fde68a;color:#92400e;';
+    el.innerHTML = `<strong>💡 Tip</strong> ${tip || 'A clearer photo gives better results.'}`;
+  }
+}
 
-    function renderSummary() {
-      const personExtra = PERSON_EXTRA[String(state.templatePersons)] || 0;
-      const plan = PLANS[state.plan] || PLANS.basic;
-      const cents = plan.base + personExtra;
-      const occ = OCCASIONS[state.occasion] || {};
-      const totalRow = freeMode
-        ? `<div class="sum-row"><span>Total</span><span class="sum-val" style="color:#2d7a4f;font-size:18px">🎁 FREE</span></div>`
-        : `<div class="sum-row"><span>Total</span><span class="sum-val">€${(cents / 100).toFixed(2)}</span></div>`;
-      document.getElementById('orderSummary').innerHTML = `
-    <div class="sum-row"><span>Occasion</span><span class="sum-val">${occ.emoji || ''} ${occ.name || '—'}</span></div>
-    <div class="sum-row"><span>Template</span><span class="sum-val">${state.templateName || '—'}</span></div>
-    <div class="sum-row"><span>People</span><span class="sum-val">${state.templatePersons}</span></div>
-    <div class="sum-row"><span>Plan</span><span class="sum-val">${freeMode ? 'Free (Review Reward)' : plan.name}</span></div>
-    <div class="sum-row"><span>Delivery</span><span class="sum-val">Email · ~90 seconds</span></div>
-    ${totalRow}`;
-    }
+function clearQualityAlert(pi, qi){
+  const el = document.getElementById(`qa-${pi}-${qi}`);
+  if(el) el.remove();
+}
+function checkPhotosBtn(){ document.getElementById('btn5').disabled=!photosOk(); }
 
-    function initStripe() { if (state.stripeReady || freeMode) return; state.stripeReady = true; }
+// ── STEP 6: PAY ───────────────────────────────────────────
+function renderPlans(){
+  document.getElementById('planGrid').innerHTML =
+    Object.entries(PLANS_DEF).map(([id,p])=>`
+      <div class="plan-card ${id==='standard'?'selected':''}" id="plan-${id}" onclick="pickPlan('${id}')">
+        ${id==='premium'?'<div class="plan-badge">POPULAR</div>':''}
+        <div class="plan-name">${p.name}</div>
+        <div class="plan-price">€${p.base.toFixed(2)}</div>
+        <div class="plan-desc">${p.desc}</div>
+      </div>`).join('');
+}
+function pickPlan(id){
+  S.plan=id;
+  document.querySelectorAll('.plan-card').forEach(c=>c.classList.remove('selected'));
+  document.getElementById(`plan-${id}`)?.classList.add('selected');
+  updateSummary(); checkPay();
+}
+function renderPay(){ updateSummary(); checkPay(); }
+function updateSummary(){
+  const p = PLANS_DEF[S.plan]||PLANS_DEF.standard;
+  const ex = PERSON_EXTRA[S.persons]||0;
+  const total = p.base+ex;
+  const sel = S.flow==='template' ? (S.templateName||'Custom') : 'Custom scene';
+  document.getElementById('orderSummary').innerHTML = `
+    <div class="sum-row"><span>Style</span><span class="sum-val">${sel}</span></div>
+    <div class="sum-row"><span>Persons</span><span class="sum-val">${S.persons}</span></div>
+    <div class="sum-row"><span>Plan</span><span class="sum-val">${p.name}</span></div>
+    ${ex>0?`<div class="sum-row"><span>Extra persons</span><span class="sum-val">+€${ex.toFixed(2)}</span></div>`:''}
+    <div class="sum-row"><span>Total</span><span class="sum-val">€${total.toFixed(2)}</span></div>`;
+}
+function checkPay(){
+  const em = document.getElementById('emailInput')?.value.trim();
+  const nm = document.getElementById('nameInput')?.value.trim();
+  document.getElementById('payBtn').disabled = !(em&&em.includes('@')&&nm&&window._cardOk);
+}
 
-    async function setupStripe(pubKey) {
-      if (state.stripe || freeMode) return;
-      state.stripe = Stripe(pubKey);
-      const els = state.stripe.elements();
-      state.card = els.create('card', {
-        style: {
-          base: { color: '#2a2420', fontFamily: 'Outfit,sans-serif', fontSize: '15px', '::placeholder': { color: '#8a7968' } },
-          invalid: { color: '#c0392b' }
-        }
-      });
-      state.card.mount('#card-element');
-      state.card.on('change', e => { document.getElementById('card-error').textContent = e.error ? e.error.message : ''; });
-      document.getElementById('payBtn').disabled = false;
-    }
-
-    function checkPayReady() {
-      const email = document.getElementById('emailInput')?.value.trim() || '';
-      const name = document.getElementById('nameInput')?.value.trim() || '';
-      const ready = email.includes('@') && name.length > 1;
-      if (freeMode) {
-        const btn = document.getElementById('freeBtn');
-        if (btn) btn.disabled = !ready;
-      } else {
-        const btn = document.getElementById('payBtn');
-        if (btn) btn.disabled = !ready;
-      }
-    }
-
-    // ── FREE ORDER SUBMIT ──────────────────────────────────────────
-    async function handleFreeOrder() {
-      const email = document.getElementById('emailInput').value.trim();
-      const name = document.getElementById('nameInput').value.trim();
-      if (!email || !email.includes('@')) { toast('Please enter a valid email', true); return; }
-      if (!name) { toast('Please enter your name', true); return; }
-      const btn = document.getElementById('freeBtn');
-      btn.disabled = true; btn.textContent = '⏳ Generating…';
-      try {
-        const res = await fetch(`${API}/api/free-order/create`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            free_token: FREE_TOKEN,
-            template_id: state.templateId,
-            upload_ids: state.uploadIds.filter(Boolean),
-            persons: String(state.templatePersons),
-            answers: state.answers, email, name,
-          })
-        });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || 'Could not create free order');
-        state.orderId = data.order_id;
-        goTo(6);
-        pollStatus(state.orderId);
-      } catch (e) {
-        toast(e.message || 'Something went wrong', true);
-        btn.disabled = false; btn.textContent = '🎨 Generate My Free Caricature';
-      }
-    }
-
-    async function handlePay() {
-      const email = document.getElementById('emailInput').value.trim();
-      const name = document.getElementById('nameInput').value.trim();
-      if (!email || !email.includes('@')) { toast('Please enter a valid email', true); return; }
-      if (!name) { toast('Please enter your name', true); return; }
-      const btn = document.getElementById('payBtn');
-      btn.disabled = true; btn.textContent = '⏳ Processing…';
-      try {
-        const res = await fetch(`${API}/api/create-payment-intent`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            template_id: state.templateId,
-            upload_ids: state.uploadIds.filter(Boolean),
-            persons: String(state.templatePersons),
-            plan: state.plan, answers: state.answers, email, name,
-          })
-        });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || 'Payment setup failed');
-        state.orderId = data.order_id;
-        if (!state.stripe) await setupStripe(data.publishable_key);
-        await new Promise(r => setTimeout(r, 300));
-        const result = await state.stripe.confirmCardPayment(data.clientSecret, {
-          payment_method: { card: state.card, billing_details: { name, email } }
-        });
-        if (result.error) throw new Error(result.error.message);
-        goTo(6); pollStatus(state.orderId);
-      } catch (e) {
-        document.getElementById('card-error').textContent = e.message;
-        btn.disabled = false; btn.textContent = '🔒 Pay & Generate Caricature';
-      }
-    }
-
-    let genPhase = 2;
-    function pollStatus(orderId) {
-      const iv = setInterval(async () => {
-        try {
-          const res = await fetch(`${API}/api/order-status/${orderId}`);
-          const data = await res.json();
-          if (data.status === 'generating' && genPhase < 3) {
-            genPhase = 3;
-            document.getElementById('genStep2').classList.add('done');
-            document.getElementById('genStep2').querySelector('.step-icon').textContent = '✓';
-            document.getElementById('genStep3').classList.add('active');
-            document.getElementById('genStep3').querySelector('.step-icon').textContent = '⟳';
-          }
-          if (data.status === 'completed') {
-            clearInterval(iv);
-            document.getElementById('genStep3').classList.add('done');
-            document.getElementById('genStep3').querySelector('.step-icon').textContent = '✓';
-            document.getElementById('genStep4').classList.add('done');
-            document.getElementById('genStep4').querySelector('.step-icon').textContent = '✓';
-            document.querySelector('.success-title').innerHTML = 'Your Caricature is <em>Ready!</em>';
-            document.querySelector('.success-sub').textContent = 'Check your email — your caricature has been sent! Links are valid for 72 hours.';
-            toast('🎨 Caricature sent to your email!');
-          }
-          if (data.status === 'failed') {
-            clearInterval(iv);
-            document.querySelector('.success-title').innerHTML = "We're <em>On It!</em>";
-            document.querySelector('.success-sub').textContent = 'We hit a small technical issue. Antonos will complete your caricature manually within 24 hours.';
-          }
-        } catch (e) { }
-      }, 5000);
-    }
-
-    document.addEventListener('DOMContentLoaded', async () => {
-      renderOccasions();
-      await initFreeToken(); // validate token on load
-      document.getElementById('btn1').addEventListener('click', () => goTo(2));
-      document.getElementById('btn2').addEventListener('click', () => goTo(3));
-      document.getElementById('btn4').addEventListener('click', () => goTo(5));
-      document.getElementById('payBtn').addEventListener('click', handlePay);
-      document.getElementById('freeBtn').addEventListener('click', handleFreeOrder);
-      ['emailInput', 'nameInput'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener('input', checkPayReady);
-      });
-    });
-  </script>
+// ── PAYMENT ───────────────────────────────────────────────
+document.getElementById('payBtn').addEventListener('click', async ()=>{
+  const btn = document.getElementById('payBtn');
+  const em  = document.getElementById('emailInput').value.trim();
+  const nm  = document.getElementById('nameInput').value.trim();
+  const err = document.getElementById('card-error');
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Creating order…'; err.textContent='';
+  try{
+    const pph = S.personUploads.map(pu=>({person:pu.p, upload_ids:pu.u.filter(Boolean).map(u=>u.upload_id)}));
+    const desc = S.flow==='free'
+      ? [document.getElementById('sceneDescription').value.trim(), document.getElementById('extraNotes').value.trim()].filter(Boolean).join('. ')
+      : '';
+    const payload = {flow:S.flow, template_id:S.templateId, description:desc, occasion:S.occasion,
+                     persons:S.persons, plan:S.plan, person_photos:pph, email:em, name:nm};
+    const r = await fetch(`${API_URL}/api/create-payment-intent`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const d = await r.json();
+    if(!d.success) throw new Error(d.error||'Order creation failed');
+    btn.innerHTML='<span class="spinner"></span>Processing payment…';
+    const result = await window._stripe.confirmCardPayment(d.clientSecret,{payment_method:{card:window._card,billing_details:{name:nm,email:em}}});
+    if(result.error) throw new Error(result.error.message);
+    document.getElementById('screen6').classList.remove('active');
+    document.getElementById('screenSuccess').classList.add('active');
+    document.getElementById('successOrderId').textContent=`Order ID: ${d.order_id}`;
+    document.getElementById('progressBar').style.display='none';
+    window.scrollTo({top:0,behavior:'smooth'});
+  }catch(e){
+    err.textContent=e.message; btn.disabled=false; btn.innerHTML='🎨 Complete Order';
+  }
+});
+</script>
 </body>
-
 </html>

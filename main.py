@@ -1,7 +1,7 @@
 # ══════════════════════════════════════════════════════════════
-#   CARICATURE.ONLINE — Backend v2.0
+#   CARICATURE.ONLINE — Backend v2.1
 #   AI Caricature in the style of Antonos (caricature.photo)
-#   Stack: Flask · Firestore · GCS · fal.ai LoRA · Stripe · SendGrid
+#   Stack: Flask · Firestore · GCS · fal.ai LoRA · Stripe · Resend
 # ══════════════════════════════════════════════════════════════
 
 import os, uuid, threading, time, requests
@@ -10,8 +10,7 @@ from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 import stripe
 from google.cloud import storage as gcs_lib, firestore
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+import resend
 import anthropic
 
 app = Flask(__name__)
@@ -31,8 +30,8 @@ CFG = {
     "FAL_KEY":             os.environ.get("FAL_API_KEY",              "").strip(),
     "FAL_LORA_URL":        os.environ.get("FAL_LORA_URL",             "").strip(),
     "ANTHROPIC_KEY":       os.environ.get("ANTHROPIC_API_KEY",        "").strip(),
-    "SENDGRID_KEY":        os.environ.get("SENDGRID_API_KEY",         "").strip(),
-    "SENDGRID_FROM":       os.environ.get("SENDGRID_FROM_EMAIL",      "art@caricature.online").strip(),
+    "RESEND_KEY":          os.environ.get("RESEND_API_KEY",           "").strip(),
+    "RESEND_FROM":         os.environ.get("RESEND_FROM_EMAIL",        "art@caricature.online").strip(),
     "ADMIN_EMAIL":         os.environ.get("ADMIN_EMAIL",              "antonosart@gmail.com").strip(),
     "ADMIN_SECRET":        os.environ.get("ADMIN_SECRET",             "change-me").strip(),
     "GCS_BUCKET":          os.environ.get("GCS_BUCKET",               "caricature-files").strip(),
@@ -43,7 +42,8 @@ stripe.api_key     = CFG["STRIPE_SECRET"]
 gcs_client         = gcs_lib.Client()
 db                 = firestore.Client()
 claude_client      = anthropic.Anthropic(api_key=CFG["ANTHROPIC_KEY"])
-sg                 = SendGridAPIClient(CFG["SENDGRID_KEY"])
+resend.api_key     = CFG["RESEND_KEY"]
+os.environ["FAL_KEY"] = CFG["FAL_KEY"]  # fal_client reads env var, not api_key attr
 
 # ══════════════════════════════════════════════════════════════
 #   TEMPLATES CATALOGUE
@@ -222,13 +222,12 @@ def update_order_status(order_id: str, status: str, extra: dict = {}):
 
 def notify_admin(msg: str):
     try:
-        message = Mail(
-            from_email=CFG["SENDGRID_FROM"],
-            to_emails=CFG["ADMIN_EMAIL"],
-            subject=f"[Caricature Admin] {msg[:60]}",
-            plain_text_content=msg
-        )
-        sg.send(message)
+        resend.Emails.send({
+            "from": CFG["RESEND_FROM"],
+            "to": [CFG["ADMIN_EMAIL"]],
+            "subject": f"[Caricature Admin] {msg[:60]}",
+            "text": msg
+        })
     except:
         pass
 
@@ -237,103 +236,181 @@ def notify_admin(msg: str):
 #   AI PIPELINE — LoRA Generation
 # ══════════════════════════════════════════════════════════════
 
-def analyze_photo_with_claude(photo_url: str, persons: str, template_name: str, answers: dict) -> str:
-    """Use Claude Vision to create a detailed prompt for the LoRA model."""
+# ══════════════════════════════════════════════════════════════
+#   PHOTO QUALITY ASSESSMENT — 2-Pass System
+# ══════════════════════════════════════════════════════════════
+
+def assess_photo_quality(photo_url: str) -> dict:
+    """Pass 1: Quality Assessment — strict JSON, no prose."""
+    import base64, json
+    defaults = {
+        "score": 5, "face_size": "medium", "lighting": "good",
+        "sharpness": "sharp", "usable": True,
+        "visible_features": ["face"], "warnings": [],
+        "recovery_strategy": "full_analysis"
+    }
+    quality_prompt = (
+        "Assess this photo for caricature generation. Return ONLY valid JSON, no prose.\n"
+        "Score 1-10. face_size: large|medium|small|none. lighting: good|backlit|dark|harsh.\n"
+        "sharpness: sharp|slightly_blurred|blurred. usable: true if score>=3 and face present.\n"
+        "visible_features: array from [hair_color,hair_style,eye_color,eye_shape,face_shape,skin_tone,age_range,beard,glasses,distinctive_features]\n"
+        "warnings: array from [face_too_small,backlit,blurred,multiple_faces,no_face,low_resolution,obstructed]\n"
+        "recovery_strategy: full_analysis if score>=6 | partial_analysis if score 3-5 | template_only if score<3 or no face\n"
+        "JSON format: {score,face_size,lighting,sharpness,usable,visible_features,warnings,recovery_strategy}"
+    )
     try:
-        # Download the photo
         img_data = requests.get(photo_url, timeout=15).content
-        import base64
-        img_b64 = base64.b64encode(img_data).decode()
-
-        occasion_desc = answers.get("occasion", "")
-        notes = answers.get("notes", "")
-
+        img_b64  = base64.b64encode(img_data).decode()
         msg = claude_client.messages.create(
             model="claude-opus-4-20250514",
-            max_tokens=400,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}
-                    },
-                    {
-                        "type": "text",
-                        "text": f"""Analyze this photo and write a caricature generation prompt.
-Template: {template_name}
-Occasion: {occasion_desc}
-Notes: {notes}
+            max_tokens=300,
+            messages=[{"role": "user", "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}},
+                {"type": "text", "text": quality_prompt}
+            ]}]
+        )
+        raw = msg.content[0].text.strip()
+        if "{" in raw:
+            raw = raw[raw.index("{"):raw.rindex("}")+1]
+        result = {**defaults, **json.loads(raw)}
+        print(f"[Quality] Score={result.get('score')} strategy={result.get('recovery_strategy')} warnings={result.get('warnings')}")
+        return result
+    except Exception as e:
+        print(f"[Quality] Assessment error: {e}")
+        return defaults
 
-Describe the person's key features (face shape, hair, distinctive features) in 2-3 sentences.
-Then write a final prompt in this format:
-PROMPT: ANTONOS caricature style, [person description], {template_name} theme, exaggerated features, bold lines, colorful, professional caricature art, caricature.photo style
+def generate_adaptive_prompt(
+    quality_results: list,
+    photo_urls: list,
+    scene_description: str,
+    template_name: str,
+    persons: str
+) -> str:
+    """Pass 2: Adaptive prompt based on photo quality strategy."""
+    import base64
 
-Write only the PROMPT line, nothing else."""
-                    }
-                ]
-            }]
+    strategies = [q.get("recovery_strategy", "full_analysis") for q in quality_results]
+    if "template_only" in strategies:
+        strategy = "template_only"
+    elif "partial_analysis" in strategies:
+        strategy = "partial_analysis"
+    else:
+        strategy = "full_analysis"
+
+    print(f"[Prompt] Strategy={strategy} persons={persons}")
+
+    if strategy == "template_only":
+        return (
+            f"ANTONOS caricature style, {scene_description}, "
+            f"high angle bird's eye view, large expressive head small body, "
+            f"exaggerated cartoon features, bold black outlines, vivid flat colors, "
+            f"detailed illustrated background, professional caricature art, high resolution"
+        )
+
+    try:
+        content_parts = []
+        for url in photo_urls[:2]:
+            try:
+                img_data = requests.get(url, timeout=15).content
+                img_b64  = base64.b64encode(img_data).decode()
+                content_parts.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}})
+            except:
+                pass
+
+        if not content_parts:
+            raise Exception("No photos available")
+
+        visible = list(set(f for q in quality_results for f in q.get("visible_features", [])))
+        if strategy == "partial_analysis":
+            feature_note = f"Only describe features you can clearly see ({', '.join(visible) if visible else 'limited'}).  Do NOT invent features you cannot confirm."
+        else:
+            feature_note = "Describe all visible features: face shape, hair color/style, eye color/shape, skin tone, distinctive features, approximate age."
+
+        content_parts.append({"type": "text", "text": (
+            f"Analyze the person(s) for caricature generation.\n{feature_note}\n\n"
+            f"Scene: {scene_description}\nTemplate: {template_name}\nPersons: {persons}\n\n"
+            f"Write a single prompt. Format exactly:\n"
+            f"PROMPT: ANTONOS caricature style, [confirmed person features only], {scene_description}, "
+            f"high angle bird's eye view, large expressive head small body, exaggerated features, "
+            f"bold black outlines, vivid flat colors, detailed background, "
+            f"professional caricature art, high resolution\n\nWrite only the PROMPT line."
+        )})
+
+        msg = claude_client.messages.create(
+            model="claude-opus-4-20250514", max_tokens=500,
+            messages=[{"role": "user", "content": content_parts}]
         )
         text = msg.content[0].text.strip()
-        if "PROMPT:" in text:
-            return text.split("PROMPT:")[-1].strip()
-        return text
+        return text.split("PROMPT:")[-1].strip() if "PROMPT:" in text else text
+
     except Exception as e:
-        print(f"[Claude] Error: {e}")
-        template = TEMPLATES.get(answers.get("template_id", ""), {})
-        return f"ANTONOS caricature style, {template.get('desc','portrait')}, {template_name} theme, exaggerated features, bold lines, colorful, professional caricature art"
+        print(f"[Prompt] Error: {e}")
+        return f"ANTONOS caricature style, {scene_description}, high angle view, large head small body, exaggerated features, bold black outlines, vivid colors, professional caricature art"
 
 
-def generate_with_lora(prompt: str, photo_urls: list) -> str | None:
-    """Generate caricature using fal.ai LoRA or face-swap."""
+# Legacy wrapper for backward compatibility
+def analyze_photo_with_claude(photo_url: str, persons: str, template_name: str, answers: dict) -> str:
+    scene = answers.get("description") or answers.get("notes") or TEMPLATES.get(answers.get("template_id",""),{}).get("desc","portrait")
+    quality = assess_photo_quality(photo_url)
+    return generate_adaptive_prompt([quality], [photo_url], scene, template_name, persons)
+
+
+
+def generate_with_lora(prompt: str, photo_urls: list, template_image_url: str = None) -> str | None:
+    """Generate caricature — Method 1: img2img+LoRA, 2: text2img+LoRA, 3: FLUX fallback."""
     import fal_client
     fal_client.api_key = CFG["FAL_KEY"]
 
-    # Method 1: LoRA trained on Antonos style
-    if CFG["FAL_LORA_URL"]:
+    # Method 1: img2img with template reference + LoRA (best background fidelity)
+    if CFG["FAL_LORA_URL"] and template_image_url:
         try:
-            print(f"[AI] Generating with LoRA: {CFG['FAL_LORA_URL'][:50]}...")
+            print(f"[AI] img2img + LoRA with template reference...")
             result = fal_client.run(
                 "fal-ai/flux-lora",
                 arguments={
                     "prompt": prompt,
-                    "loras": [{"path": CFG["FAL_LORA_URL"], "scale": 1.0}],
-                    "image_size": "portrait_4_3",
+                    "image_url": template_image_url,
+                    "strength": 0.72,
+                    "loras": [{"path": CFG["FAL_LORA_URL"], "scale": 0.9}],
+                    "image_size": "square_hd",
                     "num_images": 1,
-                    "num_inference_steps": 28,
-                    "guidance_scale": 7.5,
+                    "num_inference_steps": 35,
+                    "guidance_scale": 8.5,
                 }
             )
             if result and result.get("images"):
                 return result["images"][0]["url"]
         except Exception as e:
-            print(f"[AI] LoRA failed: {e}")
+            print(f"[AI] img2img LoRA failed: {e}")
 
-    # Method 2: Face swap (if we have reference photo + LoRA)
-    if photo_urls and CFG["FAL_LORA_URL"]:
+    # Method 2: text-to-image with LoRA
+    if CFG["FAL_LORA_URL"]:
         try:
-            print(f"[AI] Trying face swap...")
+            print(f"[AI] text2img + LoRA...")
             result = fal_client.run(
-                "fal-ai/face-swap",
+                "fal-ai/flux-lora",
                 arguments={
-                    "base_image_url": photo_urls[0],
-                    "face_image_url": photo_urls[0],
                     "prompt": prompt,
+                    "loras": [{"path": CFG["FAL_LORA_URL"], "scale": 0.9}],
+                    "image_size": "square_hd",
+                    "num_images": 1,
+                    "num_inference_steps": 35,
+                    "guidance_scale": 8.5,
                 }
             )
-            if result and result.get("image"):
-                return result["image"]["url"]
+            if result and result.get("images"):
+                return result["images"][0]["url"]
         except Exception as e:
-            print(f"[AI] Face swap failed: {e}")
+            print(f"[AI] LoRA text2img failed: {e}")
 
-    # Method 3: Standard FLUX without LoRA
+    # Method 3: Standard FLUX fallback
     try:
-        print(f"[AI] Falling back to standard FLUX...")
+        print(f"[AI] FLUX schnell fallback...")
         result = fal_client.run(
             "fal-ai/flux/schnell",
             arguments={
                 "prompt": prompt,
-                "image_size": "portrait_4_3",
+                "image_size": "square_hd",
                 "num_images": 1,
                 "num_inference_steps": 8,
             }
@@ -346,65 +423,126 @@ def generate_with_lora(prompt: str, photo_urls: list) -> str | None:
     return None
 
 
+# ── Template image URL lookup ──────────────────────────────────
+# Upload templates first: gsutil cp image/*.jpg gs://caricature-files/templates/
+# Filename must match: {template_id}.jpg
+def get_template_image_url(template_id: str) -> str | None:
+    """Returns GCS URL for template reference image, or None if not uploaded."""
+    if not template_id:
+        return None
+    url = f"https://storage.googleapis.com/{CFG['GCS_BUCKET']}/templates/{template_id}.jpg"
+    try:
+        resp = requests.head(url, timeout=5)
+        if resp.status_code == 200:
+            return url
+    except:
+        pass
+    return None
+
+
+def analyze_photo_with_claude_v2(
+    photo_urls: list,
+    persons: str,
+    template_name: str,
+    scene_description: str,
+    quality_results: list
+) -> str:
+    """Wrapper that calls generate_adaptive_prompt with pre-computed quality results."""
+    return generate_adaptive_prompt(
+        quality_results=quality_results,
+        photo_urls=photo_urls,
+        scene_description=scene_description,
+        template_name=template_name,
+        persons=persons
+    )
+
+
 def run_generation_pipeline(order_id: str):
-    """Main AI pipeline — runs in background thread after payment."""
+    """Main AI pipeline v3 — Pass1 quality + Pass2 adaptive prompt + img2img."""
     try:
         order = get_order(order_id)
         if not order:
             raise Exception("Order not found")
-
         update_order_status(order_id, "generating")
-        print(f"[Pipeline] Starting generation for {order_id}")
+        print(f"[Pipeline] Starting v3 pipeline for {order_id}")
 
-        template_id   = order["template_id"]
-        template      = TEMPLATES.get(template_id, {})
-        photo_urls    = order.get("photo_urls", [])
-        answers       = order.get("answers", {})
-        email         = order["email"]
-        name          = order["name"]
-        plan_id       = order["plan_id"]
+        flow         = order.get("flow", "template")
+        template_id  = order.get("template_id")
+        template     = TEMPLATES.get(template_id, {}) if template_id else {}
+        description  = order.get("description", "")
+        person_photos= order.get("person_photos", [])
+        email        = order["email"]
+        name         = order["name"]
+        plan_id      = order["plan_id"]
 
-        # 1. Claude Vision analysis
-        print(f"[Pipeline] Claude analyzing photo...")
-        prompt = analyze_photo_with_claude(
-            photo_urls[0] if photo_urls else "",
+        # Flatten all photo URLs (2 per person)
+        all_photos = []
+        for pp in person_photos:
+            all_photos.extend(pp.get("photo_urls", []))
+        if not all_photos:
+            all_photos = order.get("photo_urls", [])  # backward compat
+
+        # ── Pass 1: Quality Assessment ─────────────────────────
+        print(f"[Pipeline] Pass 1: Assessing {len(all_photos)} photos...")
+        quality_results = []
+        low_quality = False
+        for url in all_photos[:4]:
+            q = assess_photo_quality(url)
+            quality_results.append(q)
+            print(f"[Pipeline]   score={q.get('score')} strategy={q.get('recovery_strategy')} face={q.get('face_detected')}")
+            if q.get("score", 5) <= 3:
+                low_quality = True
+
+        update_order_status(order_id, "generating", {
+            "quality_results": quality_results,
+            "photo_quality_warning": low_quality,
+        })
+        if low_quality:
+            notify_admin(f"⚠️ Low quality photos on order {order_id} — consider manual review")
+
+        # ── Pass 2: Adaptive Prompt ────────────────────────────
+        template_name = template.get("name", description[:50] if description else "Custom caricature")
+        scene_desc    = description if description else template.get("desc", template_name)
+        print(f"[Pipeline] Pass 2: Generating adaptive prompt...")
+        prompt = analyze_photo_with_claude_v2(
+            all_photos,
             order.get("persons", "1"),
-            template.get("name", template_id),
-            {**answers, "template_id": template_id}
+            template_name,
+            scene_desc,
+            quality_results
         )
-        print(f"[Pipeline] Prompt: {prompt[:100]}...")
+        print(f"[Pipeline] Prompt: {prompt[:120]}...")
 
-        # 2. Generate with LoRA
-        print(f"[Pipeline] Generating caricature...")
-        raw_url = generate_with_lora(prompt, photo_urls)
-
+        # ── Generation ─────────────────────────────────────────
+        template_image_url = get_template_image_url(template_id)
+        print(f"[Pipeline] Generating | template_img={bool(template_image_url)}...")
+        raw_url = generate_with_lora(prompt, all_photos, template_image_url)
         if not raw_url:
             raise Exception("All AI generation methods failed")
 
-        # 3. Save to GCS
-        img_bytes = requests.get(raw_url, timeout=30).content
-        filename  = f"result_{order_id}.jpg"
-        result_url = upload_to_gcs(img_bytes, filename, "image/jpeg", folder="results")
-        print(f"[Pipeline] Saved to GCS: {result_url}")
+        # ── Save + Deliver ─────────────────────────────────────
+        img_bytes  = requests.get(raw_url, timeout=30).content
+        result_url = upload_to_gcs(img_bytes, f"result_{order_id}.jpg", "image/jpeg", folder="results")
+        print(f"[Pipeline] Saved: {result_url}")
 
-        # 4. Send email
-        send_result_email(email, name, [result_url], order_id, template.get("name", ""), plan_id)
-
-        # 5. Complete
+        send_result_email(email, name, [result_url], order_id, template_name, plan_id)
         update_order_status(order_id, "completed", {
-            "result_urls": [result_url],
-            "completed_at": datetime.utcnow().isoformat(),
+            "result_urls":   [result_url],
+            "prompt_used":   prompt,
+            "quality_results": quality_results,
+            "completed_at":  datetime.utcnow().isoformat(),
             "review_email_sent": False,
         })
-        notify_admin(f"✅ Order {order_id} completed | {template.get('name','')} | {email}")
+        notify_admin(f"✅ Order {order_id} completed | {template_name} | {email}")
 
     except Exception as e:
-        print(f"[Pipeline] ERROR for {order_id}: {e}")
+        print(f"[Pipeline] ERROR {order_id}: {e}")
         update_order_status(order_id, "failed", {"error": str(e)})
         notify_admin(f"❌ Order {order_id} FAILED: {e}")
-        # Offer manual caricature.photo as fallback
         try:
-            send_fallback_email(order.get("email",""), order.get("name",""), order_id)
+            o = get_order(order_id)
+            if o:
+                send_fallback_email(o.get("email",""), o.get("name",""), order_id)
         except:
             pass
 
@@ -449,13 +587,12 @@ def send_result_email(email, name, result_urls, order_id, template_name, plan_id
     </body></html>
     """
 
-    message = Mail(
-        from_email=CFG["SENDGRID_FROM"],
-        to_emails=email,
-        subject=f"🎨 Your Caricature is Ready — {template_name}",
-        html_content=html
-    )
-    sg.send(message)
+    resend.Emails.send({
+        "from": CFG["RESEND_FROM"],
+        "to": [email],
+        "subject": f"🎨 Your Caricature is Ready — {template_name}",
+        "html": html
+    })
 
 
 def send_fallback_email(email, name, order_id):
@@ -480,13 +617,12 @@ def send_fallback_email(email, name, order_id):
     </div>
     </body></html>
     """
-    message = Mail(
-        from_email=CFG["SENDGRID_FROM"],
-        to_emails=email,
-        subject="🎨 Your Caricature — We're On It!",
-        html_content=html
-    )
-    sg.send(message)
+    resend.Emails.send({
+        "from": CFG["RESEND_FROM"],
+        "to": [email],
+        "subject": "🎨 Your Caricature — We're On It!",
+        "html": html
+    })
 
 
 # ══════════════════════════════════════════════════════════════
@@ -563,7 +699,22 @@ def upload_photo():
             "photo_url": photo_url,
             "created_at": datetime.utcnow().isoformat(),
         })
-        return ok({"upload_id": upload_id, "photo_url": photo_url})
+        # Pass 1 quality check
+        quality = assess_photo_quality(photo_url)
+        db.collection("uploads").document(upload_id).update({"quality": quality})
+
+        warning = None
+        if not quality.get("face_detected"):
+            warning = "No face detected. Please upload a photo showing a clear face."
+        elif quality.get("score", 5) <= 3:
+            warning = "Photo quality is low. A clearer photo will give better results."
+
+        return ok({
+            "upload_id":  upload_id,
+            "photo_url":  photo_url,
+            "quality":    quality,
+            "warning":    warning,
+        })
     except Exception as e:
         return err(f"Upload failed: {str(e)}", 500)
 
@@ -574,37 +725,54 @@ def upload_photo():
 
 @app.route("/api/create-payment-intent", methods=["POST"])
 def create_payment_intent():
-    body        = request.get_json()
-    template_id = body.get("template_id")
-    upload_ids  = body.get("upload_ids", [])
-    persons     = body.get("persons", "1")
-    plan_id     = body.get("plan", "standard")
-    answers     = body.get("answers", {})
-    notes       = body.get("notes", "")
-    email       = body.get("email", "").strip().lower()
-    name        = body.get("name", "").strip()
+    body         = request.get_json()
+    flow         = body.get("flow", "template")          # "template" | "free"
+    template_id  = body.get("template_id")
+    description  = body.get("description", "").strip()
+    occasion     = body.get("occasion", "")
+    person_photos= body.get("person_photos", [])         # [{person:1, upload_ids:[uid1,uid2]}]
+    upload_ids   = body.get("upload_ids", [])            # backward compat
+    persons      = body.get("persons", "1")
+    plan_id      = body.get("plan", "standard")
+    email        = body.get("email", "").strip().lower()
+    name         = body.get("name", "").strip()
 
-    if not template_id or template_id not in TEMPLATES:
+    # Validation
+    if flow == "template" and (not template_id or template_id not in TEMPLATES):
         return err("Invalid template")
-    if not upload_ids:
-        return err("Please upload at least one photo")
+    if flow == "free" and not description:
+        return err("Please describe your caricature")
     if not email or "@" not in email:
         return err("Invalid email")
     if plan_id not in PLANS:
         plan_id = "standard"
 
-    # Get photo URLs
-    photo_urls = []
-    for uid in upload_ids[:5]:
-        doc = db.collection("uploads").document(uid).get()
-        if doc.exists:
-            photo_urls.append(doc.to_dict()["photo_url"])
-    if not photo_urls:
-        return err("Photos not found. Please re-upload.")
+    # Collect photo URLs (new person_photos structure)
+    all_photo_urls   = []
+    person_photo_data= []
+
+    if person_photos:
+        for pp in person_photos:
+            p_urls = []
+            for uid in pp.get("upload_ids", [])[:2]:
+                doc = db.collection("uploads").document(uid).get()
+                if doc.exists:
+                    p_urls.append(doc.to_dict()["photo_url"])
+            if p_urls:
+                person_photo_data.append({"person": pp["person"], "photo_urls": p_urls})
+                all_photo_urls.extend(p_urls)
+    elif upload_ids:  # backward compat
+        for uid in upload_ids[:5]:
+            doc = db.collection("uploads").document(uid).get()
+            if doc.exists:
+                all_photo_urls.append(doc.to_dict()["photo_url"])
+
+    if not all_photo_urls:
+        return err("Please upload at least one photo per person")
 
     amount_cents = calc_price(persons, plan_id)
     order_id     = f"ord_{str(uuid.uuid4()).replace('-','')[:16]}"
-    template     = TEMPLATES[template_id]
+    template     = TEMPLATES.get(template_id, {}) if template_id else {}
 
     try:
         intent = stripe.PaymentIntent.create(
@@ -613,33 +781,34 @@ def create_payment_intent():
             automatic_payment_methods={"enabled": True},
             receipt_email=email,
             metadata={
-                "order_id":   order_id,
-                "template_id": template_id,
-                "plan_id":    plan_id,
-                "persons":    str(persons),
+                "order_id":    order_id,
+                "flow":        flow,
+                "template_id": template_id or "",
+                "plan_id":     plan_id,
+                "persons":     str(persons),
             },
-            description=f"Caricature — {template['name']} ({plan_id})"
+            description=f"Caricature — {template.get('name', description[:30])} ({plan_id})"
         )
     except stripe.error.StripeError as e:
         return err(f"Payment setup failed: {e.user_message}", 402)
 
     log_order(order_id, {
-        "order_id":       order_id,
-        "stripe_intent":  intent.id,
-        "template_id":    template_id,
-        "template_name":  template["name"],
-        "occasion":       template["occasion"],
-        "persons":        persons,
-        "plan_id":        plan_id,
-        "amount_cents":   amount_cents,
-        "photo_urls":     photo_urls,
-        "upload_ids":     upload_ids,
-        "answers":        answers,
-        "notes":          notes,
-        "email":          email,
-        "name":           name,
-        "status":         "pending",
-        "created_at":     datetime.utcnow().isoformat(),
+        "order_id":         order_id,
+        "stripe_intent":    intent.id,
+        "flow":             flow,
+        "template_id":      template_id,
+        "template_name":    template.get("name", ""),
+        "description":      description,
+        "occasion":         occasion or template.get("occasion", ""),
+        "persons":          persons,
+        "plan_id":          plan_id,
+        "amount_cents":     amount_cents,
+        "photo_urls":       all_photo_urls,
+        "person_photos":    person_photo_data,
+        "email":            email,
+        "name":             name,
+        "status":           "pending",
+        "created_at":       datetime.utcnow().isoformat(),
     })
 
     return ok({
@@ -843,14 +1012,13 @@ def send_review_request_email(email: str, name: str, order_id: str, result_url: 
     </div>
     </body></html>
     """
-    message = Mail(
-        from_email=CFG["SENDGRID_FROM"],
-        to_emails=email,
-        subject=f"⭐ How was your caricature? (Free one inside!)",
-        html_content=html
-    )
     try:
-        sg.send(message)
+        resend.Emails.send({
+            "from": CFG["RESEND_FROM"],
+            "to": [email],
+            "subject": "⭐ How was your caricature? (Free one inside!)",
+            "html": html
+        })
         print(f"[Review] Sent review request to {email} for {order_id}")
     except Exception as e:
         print(f"[Review] Failed to send review email: {e}")
@@ -886,14 +1054,13 @@ def send_free_caricature_email(email: str, name: str, free_token: str):
     </div>
     </body></html>
     """
-    message = Mail(
-        from_email=CFG["SENDGRID_FROM"],
-        to_emails=email,
-        subject="🎁 Your free caricature is waiting — thank you!",
-        html_content=html
-    )
     try:
-        sg.send(message)
+        resend.Emails.send({
+            "from": CFG["RESEND_FROM"],
+            "to": [email],
+            "subject": "🎁 Your free caricature is waiting — thank you!",
+            "html": html
+        })
         print(f"[Review] Sent free caricature email to {email}")
     except Exception as e:
         print(f"[Review] Failed to send free email: {e}")
@@ -1346,19 +1513,212 @@ Be specific. Mention template names, prompt changes, or marketing tactics. Max 2
         revenue_arrow = "📈" if data["revenue_change"] >= 0 else "📉"
         html = build_report_email(data, claude_analysis)
 
-        message = Mail(
-            from_email=CFG["SENDGRID_FROM"],
-            to_emails=CFG["ADMIN_EMAIL"],
-            subject=f"{revenue_arrow} Caricature.online — {week_label} · €{tw['revenue']} · {tw['completed']} orders",
-            html_content=html
-        )
-        sg.send(message)
+        resend.Emails.send({
+            "from": CFG["RESEND_FROM"],
+            "to": [CFG["ADMIN_EMAIL"]],
+            "subject": f"{revenue_arrow} Caricature.online — {week_label} · €{tw['revenue']} · {tw['completed']} orders",
+            "html": html
+        })
         print(f"[WeeklyReport] Sent report: €{tw['revenue']}, {tw['completed']} orders")
         return ok({"sent": True, "revenue": tw["revenue"], "orders": tw["completed"]})
 
     except Exception as e:
         print(f"[WeeklyReport] Error: {e}")
         return err(f"Report failed: {str(e)}", 500)
+
+
+# ══════════════════════════════════════════════════════════════
+#   GALLERY MANAGEMENT
+# ══════════════════════════════════════════════════════════════
+
+# One representative template per occasion for gallery previews
+GALLERY_STYLES = {
+    "wedding":   {"style_id": "wedding",   "template_id": "wed_happily",   "desc": "romantic wedding couple caricature, elegant, love theme"},
+    "business":  {"style_id": "business",  "template_id": "biz_analytics", "desc": "professional business caricature, office setting, confident"},
+    "birthday":  {"style_id": "birthday",  "template_id": "bday_superhero","desc": "fun birthday party caricature, celebration, colorful balloons"},
+    "kids":      {"style_id": "kids",      "template_id": "kids_ahoy",     "desc": "cute kids pirate party caricature, playful, fun"},
+    "superhero": {"style_id": "superhero", "template_id": "hero_superyou", "desc": "superhero caricature, cape, powerful pose, comic style"},
+    "family":    {"style_id": "family",    "template_id": "fam_cooking",   "desc": "family cooking together caricature, warm, cheerful kitchen"},
+    "sports":    {"style_id": "sports",    "template_id": "sport_nba",     "desc": "basketball player caricature, dynamic, court background"},
+    "travel":    {"style_id": "travel",    "template_id": "sport_travel",  "desc": "world traveler caricature, globe, adventure, suitcase"},
+    "music":     {"style_id": "music",     "template_id": "biz_guitar",    "desc": "rock guitarist caricature, electric guitar, stage lights"},
+    "christmas": {"style_id": "christmas", "template_id": "bday_santa",    "desc": "Santa Claus caricature, jolly, festive, red suit, gifts"},
+    "cooking":   {"style_id": "cooking",   "template_id": "biz_grand_chef","desc": "master chef caricature, tall white hat, kitchen, gourmet"},
+    "motorcycle":{"style_id": "motorcycle","template_id": "sport_yamaha",  "desc": "motorcycle rider caricature, helmet, speed, open road"},
+}
+
+def _fal_run_with_timeout(model: str, arguments: dict, timeout: int = 90):
+    """Run fal_client.run() with a hard timeout via threading."""
+    import fal_client
+    fal_client.api_key = CFG["FAL_KEY"]  # set in every thread context
+    result_box = [None]
+    error_box  = [None]
+    def _call():
+        try:
+            import os as _os
+            import fal_client as fc
+            _os.environ["FAL_KEY"] = CFG["FAL_KEY"]
+            fc.api_key = CFG["FAL_KEY"]
+            result_box[0] = fc.run(model, arguments=arguments)
+        except Exception as e:
+            error_box[0] = e
+    t = threading.Thread(target=_call, daemon=True)
+    t.start()
+    t.join(timeout=timeout)
+    if t.is_alive():
+        print(f"[Gallery] Timeout ({timeout}s) on {model}")
+        return None
+    if error_box[0]:
+        raise error_box[0]
+    return result_box[0]
+
+
+def _generate_gallery_image(style: dict) -> str | None:
+    """Generate one gallery preview image using FLUX (no photo needed)."""
+    import fal_client
+    fal_client.api_key = CFG["FAL_KEY"]
+    prompt = (
+        f"ANTONOS caricature art style, {style['desc']}, "
+        f"exaggerated cartoon features, bold outlines, vivid colors, "
+        f"professional digital illustration, white background, "
+        f"caricature.photo artist style, high quality"
+    )
+    # Try LoRA first (90s hard timeout)
+    if CFG["FAL_LORA_URL"]:
+        try:
+            print(f"[Gallery] Trying LoRA for {style['style_id']}...")
+            result = _fal_run_with_timeout(
+                "fal-ai/flux-lora",
+                {"prompt": prompt, "loras": [{"path": CFG["FAL_LORA_URL"], "scale": 0.9}],
+                 "image_size": "square_hd", "num_images": 1,
+                 "num_inference_steps": 28, "guidance_scale": 7.5},
+                timeout=90
+            )
+            if result and result.get("images"):
+                return result["images"][0]["url"]
+        except Exception as e:
+            print(f"[Gallery] LoRA failed for {style['style_id']}: {e}")
+
+    # Fallback: FLUX schnell (60s hard timeout)
+    try:
+        print(f"[Gallery] Trying FLUX schnell for {style['style_id']}...")
+        result = _fal_run_with_timeout(
+            "fal-ai/flux/schnell",
+            {"prompt": prompt, "image_size": "square_hd",
+             "num_images": 1, "num_inference_steps": 8},
+            timeout=60
+        )
+        if result and result.get("images"):
+            return result["images"][0]["url"]
+    except Exception as e:
+        print(f"[Gallery] FLUX fallback failed for {style['style_id']}: {e}")
+
+    return None
+
+def _save_gallery_image(style_id: str, image_url: str) -> str:
+    """Download generated image and save to GCS, return public URL."""
+    import urllib.request
+    import io
+    bucket = gcs_client.bucket(CFG["GCS_BUCKET"])
+    blob_name = f"gallery/{style_id}.jpg"
+    blob = bucket.blob(blob_name)
+    with urllib.request.urlopen(image_url) as resp:
+        image_bytes = resp.read()
+    blob.upload_from_string(image_bytes, content_type="image/jpeg")
+    # bucket has uniform IAM public access — no per-object ACL needed
+    public_url = f"https://storage.googleapis.com/{CFG['GCS_BUCKET']}/{blob_name}"
+    # Save to Firestore
+    db.collection("gallery").document(style_id).set({
+        "style_id":   style_id,
+        "image_url":  public_url,
+        "active":     True,
+        "updated_at": datetime.utcnow().isoformat(),
+    })
+    return public_url
+
+@app.route("/api/admin/gallery/regenerate-all", methods=["POST"])
+@require_admin
+def gallery_regenerate_all():
+    """Regenerate all gallery preview images in background thread."""
+    def _run():
+        results = {}
+        for style_id, style in GALLERY_STYLES.items():
+            try:
+                print(f"[Gallery] Generating {style_id}...")
+                url = _generate_gallery_image(style)
+                if url:
+                    saved = _save_gallery_image(style_id, url)
+                    results[style_id] = {"status": "ok", "url": saved}
+                    print(f"[Gallery] ✅ {style_id} → {saved}")
+                else:
+                    results[style_id] = {"status": "failed"}
+                    print(f"[Gallery] ❌ {style_id} — no image returned")
+            except Exception as e:
+                results[style_id] = {"status": "error", "error": str(e)}
+                print(f"[Gallery] ❌ {style_id} error: {e}")
+        print(f"[Gallery] Regeneration complete: {results}")
+
+    threading.Thread(target=_run, daemon=True).start()
+    return ok({
+        "message": f"Regenerating {len(GALLERY_STYLES)} gallery images in background",
+        "styles":  list(GALLERY_STYLES.keys()),
+        "eta_seconds": len(GALLERY_STYLES) * 20,
+    })
+
+@app.route("/api/admin/gallery/regenerate/<style_id>", methods=["POST"])
+@require_admin
+def gallery_regenerate_one(style_id):
+    """Regenerate a single gallery style."""
+    style = GALLERY_STYLES.get(style_id)
+    if not style:
+        return err(f"Unknown style_id: {style_id}. Valid: {list(GALLERY_STYLES.keys())}")
+    try:
+        url = _generate_gallery_image(style)
+        if not url:
+            return err("Image generation failed")
+        saved = _save_gallery_image(style_id, url)
+        return ok({"style_id": style_id, "url": saved})
+    except Exception as e:
+        return err(f"Error: {e}")
+
+
+@app.route("/api/admin/template-image", methods=["POST"])
+@require_admin
+def set_template_image():
+    """Map a filename in GCS templates/raw/ to a template_id."""
+    body        = request.get_json()
+    template_id = body.get("template_id")
+    filename    = body.get("filename", "").strip()
+    if not template_id or template_id not in TEMPLATES:
+        return err(f"Unknown template_id: {template_id}")
+    if not filename:
+        return err("filename required")
+    # Copy raw file to templates/{template_id}.jpg
+    try:
+        bucket   = gcs_client.bucket(CFG["GCS_BUCKET"])
+        src_blob = bucket.blob(f"templates/raw/{filename}")
+        dst_blob = bucket.blob(f"templates/{template_id}.jpg")
+        bucket.copy_blob(src_blob, bucket, f"templates/{template_id}.jpg")
+        public_url = f"https://storage.googleapis.com/{CFG['GCS_BUCKET']}/templates/{template_id}.jpg"
+        # Store in Firestore for reference
+        db.collection("template_images").document(template_id).set({
+            "template_id": template_id,
+            "image_url":   public_url,
+            "filename":    filename,
+            "updated_at":  datetime.utcnow().isoformat(),
+        })
+        return ok({"template_id": template_id, "image_url": public_url})
+    except Exception as e:
+        return err(f"Failed: {e}", 500)
+
+
+@app.route("/api/admin/template-images", methods=["GET"])
+@require_admin
+def list_template_images():
+    """List all mapped template images."""
+    docs = db.collection("template_images").stream()
+    images = {d.id: d.to_dict() for d in docs}
+    return ok({"images": images, "total": len(images)})
 
 
 @app.route("/health", methods=["GET"])
