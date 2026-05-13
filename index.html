@@ -1,0 +1,2366 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Caricature.online — The Gift That Looks Like Them</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Outfit:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+  <style>
+    /* ═══════════════════════════════════════════════════
+   DESIGN SYSTEM
+   Aesthetic: Editorial luxury meets playful warmth
+   Fonts: Cormorant Garamond (display) + Outfit (body)
+   Palette: Obsidian · Parchment · Venetian Gold · Terracotta
+   ═══════════════════════════════════════════════════ */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    :root {
+      /* Core palette */
+      --obsidian: #0f0d0a;
+      --charcoal: #1c1814;
+      --ink: #2a2420;
+      --parchment: #f8f0e3;
+      --cream: #fdf9f4;
+      --gold: #c8792a;
+      --gold-l: #e8932e;
+      --gold-pale: #f5e6d0;
+      --terracotta: #b85c38;
+      --sage: #5c7a5a;
+      --muted: #8a7968;
+      --border: #e8ddd0;
+      --white: #ffffff;
+
+      /* Type scale */
+      --display: 'Cormorant Garamond', Georgia, serif;
+      --body: 'Outfit', sans-serif;
+
+      /* Spacing */
+      --section: 96px;
+      --radius: 16px;
+    }
+
+    html {
+      scroll-behavior: smooth
+    }
+
+    body {
+      font-family: var(--body);
+      background: var(--cream);
+      color: var(--ink);
+      overflow-x: hidden;
+    }
+
+    /* ─── TYPOGRAPHY ───────────────────────────────── */
+    .display-xl {
+      font-family: var(--display);
+      font-size: clamp(52px, 8vw, 100px);
+      font-weight: 600;
+      line-height: .95;
+      letter-spacing: -2px;
+    }
+
+    .display-l {
+      font-family: var(--display);
+      font-size: clamp(36px, 5vw, 64px);
+      font-weight: 600;
+      line-height: 1.05;
+      letter-spacing: -1px;
+    }
+
+    .display-m {
+      font-family: var(--display);
+      font-size: clamp(28px, 4vw, 44px);
+      font-weight: 600;
+      line-height: 1.1;
+    }
+
+    em.gold {
+      color: var(--gold);
+      font-style: italic;
+    }
+
+    .label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    .body-l {
+      font-size: 18px;
+      line-height: 1.65;
+      color: var(--muted);
+    }
+
+    .body-m {
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    /* ─── LAYOUT ────────────────────────────────────── */
+    .container {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    .section {
+      padding: var(--section) 0;
+    }
+
+    /* ─── NAVIGATION ────────────────────────────────── */
+    .nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 200;
+      background: var(--obsidian);
+      border-bottom: 1px solid rgba(255, 255, 255, .06);
+      height: 64px;
+      display: flex;
+      align-items: center;
+    }
+
+    .nav-inner {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+    }
+
+    .nav-logo {
+      font-family: var(--display);
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--parchment);
+      letter-spacing: -.5px;
+      text-decoration: none;
+    }
+
+    .nav-logo span {
+      color: var(--gold);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 32px;
+      align-items: center;
+    }
+
+    .nav-link {
+      font-size: 13px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, .55);
+      text-decoration: none;
+      transition: color .2s;
+    }
+
+    .nav-link:hover {
+      color: var(--parchment);
+    }
+
+    .nav-cta {
+      background: var(--gold);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 9px 20px;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: all .2s;
+      white-space: nowrap;
+    }
+
+    .nav-cta:hover {
+      background: var(--gold-l);
+      transform: translateY(-1px);
+    }
+
+    /* ─── HERO ───────────────────────────────────────── */
+    .hero {
+      min-height: 100vh;
+      background: var(--obsidian);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      padding-top: 64px;
+    }
+
+    /* Grain texture overlay */
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      opacity: .6;
+      pointer-events: none;
+    }
+
+    /* Radial warm glow */
+    .hero::after {
+      content: '';
+      position: absolute;
+      width: 700px;
+      height: 700px;
+      background: radial-gradient(circle, rgba(200, 121, 42, .12) 0%, transparent 70%);
+      top: -100px;
+      right: -150px;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .hero-inner {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      align-items: center;
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 80px 24px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .hero-left {
+      padding-right: 20px;
+    }
+
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(200, 121, 42, .12);
+      border: 1px solid rgba(200, 121, 42, .3);
+      border-radius: 100px;
+      padding: 6px 14px;
+      margin-bottom: 28px;
+    }
+
+    .hero-eyebrow .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--gold);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1)
+      }
+
+      50% {
+        opacity: .6;
+        transform: scale(.85)
+      }
+    }
+
+    .hero-eyebrow span {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--gold);
+      letter-spacing: .5px;
+    }
+
+    .hero-title {
+      font-family: var(--display);
+      font-size: clamp(52px, 6vw, 84px);
+      font-weight: 600;
+      line-height: .95;
+      letter-spacing: -2px;
+      color: var(--parchment);
+      margin-bottom: 24px;
+    }
+
+    .hero-title em {
+      color: var(--gold);
+      font-style: italic;
+      display: block;
+    }
+
+    .hero-sub {
+      font-size: 18px;
+      line-height: 1.65;
+      color: rgba(248, 240, 227, .55);
+      margin-bottom: 40px;
+      max-width: 440px;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 48px;
+    }
+
+    .btn-hero {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 32px;
+      border-radius: 12px;
+      font-family: var(--body);
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .25s;
+      text-decoration: none;
+      border: none;
+    }
+
+    .btn-hero-primary {
+      background: var(--gold);
+      color: #fff;
+      box-shadow: 0 0 40px rgba(200, 121, 42, .35);
+    }
+
+    .btn-hero-primary:hover {
+      background: var(--gold-l);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 40px rgba(200, 121, 42, .5);
+    }
+
+    .btn-hero-secondary {
+      background: rgba(255, 255, 255, .07);
+      border: 1px solid rgba(255, 255, 255, .12);
+      color: var(--parchment);
+      backdrop-filter: blur(8px);
+    }
+
+    .btn-hero-secondary:hover {
+      background: rgba(255, 255, 255, .12);
+      transform: translateY(-1px);
+    }
+
+    /* Stats row */
+    .hero-stats {
+      display: flex;
+      gap: 32px;
+      padding-top: 32px;
+      border-top: 1px solid rgba(255, 255, 255, .08);
+    }
+
+    .stat {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .stat-num {
+      font-family: var(--display);
+      font-size: 28px;
+      font-weight: 600;
+      color: var(--parchment);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: rgba(248, 240, 227, .4);
+      font-weight: 500;
+    }
+
+    /* Hero visual */
+    .hero-right {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      animation: floatIn .8s ease .2s both;
+    }
+
+    @keyframes floatIn {
+      from {
+        opacity: 0;
+        transform: translateY(24px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0)
+      }
+    }
+
+    .hero-card {
+      background: rgba(255, 255, 255, .04);
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: var(--radius);
+      padding: 20px;
+      backdrop-filter: blur(12px);
+    }
+
+    .hero-card-main {
+      aspect-ratio: 4/3;
+      background: linear-gradient(135deg, #2a1c0a 0%, #1a100a 50%, #0f0806 100%);
+      background-size: cover;
+      background-position: center top;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 14px;
+      transition: background-image .3s;
+    }
+
+    .hero-card-main::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(0, 0, 0, .5) 0%, transparent 50%);
+    }
+
+    .occasion-pill {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      z-index: 2;
+      background: rgba(0, 0, 0, .6);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, .12);
+      border-radius: 100px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--parchment);
+    }
+
+    .hero-card-row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .hero-mini-card {
+      flex: 1;
+      aspect-ratio: 1;
+      background: linear-gradient(135deg, #1e1408 0%, #120c05 100%);
+      background-size: cover;
+      background-position: center top;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0;
+      border: 1px solid rgba(255, 255, 255, .06);
+      cursor: pointer;
+      transition: all .2s;
+      overflow: hidden;
+    }
+
+    .hero-mini-card:hover {
+      border-color: rgba(200, 121, 42, .4);
+      transform: scale(1.03);
+    }
+
+    .hero-mini-card.active {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 2px rgba(200, 121, 42, .2);
+    }
+
+    /* Social proof mini */
+    .hero-proof {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255, 255, 255, .04);
+      border: 1px solid rgba(255, 255, 255, .07);
+      border-radius: 10px;
+      padding: 12px 16px;
+    }
+
+    .proof-avatars {
+      display: flex;
+    }
+
+    .proof-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 2px solid var(--obsidian);
+      background: var(--gold-pale);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      margin-left: -8px;
+    }
+
+    .proof-avatar:first-child {
+      margin-left: 0;
+    }
+
+    .proof-text {
+      font-size: 12px;
+      color: rgba(248, 240, 227, .6);
+      line-height: 1.4;
+    }
+
+    .proof-text strong {
+      color: var(--parchment);
+    }
+
+    .proof-stars {
+      font-size: 12px;
+      color: var(--gold);
+      letter-spacing: 1px;
+    }
+
+    /* ─── TRUST BAR ──────────────────────────────────── */
+    .trust-bar {
+      background: var(--charcoal);
+      border-bottom: 1px solid rgba(255, 255, 255, .05);
+      padding: 16px 0;
+    }
+
+    .trust-inner {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      gap: 32px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .trust-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: rgba(248, 240, 227, .5);
+      white-space: nowrap;
+    }
+
+    .trust-icon {
+      font-size: 15px;
+    }
+
+    /* ─── SOCIAL PROOF TICKER ──────────────────────── */
+    .ticker {
+      background: rgba(200, 121, 42, .08);
+      border-top: 1px solid rgba(200, 121, 42, .15);
+      border-bottom: 1px solid rgba(200, 121, 42, .15);
+      padding: 10px 0;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .ticker::before,
+    .ticker::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 80px;
+      z-index: 2;
+    }
+
+    .ticker::before {
+      left: 0;
+      background: linear-gradient(to right, var(--obsidian), transparent)
+    }
+
+    .ticker::after {
+      right: 0;
+      background: linear-gradient(to left, var(--obsidian), transparent)
+    }
+
+    .ticker-track {
+      display: flex;
+      gap: 48px;
+      width: max-content;
+      animation: ticker 30s linear infinite;
+    }
+
+    @keyframes ticker {
+      from {
+        transform: translateX(0)
+      }
+
+      to {
+        transform: translateX(-50%)
+      }
+    }
+
+    .ticker-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: rgba(248, 240, 227, .6);
+      white-space: nowrap;
+    }
+
+    .ticker-item .emoji {
+      font-size: 14px;
+    }
+
+    .ticker-item strong {
+      color: var(--gold);
+    }
+
+    /* ─── HOW IT WORKS ───────────────────────────────── */
+    .how {
+      background: var(--parchment);
+    }
+
+    .section-header {
+      text-align: center;
+      margin-bottom: 64px;
+    }
+
+    .section-header .label {
+      margin-bottom: 12px;
+    }
+
+    .section-header h2 {
+      margin-bottom: 16px;
+    }
+
+    .section-header p {
+      max-width: 540px;
+      margin: 0 auto;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.6;
+    }
+
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 2px;
+      position: relative;
+    }
+
+    .step {
+      background: var(--white);
+      padding: 36px 28px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .step:first-child {
+      border-radius: var(--radius) 0 0 var(--radius);
+    }
+
+    .step:last-child {
+      border-radius: 0 var(--radius) var(--radius) 0;
+    }
+
+    .step-num {
+      font-family: var(--display);
+      font-size: 80px;
+      font-weight: 700;
+      color: rgba(200, 121, 42, .08);
+      line-height: 1;
+      position: absolute;
+      top: -10px;
+      right: 16px;
+    }
+
+    .step-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      background: var(--gold-pale);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+
+    .step h3 {
+      font-family: var(--display);
+      font-size: 22px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    .step p {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .step-time {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 14px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--gold);
+      letter-spacing: .5px;
+      text-transform: uppercase;
+    }
+
+    /* ─── OCCASION SECTION ───────────────────────────── */
+    .occasions {
+      background: var(--obsidian);
+    }
+
+    .occ-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .occ-card {
+      background: rgba(255, 255, 255, .03);
+      border: 1px solid rgba(255, 255, 255, .07);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      cursor: pointer;
+      transition: all .25s;
+      position: relative;
+      overflow: hidden;
+      text-decoration: none;
+      display: block;
+    }
+
+    .occ-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 80% 20%, rgba(200, 121, 42, .08) 0%, transparent 60%);
+      opacity: 0;
+      transition: opacity .3s;
+    }
+
+    .occ-card:hover {
+      border-color: rgba(200, 121, 42, .35);
+      transform: translateY(-3px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, .3);
+    }
+
+    .occ-card:hover::before {
+      opacity: 1;
+    }
+
+    .occ-emoji {
+      font-size: 40px;
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .occ-label {
+      font-family: var(--display);
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--parchment);
+      margin-bottom: 6px;
+    }
+
+    .occ-desc {
+      font-size: 13px;
+      color: rgba(248, 240, 227, .4);
+    }
+
+    .occ-count {
+      display: inline-block;
+      margin-top: 14px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--gold);
+      letter-spacing: .5px;
+    }
+
+    .occ-arrow {
+      position: absolute;
+      top: 24px;
+      right: 24px;
+      font-size: 18px;
+      color: rgba(255, 255, 255, .15);
+      transition: all .2s;
+    }
+
+    .occ-card:hover .occ-arrow {
+      color: var(--gold);
+      transform: translate(3px, -3px);
+    }
+
+    /* ─── GALLERY PREVIEW ────────────────────────────── */
+    .gallery {
+      background: var(--parchment);
+    }
+
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .g-card {
+      border-radius: var(--radius);
+      overflow: hidden;
+      position: relative;
+      cursor: pointer;
+      transition: all .25s;
+      background: linear-gradient(135deg, #2a1c0a, #1a100a);
+    }
+
+    .g-card:hover {
+      transform: scale(1.02);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, .2);
+    }
+
+    .g-thumb {
+      width: 100%;
+      aspect-ratio: 1;
+      display: block;
+      position: relative;
+      background-size: cover;
+      background-position: center;
+    }
+
+    .g-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(0, 0, 0, .8) 0%, transparent 50%);
+    }
+
+    .g-info {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 16px;
+    }
+
+    .g-tag {
+      display: inline-block;
+      background: rgba(200, 121, 42, .85);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 6px;
+    }
+
+    .g-name {
+      font-family: var(--display);
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--parchment);
+    }
+
+    .g-card:nth-child(1) .g-name {
+      font-size: 26px;
+    }
+
+    /* ─── SOCIAL PROOF ───────────────────────────────── */
+    .proof {
+      background: var(--white);
+    }
+
+    .review-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .review-card {
+      background: var(--cream);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      transition: all .2s;
+    }
+
+    .review-card:hover {
+      box-shadow: 0 12px 32px rgba(0, 0, 0, .07);
+      transform: translateY(-2px);
+    }
+
+    .review-stars {
+      font-size: 14px;
+      color: var(--gold);
+      margin-bottom: 12px;
+      letter-spacing: 2px;
+    }
+
+    .review-text {
+      font-family: var(--display);
+      font-style: italic;
+      font-size: 18px;
+      line-height: 1.5;
+      color: var(--ink);
+      margin-bottom: 20px;
+    }
+
+    .review-author {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .review-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--gold-pale);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .review-name {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .review-meta {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .review-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--sage);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+
+    /* ─── URGENCY / CTA BAND ─────────────────────────── */
+    .urgency-band {
+      background: var(--gold);
+      padding: 20px 0;
+    }
+
+    .urgency-inner {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .urgency-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .urgency-icon {
+      font-size: 28px;
+    }
+
+    .urgency-text {
+      color: #fff;
+    }
+
+    .urgency-text strong {
+      font-size: 16px;
+      font-weight: 700;
+      display: block;
+    }
+
+    .urgency-text span {
+      font-size: 13px;
+      opacity: .85;
+    }
+
+    .countdown {
+      display: flex;
+      gap: 8px;
+    }
+
+    .count-unit {
+      background: rgba(0, 0, 0, .2);
+      border-radius: 8px;
+      padding: 6px 10px;
+      text-align: center;
+      min-width: 48px;
+    }
+
+    .count-num {
+      font-family: var(--display);
+      font-size: 22px;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1;
+      display: block;
+    }
+
+    .count-label {
+      font-size: 9px;
+      color: rgba(255, 255, 255, .7);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+
+    .urgency-cta {
+      background: #fff;
+      color: var(--gold);
+      font-size: 14px;
+      font-weight: 700;
+      padding: 12px 24px;
+      border-radius: 10px;
+      text-decoration: none;
+      white-space: nowrap;
+      transition: all .2s;
+    }
+
+    .urgency-cta:hover {
+      background: var(--obsidian);
+      color: #fff;
+    }
+
+    /* ─── PRICING ──────────────────────────────────── */
+    .pricing {
+      background: var(--obsidian);
+    }
+
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .price-card {
+      background: rgba(255, 255, 255, .03);
+      border: 1px solid rgba(255, 255, 255, .07);
+      padding: 36px 32px;
+      transition: all .25s;
+      position: relative;
+    }
+
+    .price-card:first-child {
+      border-radius: var(--radius) 0 0 var(--radius);
+    }
+
+    .price-card:last-child {
+      border-radius: 0 var(--radius) var(--radius) 0;
+    }
+
+    .price-card.featured {
+      background: var(--gold);
+      border-color: var(--gold);
+      transform: scale(1.02);
+      z-index: 1;
+    }
+
+    .price-badge {
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--parchment);
+      color: var(--ink);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      padding: 4px 12px;
+      border-radius: 100px;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .price-name {
+      font-family: var(--display);
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--parchment);
+      margin-bottom: 6px;
+    }
+
+    .price-card.featured .price-name {
+      color: #fff;
+    }
+
+    .price-desc {
+      font-size: 13px;
+      color: rgba(248, 240, 227, .4);
+      margin-bottom: 24px;
+    }
+
+    .price-card.featured .price-desc {
+      color: rgba(255, 255, 255, .7);
+    }
+
+    .price-amount {
+      font-family: var(--display);
+      font-size: 48px;
+      font-weight: 700;
+      color: var(--parchment);
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .price-card.featured .price-amount {
+      color: #fff;
+    }
+
+    .price-period {
+      font-size: 13px;
+      color: rgba(248, 240, 227, .4);
+      margin-bottom: 28px;
+    }
+
+    .price-card.featured .price-period {
+      color: rgba(255, 255, 255, .7);
+    }
+
+    .price-features {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 32px;
+    }
+
+    .price-features li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      color: rgba(248, 240, 227, .7);
+    }
+
+    .price-card.featured .price-features li {
+      color: rgba(255, 255, 255, .85);
+    }
+
+    .price-features li::before {
+      content: '✓';
+      width: 18px;
+      height: 18px;
+      background: rgba(200, 121, 42, .2);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      color: var(--gold);
+      flex-shrink: 0;
+    }
+
+    .price-card.featured .price-features li::before {
+      background: rgba(255, 255, 255, .2);
+      color: #fff;
+    }
+
+    .price-btn {
+      width: 100%;
+      padding: 14px;
+      border-radius: 10px;
+      border: none;
+      font-family: var(--body);
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all .2s;
+      text-align: center;
+      display: block;
+      text-decoration: none;
+    }
+
+    .price-btn-default {
+      background: rgba(255, 255, 255, .07);
+      border: 1px solid rgba(255, 255, 255, .12);
+      color: var(--parchment);
+    }
+
+    .price-btn-default:hover {
+      background: rgba(255, 255, 255, .12);
+    }
+
+    .price-btn-featured {
+      background: #fff;
+      color: var(--gold);
+    }
+
+    .price-btn-featured:hover {
+      background: var(--obsidian);
+      color: #fff;
+    }
+
+    /* ─── FAQ ────────────────────────────────────────── */
+    .faq {
+      background: var(--parchment);
+    }
+
+    .faq-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .faq-item {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: all .2s;
+    }
+
+    .faq-q {
+      padding: 20px 24px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 15px;
+      font-weight: 600;
+      gap: 16px;
+    }
+
+    .faq-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--gold-pale);
+      color: var(--gold);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+      transition: transform .2s;
+    }
+
+    .faq-item.open .faq-icon {
+      transform: rotate(45deg);
+    }
+
+    .faq-a {
+      display: none;
+      padding: 0 24px 20px;
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .faq-item.open .faq-a {
+      display: block;
+    }
+
+    /* ─── FOOTER CTA ─────────────────────────────────── */
+    .footer-cta {
+      background: var(--obsidian);
+      padding: 120px 0;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .footer-cta::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(200, 121, 42, .1) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .footer-cta h2 {
+      font-family: var(--display);
+      font-size: clamp(48px, 6vw, 80px);
+      font-weight: 600;
+      color: var(--parchment);
+      letter-spacing: -2px;
+      line-height: 1;
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    .footer-cta h2 em {
+      color: var(--gold);
+      font-style: italic;
+    }
+
+    .footer-cta p {
+      font-size: 17px;
+      color: rgba(248, 240, 227, .45);
+      margin-bottom: 40px;
+      position: relative;
+    }
+
+    .footer-cta-actions {
+      display: flex;
+      gap: 14px;
+      justify-content: center;
+      flex-wrap: wrap;
+      position: relative;
+    }
+
+    /* ─── FOOTER ──────────────────────────────────────── */
+    .footer {
+      background: var(--charcoal);
+      border-top: 1px solid rgba(255, 255, 255, .05);
+      padding: 48px 0 32px;
+    }
+
+    .footer-inner {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    .footer-top {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 40px;
+      margin-bottom: 40px;
+    }
+
+    .footer-brand .f-logo {
+      font-family: var(--display);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--parchment);
+      margin-bottom: 12px;
+      display: block;
+    }
+
+    .footer-brand .f-logo span {
+      color: var(--gold);
+    }
+
+    .footer-brand p {
+      font-size: 13px;
+      color: rgba(248, 240, 227, .4);
+      line-height: 1.65;
+    }
+
+    .footer-col h4 {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: rgba(248, 240, 227, .3);
+      margin-bottom: 16px;
+    }
+
+    .footer-col a {
+      display: block;
+      font-size: 13px;
+      color: rgba(248, 240, 227, .5);
+      text-decoration: none;
+      margin-bottom: 10px;
+      transition: color .2s;
+    }
+
+    .footer-col a:hover {
+      color: var(--parchment);
+    }
+
+    .footer-bottom {
+      border-top: 1px solid rgba(255, 255, 255, .05);
+      padding-top: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: rgba(248, 240, 227, .3);
+    }
+
+    .footer-badges {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .badge {
+      background: rgba(255, 255, 255, .05);
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 11px;
+      color: rgba(248, 240, 227, .4);
+    }
+
+    /* ─── LIVE NOTIFICATION ──────────────────────────── */
+    .live-notif {
+      position: fixed;
+      bottom: 24px;
+      left: 24px;
+      z-index: 300;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 20px 48px rgba(0, 0, 0, .12);
+      max-width: 280px;
+      animation: slideIn .5s cubic-bezier(.34, 1.56, .64, 1) 3s both;
+      cursor: pointer;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(-120%);
+        opacity: 0
+      }
+
+      to {
+        transform: translateX(0);
+        opacity: 1
+      }
+    }
+
+    .notif-img {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: var(--gold-pale);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0
+    }
+
+    .notif-text {
+      font-size: 13px;
+      color: var(--ink);
+      line-height: 1.4
+    }
+
+    .notif-text strong {
+      font-weight: 700
+    }
+
+    .notif-time {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px
+    }
+
+    .notif-close {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      font-size: 16px;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 2px
+    }
+
+    /* ─── SCROLL REVEAL ──────────────────────────────── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all .6s cubic-bezier(.4, 0, .2, 1)
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0)
+    }
+
+    .reveal-delay-1 {
+      transition-delay: .1s
+    }
+
+    .reveal-delay-2 {
+      transition-delay: .2s
+    }
+
+    .reveal-delay-3 {
+      transition-delay: .3s
+    }
+
+    /* ─── MOBILE ──────────────────────────────────────── */
+    @media(max-width:900px) {
+      .hero-inner {
+        grid-template-columns: 1fr;
+        padding: 48px 24px
+      }
+
+      .hero-right {
+        display: none
+      }
+
+      .steps-grid {
+        grid-template-columns: 1fr 1fr
+      }
+
+      .step:nth-child(1) {
+        border-radius: var(--radius) 0 0 0
+      }
+
+      .step:nth-child(2) {
+        border-radius: 0 var(--radius) 0 0
+      }
+
+      .step:nth-child(3) {
+        border-radius: 0 0 0 var(--radius)
+      }
+
+      .step:nth-child(4) {
+        border-radius: 0 0 var(--radius) 0
+      }
+
+      .occ-grid {
+        grid-template-columns: 1fr 1fr
+      }
+
+      .gallery-grid {
+        grid-template-columns: 1fr 1fr
+      }
+
+      .g-card:nth-child(1) {
+        grid-column: span 2;
+        grid-row: span 1
+      }
+
+      .g-card:nth-child(1) .g-thumb {
+        aspect-ratio: 16/9;
+        font-size: 64px
+      }
+
+      .review-grid {
+        grid-template-columns: 1fr
+      }
+
+      .pricing-grid {
+        grid-template-columns: 1fr
+      }
+
+      .price-card {
+        border-radius: var(--radius) !important;
+        transform: none !important
+      }
+
+      .faq-grid {
+        grid-template-columns: 1fr
+      }
+
+      .footer-top {
+        grid-template-columns: 1fr 1fr
+      }
+
+      .footer-bottom {
+        flex-direction: column;
+        gap: 16px;
+        text-align: center
+      }
+
+      .nav-links {
+        display: none
+      }
+
+      .live-notif {
+        display: none
+      }
+    }
+
+    @media(max-width:600px) {
+      :root {
+        --section: 64px
+      }
+
+      .occ-grid {
+        grid-template-columns: 1fr
+      }
+
+      .gallery-grid {
+        grid-template-columns: 1fr
+      }
+
+      .g-card:nth-child(1) {
+        grid-column: span 1
+      }
+
+      .steps-grid {
+        grid-template-columns: 1fr
+      }
+
+      .step:first-child {
+        border-radius: var(--radius) var(--radius) 0 0
+      }
+
+      .step:last-child {
+        border-radius: 0 0 var(--radius) var(--radius)
+      }
+
+      .footer-top {
+        grid-template-columns: 1fr
+      }
+
+      .hero-stats {
+        gap: 20px
+      }
+
+      .stat-num {
+        font-size: 22px
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ══ NAVIGATION ══════════════════════════════════ -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="#" class="nav-logo">Caricature<span>.online</span></a>
+      <div class="nav-links">
+        <a href="#how" class="nav-link">How it works</a>
+        <a href="#occasions" class="nav-link">Occasions</a>
+        <a href="#gallery" class="nav-link">Gallery</a>
+        <a href="#pricing" class="nav-link">Pricing</a>
+        <a href="#faq" class="nav-link">FAQ</a>
+        <a href="order.html" class="nav-cta">Create Yours →</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ══ HERO ════════════════════════════════════════ -->
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-left">
+        <div class="hero-eyebrow">
+          <div class="dot"></div>
+          <span>AI · 30 seconds · Your photo</span>
+        </div>
+
+        <h1 class="hero-title">
+          The gift<br>that looks
+          <em>just like them.</em>
+        </h1>
+
+        <p class="hero-sub">
+          Upload any photo. Choose from 40+ themed templates drawn in our signature style. Get a stunning personalised
+          caricature delivered to your inbox in seconds.
+        </p>
+
+        <div class="hero-actions">
+          <a href="order.html" class="btn-hero btn-hero-primary">
+            🎨 Create Yours — from €8.99
+          </a>
+          <a href="#gallery" class="btn-hero btn-hero-secondary">
+            See Examples ↓
+          </a>
+        </div>
+
+        <div class="hero-stats">
+          <div class="stat">
+            <div class="stat-num">2,400+</div>
+            <div class="stat-label">Caricatures made</div>
+          </div>
+          <div class="stat">
+            <div class="stat-num">4.9★</div>
+            <div class="stat-label">Average rating</div>
+          </div>
+          <div class="stat">
+            <div class="stat-num">~30s</div>
+            <div class="stat-label">Delivery time</div>
+          </div>
+          <div class="stat">
+            <div class="stat-num">100%</div>
+            <div class="stat-label">Satisfaction guarantee</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-right">
+        <div class="hero-proof">
+          <div class="proof-avatars">
+            <div class="proof-avatar">👩</div>
+            <div class="proof-avatar">👨</div>
+            <div class="proof-avatar">👧</div>
+            <div class="proof-avatar">🧑</div>
+          </div>
+          <div>
+            <div class="proof-text"><strong>Sarah from London</strong> just ordered a Wedding caricature</div>
+            <div class="proof-stars">★★★★★</div>
+          </div>
+        </div>
+
+        <div class="hero-card">
+          <div class="hero-card-main" id="heroMain" style="background-image:url('image/caricature-wedding-couple-Wedding-in-Santorini-antonos.jpg');background-size:cover;background-position:center top;font-size:0;">
+            <div class="occasion-pill" id="heroPill">Wedding · Santorini</div>
+            <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.5),transparent)"></div>
+          </div>
+          <div class="hero-card-row">
+            <div class="hero-mini-card active"
+              data-img="image/caricature-wedding-couple-Wedding-in-Santorini-antonos.jpg"
+              data-label="Wedding · Santorini"
+              onclick="switchHero(this)"
+              style="background-image:url('image/caricature-wedding-couple-Wedding-in-Santorini-antonos.jpg');background-size:cover;background-position:center top;"></div>
+            <div class="hero-mini-card"
+              data-img="image/caricature-birthday-celebration-kids-Ahoy-Matey-antonos.jpg"
+              data-label="Birthday · Ahoy Matey"
+              onclick="switchHero(this)"
+              style="background-image:url('image/caricature-birthday-celebration-kids-Ahoy-Matey-antonos.jpg');background-size:cover;background-position:center top;"></div>
+            <div class="hero-mini-card"
+              data-img="image/caricature-sports-All-time-winner-antonos.jpg"
+              data-label="Sports · All Time Winner"
+              onclick="switchHero(this)"
+              style="background-image:url('image/caricature-sports-All-time-winner-antonos.jpg');background-size:cover;background-position:center top;"></div>
+            <div class="hero-mini-card"
+              data-img="image/caricature-superhero-The-Spartan-antonos.jpg"
+              data-label="Superhero · The Spartan"
+              onclick="switchHero(this)"
+              style="background-image:url('image/caricature-superhero-The-Spartan-antonos.jpg');background-size:cover;background-position:center top;"></div>
+            <div class="hero-mini-card"
+              data-img="image/caricature-business-Worldwide-Businessman-antonos.jpg"
+              data-label="Business · Worldwide"
+              onclick="switchHero(this)"
+              style="background-image:url('image/caricature-business-Worldwide-Businessman-antonos.jpg');background-size:cover;background-position:center top;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ TRUST BAR ════════════════════════════════════ -->
+  <div class="trust-bar">
+    <div class="trust-inner">
+      <div class="trust-item"><span class="trust-icon">🔒</span> Stripe secured payment</div>
+      <div class="trust-item"><span class="trust-icon">📧</span> Delivered in ~30 seconds</div>
+      <div class="trust-item"><span class="trust-icon">🗑️</span> Your photo deleted after 72h</div>
+      <div class="trust-item"><span class="trust-icon">↩️</span> Free redo if you're not happy</div>
+      <div class="trust-item"><span class="trust-icon">🌍</span> Ships to 4 languages</div>
+    </div>
+  </div>
+
+  <!-- ══ LIVE TICKER ══════════════════════════════════ -->
+  <div class="ticker" style="background:rgba(200,121,42,.06);border-color:rgba(200,121,42,.12)">
+    <div class="ticker-track" id="ticker">
+      <div class="ticker-item"><span class="emoji">🎂</span> <strong>Maria from Athens</strong> just received her
+        Birthday caricature</div>
+      <div class="ticker-item"><span class="emoji">💍</span> <strong>James from London</strong> ordered a Wedding ·
+        Santorini</div>
+      <div class="ticker-item"><span class="emoji">⚽</span> <strong>Carlos from Madrid</strong> created a Football Star
+      </div>
+      <div class="ticker-item"><span class="emoji">🦸</span> <strong>Sophie from Paris</strong> gifted a Superhero to
+        her son</div>
+      <div class="ticker-item"><span class="emoji">👔</span> <strong>Thomas from Berlin</strong> ordered a Retirement
+        caricature</div>
+      <div class="ticker-item"><span class="emoji">👨‍👩‍👧</span> <strong>Anna from Rome</strong> created a Family
+        portrait</div>
+      <!-- repeat for loop -->
+      <div class="ticker-item"><span class="emoji">🎂</span> <strong>Maria from Athens</strong> just received her
+        Birthday caricature</div>
+      <div class="ticker-item"><span class="emoji">💍</span> <strong>James from London</strong> ordered a Wedding ·
+        Santorini</div>
+      <div class="ticker-item"><span class="emoji">⚽</span> <strong>Carlos from Madrid</strong> created a Football Star
+      </div>
+      <div class="ticker-item"><span class="emoji">🦸</span> <strong>Sophie from Paris</strong> gifted a Superhero to
+        her son</div>
+      <div class="ticker-item"><span class="emoji">👔</span> <strong>Thomas from Berlin</strong> ordered a Retirement
+        caricature</div>
+      <div class="ticker-item"><span class="emoji">👨‍👩‍👧</span> <strong>Anna from Rome</strong> created a Family
+        portrait</div>
+    </div>
+  </div>
+
+  <!-- ══ HOW IT WORKS ═════════════════════════════════ -->
+  <section class="how section" id="how">
+    <div class="container">
+      <div class="section-header reveal">
+        <div class="label">Simple as 1-2-3</div>
+        <h2 class="display-l">Insanely easy to order</h2>
+        <p>No design skills. No confusing forms. Just pick, personalise, and receive your caricature in seconds.</p>
+      </div>
+
+      <div class="steps-grid reveal">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-icon">🎭</div>
+          <h3>Choose the occasion</h3>
+          <p>Birthday, wedding, business, superhero, sports — pick what fits. We'll show the right templates.</p>
+          <div class="step-time">⚡ 10 seconds</div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-icon">✏️</div>
+          <h3>Pick your template</h3>
+          <p>Browse templates that match your person count. Every template is drawn by our artist in a signature style.
+          </p>
+          <div class="step-time">⚡ 20 seconds</div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-icon">📸</div>
+          <h3>Upload & personalise</h3>
+          <p>Add your photo, answer a few quick questions. Tell us the hair colour, quirks, or inside jokes.</p>
+          <div class="step-time">⚡ 60 seconds</div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-icon">🎉</div>
+          <h3>Receive in your inbox</h3>
+          <p>Pay securely with Apple Pay or card. Your caricature arrives by email in about 30 seconds. Seriously.</p>
+          <div class="step-time">⚡ ~30 seconds</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ URGENCY BAND ══════════════════════════════════ -->
+  <div class="urgency-band">
+    <div class="urgency-inner">
+      <div class="urgency-left">
+        <div class="urgency-icon" id="urgencyIcon">🎉</div>
+        <div class="urgency-text">
+          <strong id="urgencyTitle">Special occasion coming up?</strong>
+          <span id="urgencySubtitle">Order now — your caricature is ready in 90 seconds, any time of day.</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:20px">
+        <div class="countdown" id="countdown">
+          <div class="count-unit"><span class="count-num" id="ch">00</span><span class="count-label">hrs</span></div>
+          <div class="count-unit"><span class="count-num" id="cm">00</span><span class="count-label">min</span></div>
+          <div class="count-unit"><span class="count-num" id="cs">00</span><span class="count-label">sec</span></div>
+        </div>
+        <a href="order.html" class="urgency-cta">Order Now →</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ OCCASIONS ══════════════════════════════════════ -->
+  <section class="occasions section" id="occasions">
+    <div class="container">
+      <div class="section-header reveal" style="text-align:center;margin-bottom:48px">
+        <div class="label" style="color:rgba(200,121,42,.8)">40+ Templates</div>
+        <h2 class="display-l" style="color:var(--parchment)">A caricature for <em class="gold">every occasion</em></h2>
+        <p style="color:rgba(248,240,227,.45)">Each category has multiple templates designed to match your scene
+          perfectly.</p>
+      </div>
+
+      <div class="occ-grid reveal">
+        <a href="order.html" class="occ-card">
+          <span class="occ-arrow">↗</span>
+          <span class="occ-emoji">🎂</span>
+          <div class="occ-label">Birthday</div>
+          <div class="occ-desc">Solo, couple, group & big parties</div>
+          <span class="occ-count">4 templates →</span>
+        </a>
+        <a href="order.html" class="occ-card">
+          <span class="occ-arrow">↗</span>
+          <span class="occ-emoji">💍</span>
+          <div class="occ-label">Wedding & Anniversary</div>
+          <div class="occ-desc">Santorini, beach, church & more</div>
+          <span class="occ-count">5 templates →</span>
+        </a>
+        <a href="order.html" class="occ-card">
+          <span class="occ-arrow">↗</span>
+          <span class="occ-emoji">👔</span>
+          <div class="occ-label">Business & Retirement</div>
+          <div class="occ-desc">Office, retirement, doctor, chef</div>
+          <span class="occ-count">5 templates →</span>
+        </a>
+        <a href="order.html" class="occ-card">
+          <span class="occ-arrow">↗</span>
+          <span class="occ-emoji">🦸</span>
+          <div class="occ-label">Superhero</div>
+          <div class="occ-desc">Spartan, Batman, Marvel & more</div>
+          <span class="occ-count">4 templates →</span>
+        </a>
+        <a href="order.html" class="occ-card">
+          <span class="occ-arrow">↗</span>
+          <span class="occ-emoji">⚽</span>
+          <div class="occ-label">Sports & Hobbies</div>
+          <div class="occ-desc">Football, cycling, swimming, golf</div>
+          <span class="occ-count">4 templates →</span>
+        </a>
+        <a href="order.html" class="occ-card">
+          <span class="occ-arrow">↗</span>
+          <span class="occ-emoji">👨‍👩‍👧</span>
+          <div class="occ-label">Family & Friends</div>
+          <div class="occ-desc">From solo portraits to big families</div>
+          <span class="occ-count">5 templates →</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ GALLERY ════════════════════════════════════════ -->
+  <section class="gallery section" id="gallery">
+    <div class="container">
+      <div class="section-header reveal">
+        <div class="label">Sample work</div>
+        <h2 class="display-l">Our artist's signature <em class="gold">style</em></h2>
+        <p>Every caricature carries the same hand-crafted character — expressive, warm, and unmistakably unique.</p>
+      </div>
+
+      <div class="gallery-grid reveal">
+        <div class="g-card">
+          <div class="g-thumb" style="background-image:url('image/caricature-wedding-couple-Wedding-in-Santorini-antonos.jpg')">
+            <div class="g-overlay"></div><div class="g-info"><div class="g-tag">Wedding</div><div class="g-name">Santorini Couple</div></div>
+          </div>
+        </div>
+        <div class="g-card">
+          <div class="g-thumb" style="background-image:url('image/caricature-family-friends-celebrations-Happy-Birthday-Grandpa-antonos.jpg')">
+            <div class="g-overlay"></div><div class="g-info"><div class="g-tag">Birthday</div><div class="g-name">Happy Birthday Grandpa</div></div>
+          </div>
+        </div>
+        <div class="g-card">
+          <div class="g-thumb" style="background-image:url('image/caricature-sports-All-time-winner-antonos.jpg')">
+            <div class="g-overlay"></div><div class="g-info"><div class="g-tag">Sports</div><div class="g-name">All Time Winner</div></div>
+          </div>
+        </div>
+        <div class="g-card">
+          <div class="g-thumb" style="background-image:url('image/caricature-superhero-The-Spartan-antonos.jpg')">
+            <div class="g-overlay"></div><div class="g-info"><div class="g-tag">Superhero</div><div class="g-name">The Spartan</div></div>
+          </div>
+        </div>
+        <div class="g-card">
+          <div class="g-thumb" style="background-image:url('image/caricature-business-hobbies-Funny-Cook-Man-antonos.jpg')">
+            <div class="g-overlay"></div><div class="g-info"><div class="g-tag">Business</div><div class="g-name">Funny Cook Man</div></div>
+          </div>
+        </div>
+        <div class="g-card">
+          <div class="g-thumb" style="background-image:url('image/caricature-birthday-celebration-kids-Ahoy-Matey-antonos.jpg')">
+            <div class="g-overlay"></div><div class="g-info"><div class="g-tag">Kids</div><div class="g-name">Ahoy Matey</div></div>
+          </div>
+        </div>
+        <div class="g-card">
+          <div class="g-thumb" style="background-image:url('image/caricature-business-Worldwide-Businessman-antonos.jpg')">
+            <div class="g-overlay"></div><div class="g-info"><div class="g-tag">Business</div><div class="g-name">Worldwide Businessman</div></div>
+          </div>
+        </div>
+        <div class="g-card">
+          <div class="g-thumb" style="background-image:url('image/caricature-superhero-The-Spartan-antonos.jpg')">
+            <div class="g-overlay"></div><div class="g-info"><div class="g-tag">Family</div><div class="g-name">Family Portrait</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="text-align:center;margin-top:32px">
+        <a href="order.html"
+          style="display:inline-flex;align-items:center;gap:8px;font-size:15px;font-weight:600;color:var(--gold);text-decoration:none;border-bottom:1px solid rgba(200,121,42,.3);padding-bottom:3px">
+          See all 40+ templates →
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ SOCIAL PROOF ══════════════════════════════════ -->
+  <section class="proof section">
+    <div class="container">
+      <div class="section-header reveal">
+        <div class="label">What people say</div>
+        <h2 class="display-l">They <em class="gold">loved</em> it</h2>
+        <p>Real reviews from real customers who gave caricatures as gifts.</p>
+      </div>
+
+      <div class="review-grid">
+        <div class="review-card reveal reveal-delay-1">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"I gave this to my husband for his 50th and he literally cried laughing. The face was
+            spot on — even got his receding hairline right."</p>
+          <div class="review-author">
+            <div class="review-avatar">👩‍🦱</div>
+            <div>
+              <div class="review-name">Katerina M.</div>
+              <div class="review-meta">Birthday · Athens, Greece</div>
+              <div class="review-badge">✓ Verified purchase</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card reveal reveal-delay-2">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Used the Santorini wedding template for our invitations. Every single guest commented
+            on it. Fast, beautiful, worth every cent."</p>
+          <div class="review-author">
+            <div class="review-avatar">👰</div>
+            <div>
+              <div class="review-name">Elena & Nikos</div>
+              <div class="review-meta">Wedding · Thessaloniki</div>
+              <div class="review-badge">✓ Verified purchase</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card reveal reveal-delay-3">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Ordered the retirement one for my boss. The whole office chipped in. He still has it
+            framed on his desk six months later."</p>
+          <div class="review-author">
+            <div class="review-avatar">🧑‍💼</div>
+            <div>
+              <div class="review-name">David L.</div>
+              <div class="review-meta">Business · London, UK</div>
+              <div class="review-badge">✓ Verified purchase</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Aggregate rating -->
+      <div
+        style="text-align:center;margin-top:48px;padding:28px;background:var(--cream);border-radius:var(--radius);border:1px solid var(--border)">
+        <div style="font-family:var(--display);font-size:64px;font-weight:700;color:var(--ink);line-height:1">4.9</div>
+        <div style="font-size:24px;color:var(--gold);letter-spacing:4px;margin:8px 0">★★★★★</div>
+        <div style="font-size:14px;color:var(--muted)">Based on 200+ verified reviews across Google & Trustpilot</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ PRICING ════════════════════════════════════════ -->
+  <section class="pricing section" id="pricing">
+    <div class="container">
+      <div class="section-header reveal" style="text-align:center;margin-bottom:48px">
+        <div class="label" style="color:rgba(200,121,42,.8)">Simple pricing</div>
+        <h2 class="display-l" style="color:var(--parchment)">Pay once. <em class="gold">No surprises.</em></h2>
+        <p style="color:rgba(248,240,227,.45)">No subscription. No watermarks. Download and use however you like.</p>
+      </div>
+
+      <div class="pricing-grid reveal">
+        <div class="price-card">
+          <div class="price-name">Basic</div>
+          <div class="price-desc">Perfect for a quick personal gift</div>
+          <div class="price-amount">€8.99</div>
+          <div class="price-period">one-time · 1 person</div>
+          <ul class="price-features">
+            <li>1 caricature in your chosen template</li>
+            <li>4K ultra-HD quality</li>
+            <li>Delivered by email in ~90 seconds</li>
+            <li>1 free revision included</li>
+          </ul>
+          <a href="order.html" class="price-btn price-btn-default">Start Creating →</a>
+        </div>
+
+        <div class="price-card featured">
+          <div class="price-badge">⭐ Most Popular</div>
+          <div class="price-name">Standard</div>
+          <div class="price-desc">The complete gift experience</div>
+          <div class="price-amount">€14.99</div>
+          <div class="price-period">one-time · 1 person</div>
+          <ul class="price-features">
+            <li>1 caricature in your chosen template</li>
+            <li>4K ultra-HD quality</li>
+            <li>2 free revisions if not 100% happy</li>
+            <li>Priority generation queue</li>
+            <li>Personalisation questions included</li>
+          </ul>
+          <a href="order.html" class="price-btn price-btn-featured">Create Yours →</a>
+        </div>
+
+        <div class="price-card">
+          <div class="price-name">Premium</div>
+          <div class="price-desc">Maximum quality & revisions</div>
+          <div class="price-amount">€19.99</div>
+          <div class="price-period">one-time · 1 person</div>
+          <ul class="price-features">
+            <li>1 caricature in your chosen template</li>
+            <li>4K ultra-HD quality</li>
+            <li>3 free revisions included</li>
+            <li>Priority generation queue</li>
+            <li>Commercial use licence</li>
+          </ul>
+          <a href="order.html" class="price-btn price-btn-default">Get Premium →</a>
+        </div>
+      </div>
+
+      <p style="text-align:center;font-size:14px;color:rgba(248,240,227,.3);margin-top:24px">
+        Prices shown for 1 person. 2 people +€5 · 3 people +€10 · 4 people +€15. Always shown before payment.
+      </p>
+    </div>
+  </section>
+
+  <!-- ══ FAQ ════════════════════════════════════════════ -->
+  <section class="faq section" id="faq">
+    <div class="container">
+      <div class="section-header reveal">
+        <div class="label">Got questions?</div>
+        <h2 class="display-l">Everything you need to <em class="gold">know</em></h2>
+      </div>
+
+      <div class="faq-grid reveal">
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-q">Will it actually look like the person? <div class="faq-icon">+</div>
+          </div>
+          <div class="faq-a">Yes — our AI uses face-swap technology that places the person's actual face into our
+            templates. The likeness comes from the uploaded photo. The better the photo, the better the result. We
+            recommend a clear, front-facing, well-lit portrait.</div>
+        </div>
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-q">What if I'm not happy with it? <div class="faq-icon">+</div>
+          </div>
+          <div class="faq-a">Premium plan includes 1 free revision — just email us within 48 hours. Standard plan: if
+            there's a technical problem on our end, we'll redo it for free. We want every customer to be genuinely
+            happy.</div>
+        </div>
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-q">Can I order for multiple people? <div class="faq-icon">+</div>
+          </div>
+          <div class="faq-a">Absolutely. Select the number of people at the start of the order process and you'll only
+            see templates that fit. Pricing adjusts accordingly — couples from +€5, groups of 3-4 from +€10, 5+ from
+            +€20 on top of the base price.</div>
+        </div>
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-q">How quickly will I receive it? <div class="faq-icon">+</div>
+          </div>
+          <div class="faq-a">Usually within 30–90 seconds of payment. Our AI pipeline processes the caricature
+            immediately. You'll receive a high-resolution PNG directly to your email — no account needed, no waiting
+            around.</div>
+        </div>
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-q">Is my photo safe? <div class="faq-icon">+</div>
+          </div>
+          <div class="faq-a">Completely. Your photo is uploaded with end-to-end encryption to Google Cloud. It's used
+            only to generate your caricature and is automatically and permanently deleted 72 hours after delivery. We
+            never share, sell, or store your images beyond that.</div>
+        </div>
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-q">Can I print and frame it? <div class="faq-icon">+</div>
+          </div>
+          <div class="faq-a">Absolutely — that's what most customers do. All files are delivered at HD (and 4K for Gift
+            Pack) resolution, 300dpi, print-ready. Perfect for A4, A3, or even canvas. Gift Pack includes commercial
+            licence if you want to sell prints.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ FOOTER CTA ════════════════════════════════════ -->
+  <section class="footer-cta">
+    <div class="container">
+      <h2>Give them a gift<br>they'll <em>never forget.</em></h2>
+      <p>30 seconds. €14.99. A story they'll tell for years.</p>
+      <div class="footer-cta-actions">
+        <a href="order.html" class="btn-hero btn-hero-primary" style="font-size:16px;padding:18px 36px">
+          🎨 Create a Caricature →
+        </a>
+        <a href="#gallery" class="btn-hero btn-hero-secondary">
+          See Examples First
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ FOOTER ════════════════════════════════════════ -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-top">
+        <div class="footer-brand">
+          <span class="f-logo">Caricature<span>.online</span></span>
+          <p>The most personal gift you'll ever give. Powered by AI, designed by an artist, delivered in seconds.</p>
+          <div style="margin-top:16px;display:flex;gap:12px">
+            <div class="badge">🔒 Stripe</div>
+            <div class="badge">🛡️ SSL</div>
+            <div class="badge">⭐ 4.9/5</div>
+          </div>
+        </div>
+        <div class="footer-col">
+          <h4>Occasions</h4>
+          <a href="order.html">Birthday</a>
+          <a href="order.html">Wedding</a>
+          <a href="order.html">Business</a>
+          <a href="order.html">Superhero</a>
+          <a href="order.html">Sports</a>
+          <a href="order.html">Family</a>
+        </div>
+        <div class="footer-col">
+          <h4>Help</h4>
+          <a href="#faq">FAQ</a>
+          <a href="#">How it works</a>
+          <a href="#">Contact us</a>
+          <a href="#">Pricing</a>
+        </div>
+        <div class="footer-col">
+          <h4>Legal</h4>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms & Conditions</a>
+          <a href="terms.html">Refund Policy</a>
+          <a href="cookies.html">Cookie Policy</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>© 2025 Caricature.online · All rights reserved</span>
+        <div class="footer-badges">
+          <span>🇬🇧 EN</span>
+          <span>🇬🇷 ΕΛ</span>
+          <span>🇪🇸 ES</span>
+          <span>🇫🇷 FR</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ══ LIVE NOTIFICATION ═════════════════════════════ -->
+  <div class="live-notif" id="liveNotif">
+    <div class="notif-img">💍</div>
+    <div class="notif-text">
+      <strong>Maria from Athens</strong> just ordered a Wedding caricature
+      <div class="notif-time">2 minutes ago</div>
+    </div>
+    <span class="notif-close" onclick="document.getElementById('liveNotif').remove()">×</span>
+  </div>
+
+  <script>
+    // ── Hero mini switcher ──────────────────────────────
+    function switchHero(el) {
+      document.querySelectorAll('.hero-mini-card').forEach(c => c.classList.remove('active'));
+      el.classList.add('active');
+      const img = el.dataset.img;
+      const label = el.dataset.label;
+      const heroMain = document.getElementById('heroMain');
+      heroMain.style.backgroundImage = "url('" + img + "')";
+      document.getElementById('heroPill').textContent = label;
+    }
+
+    // ── Countdown timer (to midnight) ──────────────────
+    function updateCountdown() {
+      const now = new Date();
+      const end = new Date(); end.setHours(23, 59, 59, 999);
+      const diff = end - now;
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      document.getElementById('ch').textContent = String(h).padStart(2, '0');
+      document.getElementById('cm').textContent = String(m).padStart(2, '0');
+      document.getElementById('cs').textContent = String(s).padStart(2, '0');
+    }
+    updateCountdown();
+    setInterval(updateCountdown, 1000);
+
+    // ── Dynamic urgency band based on visitor timezone ──
+    (function(){
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      const now = new Date();
+      const month = now.getMonth()+1; // 1-12
+      const day = now.getDate();
+
+      // Map timezone region to country group
+      const isGreece   = tz.includes('Athens') || tz.includes('Europe/Athens');
+      const isUK       = tz.includes('London');
+      const isGermany  = tz.includes('Berlin') || tz.includes('Vienna') || tz.includes('Zurich');
+      const isUSA      = tz.includes('America/New_York')||tz.includes('America/Chicago')||tz.includes('America/Los_Angeles')||tz.includes('America/Denver');
+      const isFrance   = tz.includes('Paris');
+      const isSpain    = tz.includes('Madrid');
+      const isItaly    = tz.includes('Rome');
+
+      // Upcoming holidays by country (month, day, icon, title, subtitle)
+      const holidays = [
+        // Universal / seasonal
+        { m:12, d:25, icon:'🎄', title:"Christmas is almost here!", subtitle:"Order a caricature gift — ready in 90 seconds, delivered instantly." },
+        { m:12, d:24, icon:'🎄', title:"Christmas Eve! Last chance for gifts.", subtitle:"Order now and receive your caricature in 90 seconds." },
+        { m:12, d:31, icon:'🎆', title:"Happy New Year's Eve!", subtitle:"Celebrate with a personalised caricature — the perfect memory." },
+        { m:2, d:14, icon:'❤️', title:"Valentine's Day is coming!", subtitle:"Gift a caricature to someone special — they'll love it." },
+        { m:3, d:8, icon:'🌸', title:"International Women's Day!", subtitle:"Gift a stunning caricature to the women in your life." },
+        { m:5, d:12, icon:'💐', title:"Mother's Day is close!", subtitle:"Surprise Mum with a personalised caricature — order in seconds." },
+        { m:6, d:16, icon:'👔', title:"Father's Day is this weekend!", subtitle:"Dad deserves a caricature. Order now — done in 90 seconds." },
+        { m:10, d:31, icon:'🎃', title:"Halloween is here!", subtitle:"Create a Superhero or spooky caricature for the occasion." },
+        // Greece-specific
+        ...(isGreece ? [
+          { m:3, d:25, icon:'🇬🇷', title:"Χρόνια Πολλά! Ελληνική Εθνική Εορτή", subtitle:"Δωρίσε μια καρικατούρα — έτοιμη σε 90 δευτερόλεπτα." },
+          { m:10, d:28, icon:'🇬🇷', title:"Χρόνια Πολλά! 28η Οκτωβρίου", subtitle:"Γιόρτασε με μια μοναδική καρικατούρα — άμεση παράδοση." },
+          { m:4, d:23, icon:'🕊️', title:"Καλό Πάσχα! Easter is coming!", subtitle:"Η καλύτερη δωρεά για τις γιορτές — έτοιμη σε 90''." },
+        ] : []),
+        // UK
+        ...(isUK ? [
+          { m:4, d:23, icon:'🌹', title:"St George's Day!", subtitle:"Celebrate with a one-of-a-kind caricature gift." },
+        ] : []),
+        // Default
+      ];
+
+      // Find the closest upcoming holiday within 14 days
+      function daysUntil(hm, hd){
+        const target = new Date(now.getFullYear(), hm-1, hd);
+        if(target < now) target.setFullYear(now.getFullYear()+1);
+        return Math.ceil((target - now) / 86400000);
+      }
+
+      let best = null, bestDays = 999;
+      for(const h of holidays){
+        const d = daysUntil(h.m, h.d);
+        if(d <= 14 && d < bestDays){ bestDays = d; best = h; }
+      }
+
+      if(best){
+        document.getElementById('urgencyIcon').textContent = best.icon;
+        document.getElementById('urgencyTitle').textContent = best.title;
+        document.getElementById('urgencySubtitle').textContent = best.subtitle;
+      } else {
+        // Generic fallback
+        const generic = [
+          {icon:'🎂', title:'Got a birthday coming up this week?', subtitle:'Order now — your caricature is ready in 90 seconds, any time of day.'},
+          {icon:'💒', title:'Planning a wedding gift?', subtitle:'A personalised caricature makes an unforgettable keepsake.'},
+          {icon:'🎁', title:'Looking for a unique gift?', subtitle:'A caricature from your photo — ready in 90 seconds.'},
+        ];
+        const g = generic[Math.floor(Math.random()*generic.length)];
+        document.getElementById('urgencyIcon').textContent = g.icon;
+        document.getElementById('urgencyTitle').textContent = g.title;
+        document.getElementById('urgencySubtitle').textContent = g.subtitle;
+      }
+    })();
+
+    // ── FAQ toggle ──────────────────────────────────────
+    function toggleFaq(el) {
+      const wasOpen = el.classList.contains('open');
+      document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+      if (!wasOpen) el.classList.add('open');
+    }
+
+    // ── Scroll reveal ───────────────────────────────────
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+    }, { threshold: .15 });
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+    // ── Rotating live notification ──────────────────────
+    const notifs = [
+      { emoji: '💍', text: '<strong>Elena from Thessaloniki</strong> just ordered a Wedding · Santorini', time: '1 minute ago' },
+      { emoji: '🎂', text: '<strong>Carlos from Madrid</strong> gifted a Birthday caricature', time: '3 minutes ago' },
+      { emoji: '⚽', text: '<strong>Thomas from London</strong> created a Football Star', time: '5 minutes ago' },
+      { emoji: '🦸', text: '<strong>Sophie from Paris</strong> ordered a Superhero for her son', time: '7 minutes ago' },
+    ];
+    let ni = 0;
+    setTimeout(() => {
+      setInterval(() => {
+        const notif = document.getElementById('liveNotif');
+        if (!notif) return;
+        ni = (ni + 1) % notifs.length;
+        const n = notifs[ni];
+        notif.querySelector('.notif-img').textContent = n.emoji;
+        notif.querySelector('.notif-text').innerHTML = n.text + `<div class="notif-time">${n.time}</div>`;
+        notif.style.animation = 'none';
+        notif.offsetHeight; // reflow
+        notif.style.animation = '';
+      }, 8000);
+    }, 3000);
+  </script>
+  <script src="cookie-banner.js"></script>
+</body>
+
+</html>
