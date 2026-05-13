@@ -1,0 +1,17 @@
+[
+  {
+    "origin": [
+      "https://caricature.online",
+      "https://www.caricature.online",
+      "http://localhost:3000"
+    ],
+    "method": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    "responseHeader": [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Access-Control-Allow-Origin"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]
