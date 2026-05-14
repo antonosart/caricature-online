@@ -593,14 +593,14 @@ function onDescInput() {
   var val = document.getElementById('descTxt').value.trim();
   S.description = val;
   var hint = document.getElementById('descHint');
-  if (val.length < 10) {
-    hint.textContent = (10 - val.length) + ' more characters needed';
+  if (val.length < 5) {
+    hint.textContent = (5 - val.length) + ' more characters needed';
     hint.style.color = 'var(--muted)';
   } else {
     hint.textContent = val.length + ' characters ✓';
     hint.style.color = 'var(--success)';
   }
-  document.getElementById('btn4f').disabled = val.length < 10;
+  document.getElementById('btn4f').disabled = val.length < 5;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -721,14 +721,12 @@ async function handleUpload(e, pi, qi) {
     var score = (data.quality && data.quality.score) || data.score || 5;
     var warns = (data.quality && data.quality.warnings) || data.warnings || [];
 
+    // Always keep the upload — only warn, never block
     if (warns.indexOf('no_face') >= 0) {
-      zone.classList.add('bad');
-      st.className = 'uz-st err';
-      st.textContent = 'No face detected.';
-      S.personUploads[pi].u[qi] = null;
-      prev.style.display = 'none';
-      iconDiv.style.display = '';
-      showQA(pi, qi, 'err', 'No face detected — ' + QUALITY_TIPS.no_face);
+      zone.classList.add('has', 'bad');
+      st.className = 'uz-st warn';
+      st.textContent = 'No face detected — you can still proceed.';
+      showQA(pi, qi, 'warn', 'We could not detect a face clearly. For best results: ' + QUALITY_TIPS.no_face + ' You can still continue.');
     } else if (score >= 7) {
       zone.classList.add('has');
       st.className = 'uz-st ok';
@@ -741,8 +739,8 @@ async function handleUpload(e, pi, qi) {
       if (tip) showQA(pi, qi, 'warn', tip);
     } else {
       zone.classList.add('has', 'bad');
-      st.className = 'uz-st err';
-      st.textContent = 'Low quality photo.';
+      st.className = 'uz-st warn';
+      st.textContent = 'Low quality — you can still proceed.';
       showQA(pi, qi, 'warn', getTip(warns) || 'A clearer photo gives better results. You can still proceed.');
     }
   } catch(err) {
