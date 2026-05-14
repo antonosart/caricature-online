@@ -1,1166 +1,2063 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Order — Caricature.online</title>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://js.stripe.com/v3/"></script>
-<style>
-:root{--obsidian:#0f0d0a;--ink:#2a2420;--cream:#fdf9f4;--gold:#c8792a;--gold-l:#e8932e;--gold-pale:#f5e6d0;--muted:#8a7968;--border:#e8ddd0;--success:#2d7a4f;--warning:#b45309;--error:#c0392b;--display:"Cormorant Garamond",Georgia,serif;--body:"Outfit",sans-serif;--r:12px;}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:var(--body);background:var(--cream);color:var(--ink);min-height:100vh;}
-a{color:inherit;text-decoration:none;}
-button{font-family:var(--body);cursor:pointer;border:none;outline:none;}
-input,textarea{font-family:var(--body);font-size:15px;outline:none;}
-.nav{position:fixed;top:0;left:0;right:0;z-index:100;background:var(--obsidian);height:60px;display:flex;align-items:center;padding:0 24px;justify-content:space-between;}
-.nav-logo{font-family:var(--display);font-size:22px;font-weight:700;color:#f8f0e3;}
-.nav-logo span{color:var(--gold);}
-.nav-back{font-size:14px;color:rgba(255,255,255,.5);}
-.nav-back:hover{color:var(--gold);}
-.page{padding-top:60px;min-height:100vh;}
-.container{max-width:780px;margin:0 auto;padding:40px 20px;}
-.progress{display:flex;align-items:center;margin-bottom:48px;background:white;border:1px solid var(--border);border-radius:99px;padding:5px;overflow:hidden;}
-.ps{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 6px;border-radius:99px;font-size:12px;font-weight:600;color:var(--muted);transition:all .3s;white-space:nowrap;}
-.ps.active{background:var(--obsidian);color:white;}
-.ps.done{color:var(--gold);}
-.pn{width:20px;height:20px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;}
-.ps.active .pn{background:var(--gold);color:white;}
-.ps.done .pn{background:var(--gold-pale);color:var(--gold);}
-@media(max-width:600px){.ps span:not(.pn){display:none;}.ps{flex:0 0 auto;padding:9px;}}
-.screen{display:none;animation:fi .3s ease;}
-.screen.active{display:block;}
-@keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-.card{background:white;border:1px solid var(--border);border-radius:var(--r);padding:32px;}
-.ct{font-family:var(--display);font-size:34px;font-weight:600;line-height:1.1;margin-bottom:8px;}
-.ct em{color:var(--gold);font-style:italic;}
-.cs{font-size:15px;color:var(--muted);margin-bottom:28px;line-height:1.6;}
-.lt{font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:18px;display:block;}
-/* PATH */
-.path-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
-@media(max-width:500px){.path-grid{grid-template-columns:1fr;}}
-.path-card{border:2px solid var(--border);border-radius:var(--r);padding:28px 24px;text-align:center;cursor:pointer;transition:all .25s;background:var(--cream);position:relative;}
-.path-card:hover{border-color:var(--gold);transform:translateY(-2px);}
-.path-card.sel{border-color:var(--gold);background:var(--gold-pale);}
-.pi{font-size:44px;margin-bottom:12px;}
-.pname{font-family:var(--display);font-size:22px;font-weight:700;margin-bottom:6px;}
-.pdesc{font-size:13px;color:var(--muted);line-height:1.6;}
-.pbadge{position:absolute;top:12px;right:12px;background:var(--gold);color:white;font-size:10px;font-weight:700;padding:3px 10px;border-radius:99px;}
-/* OCCASION */
-.occ-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
-@media(min-width:500px){.occ-grid{grid-template-columns:repeat(3,1fr);}}
-.occ{border:2px solid var(--border);border-radius:var(--r);padding:20px 14px;text-align:center;cursor:pointer;transition:all .2s;background:var(--cream);}
-.occ:hover,.occ.sel{border-color:var(--gold);background:var(--gold-pale);}
-.oe{font-size:34px;margin-bottom:8px;}
-.on{font-size:15px;font-weight:700;}
-.od{font-size:12px;color:var(--muted);margin-top:2px;}
-/* PERSONS */
-.per-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
-@media(max-width:560px){.per-grid{grid-template-columns:repeat(3,1fr);}}
-.per-btn{border:2px solid var(--border);border-radius:10px;padding:16px 8px;text-align:center;cursor:pointer;transition:all .2s;background:var(--cream);}
-.per-btn:hover,.per-btn.sel{border-color:var(--gold);background:var(--gold-pale);}
-.per-n{font-family:var(--display);font-size:26px;font-weight:700;color:var(--gold);}
-.per-l{font-size:11px;color:var(--muted);margin-top:2px;}
-/* TEMPLATE */
-.tmpl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-height:500px;overflow-y:auto;margin-bottom:8px;}
-@media(min-width:500px){.tmpl-grid{grid-template-columns:repeat(4,1fr);}}
-.tc{border:2px solid var(--border);border-radius:10px;cursor:pointer;transition:all .2s;aspect-ratio:1;overflow:hidden;position:relative;background:var(--cream);}
-.tc:hover{border-color:var(--gold);transform:scale(1.03);}
-.tc.sel{border-color:var(--gold);box-shadow:0 0 0 3px rgba(200,121,42,.3);}
-.tc img{width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;}
-.tc-ov{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.75) 0%,transparent 55%);opacity:0;transition:opacity .2s;}
-.tc:hover .tc-ov,.tc.sel .tc-ov{opacity:1;}
-.tc-info{position:absolute;bottom:0;left:0;right:0;padding:8px;z-index:2;}
-.tc-name{font-size:11px;font-weight:600;color:white;text-shadow:0 1px 3px rgba(0,0,0,.5);}
-.tc-badge{position:absolute;top:5px;right:5px;z-index:3;background:rgba(200,121,42,.9);color:white;font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;}
-.tc-em{font-size:26px;margin-bottom:4px;text-align:center;padding-top:24px;}
-/* FORM */
-.fg{margin-bottom:20px;}
-.fg label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;letter-spacing:.5px;text-transform:uppercase;}
-.fi{width:100%;padding:13px 14px;background:var(--cream);border:1px solid var(--border);border-radius:8px;color:var(--ink);font-size:15px;transition:border-color .2s;}
-.fi:focus{border-color:var(--gold);background:white;}
-.fi::placeholder{color:var(--muted);}
-textarea.fi{resize:vertical;min-height:100px;}
-/* PHOTOS */
-.person-sec{background:var(--cream);border:1px solid var(--border);border-radius:var(--r);padding:22px;margin-bottom:20px;}
-.person-sec-title{font-family:var(--display);font-size:20px;font-weight:700;color:var(--gold);margin-bottom:16px;}
-.photo-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-.uz{border:2px dashed var(--border);border-radius:var(--r);padding:22px 14px;text-align:center;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;min-height:140px;}
-.uz:hover{border-color:var(--gold);background:var(--gold-pale);}
-.uz.has{border-color:var(--gold);border-style:solid;background:var(--gold-pale);}
-.uz.busy{opacity:.7;pointer-events:none;}
-.uz.bad{border-color:var(--error);background:#fff5f5;}
-.uz-icon{font-size:28px;margin-bottom:6px;}
-.uz-label{font-size:13px;font-weight:600;margin-bottom:3px;}
-.uz-hint{font-size:11px;color:var(--muted);}
-.uz-prev{width:100%;max-height:120px;object-fit:cover;border-radius:8px;margin-bottom:6px;display:none;}
-.uz-st{font-size:12px;font-weight:700;margin-top:4px;min-height:18px;}
-.uz-st.ok{color:var(--success);}
-.uz-st.warn{color:var(--warning);}
-.uz-st.err{color:var(--error);}
-input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
-.photo-tip{font-size:12px;color:var(--muted);background:var(--gold-pale);border:1px solid var(--gold);border-radius:8px;padding:10px 14px;margin-bottom:16px;line-height:1.6;}
-.qa{border-radius:8px;padding:12px 14px;font-size:13px;margin-top:8px;line-height:1.6;}
-.qa.warn{background:#fffbeb;border:1px solid #fde68a;color:#92400e;}
-.qa.err{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;}
-/* PLANS */
-.plan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;}
-@media(max-width:500px){.plan-grid{grid-template-columns:1fr;}}
-.plan-c{border:2px solid var(--border);border-radius:var(--r);padding:24px 16px;cursor:pointer;transition:all .2s;background:var(--cream);position:relative;}
-.plan-c:hover,.plan-c.sel{border-color:var(--gold);background:var(--gold-pale);}
-.plan-badge{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:var(--gold);color:white;font-size:10px;font-weight:700;padding:3px 12px;border-radius:99px;white-space:nowrap;}
-.plan-name{font-size:15px;font-weight:700;margin-bottom:4px;}
-.plan-price{font-family:var(--display);font-size:30px;font-weight:700;color:var(--gold);}
-.plan-desc{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5;}
-/* SUMMARY */
-.summary{background:var(--cream);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:24px;}
-.sr{display:flex;justify-content:space-between;font-size:14px;color:var(--muted);padding:7px 0;border-bottom:1px solid var(--border);}
-.sr:last-child{border-bottom:none;color:var(--ink);font-weight:700;font-size:16px;}
-.sv{color:var(--ink);font-weight:600;}
-#card-element{background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:14px;}
-#card-element.StripeElement--focus{border-color:var(--gold);}
-#cerr{color:var(--error);font-size:14px;margin-top:8px;min-height:20px;}
-.pay-btn{width:100%;padding:18px;border-radius:8px;background:var(--gold);color:white;font-size:17px;font-weight:700;margin-top:20px;transition:background .2s;letter-spacing:.3px;}
-.pay-btn:hover:not(:disabled){background:var(--gold-l);}
-.pay-btn:disabled{opacity:.6;cursor:not-allowed;}
-.pay-notice{font-size:12px;color:var(--muted);text-align:center;margin-top:12px;}
-/* BUTTONS */
-.btn-row{display:flex;gap:12px;margin-top:28px;}
-.btn-back{flex:0 0 auto;padding:14px 24px;border-radius:8px;border:1px solid var(--border);background:white;font-size:15px;font-weight:600;color:var(--muted);transition:all .2s;}
-.btn-back:hover{border-color:var(--gold);color:var(--gold);}
-.btn-next{flex:1;padding:15px 28px;border-radius:8px;background:var(--obsidian);color:white;font-size:16px;font-weight:700;transition:background .2s;}
-.btn-next:hover:not(:disabled){background:#1c1814;}
-.btn-next:disabled{opacity:.5;cursor:not-allowed;}
-.alert-tip{border-radius:8px;padding:14px 16px;font-size:13px;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;margin-bottom:16px;line-height:1.6;}
-.spin{display:inline-block;width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:white;border-radius:50%;animation:sp .7s linear infinite;vertical-align:middle;margin-right:8px;}
-@keyframes sp{to{transform:rotate(360deg)}}
-.success-page{text-align:center;padding:60px 20px;}
-.success-icon{font-size:72px;margin-bottom:24px;animation:pop .5s ease;}
-@keyframes pop{0%{transform:scale(0)}80%{transform:scale(1.1)}100%{transform:scale(1)}}
-.success-title{font-family:var(--display);font-size:42px;font-weight:700;margin-bottom:12px;}
-.success-title em{color:var(--gold);}
-.success-sub{font-size:16px;color:var(--muted);line-height:1.7;max-width:480px;margin:0 auto;}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Order — Caricature.online</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Outfit:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+  <script src="https://js.stripe.com/v3/"></script>
+  <style>
+    :root {
+      --obsidian: #0f0d0a;
+      --ink: #2a2420;
+      --cream: #fdf9f4;
+      --gold: #c8792a;
+      --gold-l: #e8932e;
+      --gold-pale: #f5e6d0;
+      --muted: #8a7968;
+      --border: #e8ddd0;
+      --success: #2d7a4f;
+      --warning: #b45309;
+      --error: #c0392b;
+      --display: "Cormorant Garamond", Georgia, serif;
+      --body: "Outfit", sans-serif;
+      --r: 12px;
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--body);
+      background: var(--cream);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    button {
+      font-family: var(--body);
+      cursor: pointer;
+      border: none;
+      outline: none;
+    }
+
+    input,
+    textarea {
+      font-family: var(--body);
+      font-size: 15px;
+      outline: none;
+    }
+
+    .nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: var(--obsidian);
+      height: 60px;
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      justify-content: space-between;
+    }
+
+    .nav-logo {
+      font-family: var(--display);
+      font-size: 22px;
+      font-weight: 700;
+      color: #f8f0e3;
+    }
+
+    .nav-logo span {
+      color: var(--gold);
+    }
+
+    .nav-back {
+      font-size: 14px;
+      color: rgba(255, 255, 255, .5);
+    }
+
+    .nav-back:hover {
+      color: var(--gold);
+    }
+
+    .page {
+      padding-top: 60px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+
+    .progress {
+      display: flex;
+      align-items: center;
+      margin-bottom: 48px;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      padding: 5px;
+      overflow: hidden;
+    }
+
+    .ps {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 9px 6px;
+      border-radius: 99px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      transition: all .3s;
+      white-space: nowrap;
+    }
+
+    .ps.active {
+      background: var(--obsidian);
+      color: white;
+    }
+
+    .ps.done {
+      color: var(--gold);
+    }
+
+    .pn {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .ps.active .pn {
+      background: var(--gold);
+      color: white;
+    }
+
+    .ps.done .pn {
+      background: var(--gold-pale);
+      color: var(--gold);
+    }
+
+    @media(max-width:600px) {
+      .ps span:not(.pn) {
+        display: none;
+      }
+
+      .ps {
+        flex: 0 0 auto;
+        padding: 9px;
+      }
+    }
+
+    .screen {
+      display: none;
+      animation: fi .3s ease;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    @keyframes fi {
+      from {
+        opacity: 0;
+        transform: translateY(8px)
+      }
+
+      to {
+        opacity: 1;
+        transform: none
+      }
+    }
+
+    .card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 32px;
+    }
+
+    .ct {
+      font-family: var(--display);
+      font-size: 34px;
+      font-weight: 600;
+      line-height: 1.1;
+      margin-bottom: 8px;
+    }
+
+    .ct em {
+      color: var(--gold);
+      font-style: italic;
+    }
+
+    .cs {
+      font-size: 15px;
+      color: var(--muted);
+      margin-bottom: 28px;
+      line-height: 1.6;
+    }
+
+    .lt {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 18px;
+      display: block;
+    }
+
+    /* PATH */
+    .path-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media(max-width:500px) {
+      .path-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .path-card {
+      border: 2px solid var(--border);
+      border-radius: var(--r);
+      padding: 28px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all .25s;
+      background: var(--cream);
+      position: relative;
+    }
+
+    .path-card:hover {
+      border-color: var(--gold);
+      transform: translateY(-2px);
+    }
+
+    .path-card.sel {
+      border-color: var(--gold);
+      background: var(--gold-pale);
+    }
+
+    .pi {
+      font-size: 44px;
+      margin-bottom: 12px;
+    }
+
+    .pname {
+      font-family: var(--display);
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .pdesc {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .pbadge {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: var(--gold);
+      color: white;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 99px;
+    }
+
+    /* OCCASION */
+    .occ-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    @media(min-width:500px) {
+      .occ-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    .occ {
+      border: 2px solid var(--border);
+      border-radius: var(--r);
+      padding: 20px 14px;
+      text-align: center;
+      cursor: pointer;
+      transition: all .2s;
+      background: var(--cream);
+    }
+
+    .occ:hover,
+    .occ.sel {
+      border-color: var(--gold);
+      background: var(--gold-pale);
+    }
+
+    .oe {
+      font-size: 34px;
+      margin-bottom: 8px;
+    }
+
+    .on {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .od {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* PERSONS */
+    .per-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+    }
+
+    @media(max-width:560px) {
+      .per-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    .per-btn {
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: all .2s;
+      background: var(--cream);
+    }
+
+    .per-btn:hover,
+    .per-btn.sel {
+      border-color: var(--gold);
+      background: var(--gold-pale);
+    }
+
+    .per-n {
+      font-family: var(--display);
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--gold);
+    }
+
+    .per-l {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* TEMPLATE */
+    .tmpl-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      max-height: 500px;
+      overflow-y: auto;
+      margin-bottom: 8px;
+    }
+
+    @media(min-width:500px) {
+      .tmpl-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+
+    .tc {
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all .2s;
+      aspect-ratio: 1;
+      overflow: hidden;
+      position: relative;
+      background: var(--cream);
+    }
+
+    .tc:hover {
+      border-color: var(--gold);
+      transform: scale(1.03);
+    }
+
+    .tc.sel {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px rgba(200, 121, 42, .3);
+    }
+
+    .tc img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    .tc-ov {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(0, 0, 0, .75) 0%, transparent 55%);
+      opacity: 0;
+      transition: opacity .2s;
+    }
+
+    .tc:hover .tc-ov,
+    .tc.sel .tc-ov {
+      opacity: 1;
+    }
+
+    .tc-info {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 8px;
+      z-index: 2;
+    }
+
+    .tc-name {
+      font-size: 11px;
+      font-weight: 600;
+      color: white;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, .5);
+    }
+
+    .tc-badge {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      z-index: 3;
+      background: rgba(200, 121, 42, .9);
+      color: white;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 5px;
+      border-radius: 4px;
+    }
+
+    .tc-em {
+      font-size: 26px;
+      margin-bottom: 4px;
+      text-align: center;
+      padding-top: 24px;
+    }
+
+    /* FORM */
+    .fg {
+      margin-bottom: 20px;
+    }
+
+    .fg label {
+      display: block;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      margin-bottom: 6px;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+    }
+
+    .fi {
+      width: 100%;
+      padding: 13px 14px;
+      background: var(--cream);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--ink);
+      font-size: 15px;
+      transition: border-color .2s;
+    }
+
+    .fi:focus {
+      border-color: var(--gold);
+      background: white;
+    }
+
+    .fi::placeholder {
+      color: var(--muted);
+    }
+
+    textarea.fi {
+      resize: vertical;
+      min-height: 100px;
+    }
+
+    /* PHOTOS */
+    .person-sec {
+      background: var(--cream);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 22px;
+      margin-bottom: 20px;
+    }
+
+    .person-sec-title {
+      font-family: var(--display);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--gold);
+      margin-bottom: 16px;
+    }
+
+    .photo-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .uz {
+      border: 2px dashed var(--border);
+      border-radius: var(--r);
+      padding: 22px 14px;
+      text-align: center;
+      cursor: pointer;
+      transition: all .2s;
+      position: relative;
+      overflow: hidden;
+      min-height: 140px;
+    }
+
+    .uz:hover {
+      border-color: var(--gold);
+      background: var(--gold-pale);
+    }
+
+    .uz.has {
+      border-color: var(--gold);
+      border-style: solid;
+      background: var(--gold-pale);
+    }
+
+    .uz.busy {
+      opacity: .7;
+      pointer-events: none;
+    }
+
+    .uz.bad {
+      border-color: var(--error);
+      background: #fff5f5;
+    }
+
+    .uz-icon {
+      font-size: 28px;
+      margin-bottom: 6px;
+    }
+
+    .uz-label {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 3px;
+    }
+
+    .uz-hint {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .uz-prev {
+      width: 100%;
+      max-height: 120px;
+      object-fit: cover;
+      border-radius: 8px;
+      margin-bottom: 6px;
+      display: none;
+    }
+
+    .uz-st {
+      font-size: 12px;
+      font-weight: 700;
+      margin-top: 4px;
+      min-height: 18px;
+    }
+
+    .uz-st.ok {
+      color: var(--success);
+    }
+
+    .uz-st.warn {
+      color: var(--warning);
+    }
+
+    .uz-st.err {
+      color: var(--error);
+    }
+
+    input[type=file] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .photo-tip {
+      font-size: 12px;
+      color: var(--muted);
+      background: var(--gold-pale);
+      border: 1px solid var(--gold);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+
+    .qa {
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 13px;
+      margin-top: 8px;
+      line-height: 1.6;
+    }
+
+    .qa.warn {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      color: #92400e;
+    }
+
+    .qa.err {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #991b1b;
+    }
+
+    /* PLANS */
+    .plan-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    @media(max-width:500px) {
+      .plan-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .plan-c {
+      border: 2px solid var(--border);
+      border-radius: var(--r);
+      padding: 24px 16px;
+      cursor: pointer;
+      transition: all .2s;
+      background: var(--cream);
+      position: relative;
+    }
+
+    .plan-c:hover,
+    .plan-c.sel {
+      border-color: var(--gold);
+      background: var(--gold-pale);
+    }
+
+    .plan-badge {
+      position: absolute;
+      top: -11px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--gold);
+      color: white;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 12px;
+      border-radius: 99px;
+      white-space: nowrap;
+    }
+
+    .plan-name {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .plan-price {
+      font-family: var(--display);
+      font-size: 30px;
+      font-weight: 700;
+      color: var(--gold);
+    }
+
+    .plan-desc {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+
+    /* SUMMARY */
+    .summary {
+      background: var(--cream);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .sr {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      color: var(--muted);
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sr:last-child {
+      border-bottom: none;
+      color: var(--ink);
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .sv {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    #card-element {
+      background: var(--cream);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    #card-element.StripeElement--focus {
+      border-color: var(--gold);
+    }
+
+    #cerr {
+      color: var(--error);
+      font-size: 14px;
+      margin-top: 8px;
+      min-height: 20px;
+    }
+
+    .pay-btn {
+      width: 100%;
+      padding: 18px;
+      border-radius: 8px;
+      background: var(--gold);
+      color: white;
+      font-size: 17px;
+      font-weight: 700;
+      margin-top: 20px;
+      transition: background .2s;
+      letter-spacing: .3px;
+    }
+
+    .pay-btn:hover:not(:disabled) {
+      background: var(--gold-l);
+    }
+
+    .pay-btn:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    .pay-notice {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 12px;
+    }
+
+    /* BUTTONS */
+    .btn-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .btn-back {
+      flex: 0 0 auto;
+      padding: 14px 24px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: white;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--muted);
+      transition: all .2s;
+    }
+
+    .btn-back:hover {
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+
+    .btn-next {
+      flex: 1;
+      padding: 15px 28px;
+      border-radius: 8px;
+      background: var(--obsidian);
+      color: white;
+      font-size: 16px;
+      font-weight: 700;
+      transition: background .2s;
+    }
+
+    .btn-next:hover:not(:disabled) {
+      background: #1c1814;
+    }
+
+    .btn-next:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    .alert-tip {
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: 13px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      color: #166534;
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+
+    .spin {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255, 255, 255, .3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: sp .7s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+
+    @keyframes sp {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    .success-page {
+      text-align: center;
+      padding: 60px 20px;
+    }
+
+    .success-icon {
+      font-size: 72px;
+      margin-bottom: 24px;
+      animation: pop .5s ease;
+    }
+
+    @keyframes pop {
+      0% {
+        transform: scale(0)
+      }
+
+      80% {
+        transform: scale(1.1)
+      }
+
+      100% {
+        transform: scale(1)
+      }
+    }
+
+    .success-title {
+      font-family: var(--display);
+      font-size: 42px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .success-title em {
+      color: var(--gold);
+    }
+
+    .success-sub {
+      font-size: 16px;
+      color: var(--muted);
+      line-height: 1.7;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+  </style>
 </head>
+
 <body>
-<nav class="nav">
-  <div class="nav-logo">Caricature<span>.</span>online</div>
-  <a href="/" class="nav-back">Back to home</a>
-</nav>
-<div class="page"><div class="container">
+  <nav class="nav">
+    <div class="nav-logo">Caricature<span>.</span>online</div>
+    <a href="/" class="nav-back">Back to home</a>
+  </nav>
+  <div class="page">
+    <div class="container">
 
-<div class="progress" id="prog">
-  <div class="ps active" id="ps1"><span class="pn">1</span><span>Style</span></div>
-  <div class="ps" id="ps2"><span class="pn">2</span><span>Occasion</span></div>
-  <div class="ps" id="ps3"><span class="pn">3</span><span>Persons</span></div>
-  <div class="ps" id="ps4"><span class="pn">4</span><span>Design</span></div>
-  <div class="ps" id="ps5"><span class="pn">5</span><span>Photos</span></div>
-  <div class="ps" id="ps6"><span class="pn">6</span><span>Pay</span></div>
-</div>
+      <div class="progress" id="prog">
+        <div class="ps active" id="ps1"><span class="pn">1</span><span>Style</span></div>
+        <div class="ps" id="ps2"><span class="pn">2</span><span>Occasion</span></div>
+        <div class="ps" id="ps3"><span class="pn">3</span><span>Persons</span></div>
+        <div class="ps" id="ps4"><span class="pn">4</span><span>Design</span></div>
+        <div class="ps" id="ps5"><span class="pn">5</span><span>Photos</span></div>
+        <div class="ps" id="ps6"><span class="pn">6</span><span>Pay</span></div>
+      </div>
 
-<!-- S1: PATH -->
-<div class="screen active" id="s1">
-<div class="card">
-  <div class="ct">Create Your <em>Caricature</em></div>
-  <div class="cs">Choose how to personalise your art.</div>
-  <span class="lt">Select your path</span>
-  <div class="path-grid">
-    <div class="path-card" id="pt-template">
-      <div class="pi">🎨</div>
-      <div class="pname">Pick a Template</div>
-      <div class="pdesc">Choose from 60+ professional scenes. Your face is placed on the template background.</div>
+      <!-- S1: PATH -->
+      <div class="screen active" id="s1">
+        <div class="card">
+          <div class="ct">Create Your <em>Caricature</em></div>
+          <div class="cs">Choose how to personalise your art.</div>
+          <span class="lt">Select your path</span>
+          <div class="path-grid">
+            <div class="path-card" id="pt-template">
+              <div class="pi">🎨</div>
+              <div class="pname">Pick a Template</div>
+              <div class="pdesc">Choose from 60+ professional scenes. Your face is placed on the template background.
+              </div>
+            </div>
+            <div class="path-card" id="pt-free">
+              <div class="pbadge">CREATIVE</div>
+              <div class="pi">✏️</div>
+              <div class="pname">Describe Your Own</div>
+              <div class="pdesc">Describe any scene you imagine. Full creative freedom — any background or theme.</div>
+            </div>
+          </div>
+          <div class="btn-row"><button class="btn-next" id="btn1" disabled>Continue →</button></div>
+        </div>
+      </div>
+
+      <!-- S2: OCCASION -->
+      <div class="screen" id="s2">
+        <div class="card">
+          <div class="ct">What's the <em>Occasion?</em></div>
+          <div class="cs">This helps us find the right style.</div>
+          <span class="lt">Select occasion</span>
+          <div class="occ-grid" id="occGrid"></div>
+          <div class="btn-row">
+            <button class="btn-back" id="s2back">Back</button>
+            <button class="btn-next" id="btn2" disabled>Continue →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- S3: PERSONS (Flow A only) -->
+      <div class="screen" id="s3">
+        <div class="card">
+          <div class="ct">How Many <em>People?</em></div>
+          <div class="cs">We ask for 2 photos per person for the best result.</div>
+          <span class="lt">Number of persons</span>
+          <div class="per-grid" id="perGrid"></div>
+          <div class="btn-row">
+            <button class="btn-back" onclick="goTo(2)">Back</button>
+            <button class="btn-next" id="btn3" disabled>Continue →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- S4T: TEMPLATE -->
+      <div class="screen" id="s4t">
+        <div class="card">
+          <div class="ct">Choose Your <em>Template</em></div>
+          <div class="cs">Your face will be placed on this scene using AI image-to-image generation.</div>
+          <span class="lt">Templates for <span id="occLabel">—</span></span>
+          <div class="tmpl-grid" id="tmplGrid"></div>
+          <div class="btn-row">
+            <button class="btn-back" onclick="goTo(2)">Back</button>
+            <button class="btn-next" id="btn4t" disabled>Continue →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- S4F: FREE DESCRIPTION -->
+      <div class="screen" id="s4f">
+        <div class="card">
+          <div class="ct">Describe Your <em>Scene</em></div>
+          <div class="cs">The more detail you give, the better the result.</div>
+          <div class="alert-tip">💡 <strong>Example:</strong> "Santa Claus carrying a big red bag of gifts, snowy blue
+            night sky, bright festive colours, cheerful mood"</div>
+          <div class="fg">
+            <label>Scene description *</label>
+            <textarea class="fi" id="descTxt" rows="5"
+              placeholder="Describe the scene, background, what the person is doing, props, clothing, mood..."></textarea>
+            <div id="descHint" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>
+          </div>
+          <div class="fg">
+            <label>Extra notes (optional)</label>
+            <input type="text" class="fi" id="notesTxt" placeholder="Any special requests, personalisation...">
+          </div>
+          <div class="btn-row">
+            <button class="btn-back" onclick="goTo(3)">Back</button>
+            <button class="btn-next" id="btn4f" disabled>Continue →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- S5: PHOTOS -->
+      <div class="screen" id="s5">
+        <div class="card">
+          <div class="ct">Upload <em>Photos</em></div>
+          <div class="cs">2 photos per person gives us the best facial reference.</div>
+          <div class="photo-tip">📸 <strong>Best results:</strong> Clear face, good lighting, front or slight angle.<br>
+            <strong>Avoid:</strong> Sunglasses, very small face, dark or backlit photos.
+          </div>
+          <div id="personSecs"></div>
+          <div class="btn-row">
+            <button class="btn-back" id="s5back">Back</button>
+            <button class="btn-next" id="btn5" disabled>Continue →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- S6: PAY -->
+      <div class="screen" id="s6">
+        <div class="card">
+          <div class="ct">Almost <em>Done!</em></div>
+          <div class="cs">Choose your plan and complete your order.</div>
+          <span class="lt">Plan</span>
+          <div class="plan-grid" id="planGrid"></div>
+          <div class="summary" id="summaryEl"></div>
+          <span class="lt">Your details</span>
+          <div class="fg"><label>Full name</label><input type="text" class="fi" id="nameIn" placeholder="Your name">
+          </div>
+          <div class="fg"><label>Email</label><input type="email" class="fi" id="emailIn" placeholder="your@email.com">
+          </div>
+          <span class="lt" style="margin-top:20px;">Payment</span>
+          <div id="card-element"></div>
+          <div id="cerr"></div>
+          <button class="pay-btn" id="payBtn" disabled>🎨 Complete Order</button>
+          <p class="pay-notice">🔒 Secured by Stripe · Results emailed in 60–90 seconds</p>
+          <div class="btn-row" style="margin-top:16px;"><button class="btn-back" onclick="goTo(5)">Back</button></div>
+        </div>
+      </div>
+
+      <!-- SUCCESS -->
+      <div class="screen" id="sSuccess">
+        <div class="success-page">
+          <div class="success-icon">🎨</div>
+          <div class="success-title">Your Caricature is <em>Being Created!</em></div>
+          <div class="success-sub">We're generating your Antonos-style caricature right now. Check your email in 60–90
+            seconds.</div>
+          <div id="orderId" style="font-size:13px;color:var(--muted);margin-top:12px;"></div>
+        </div>
+      </div>
+
     </div>
-    <div class="path-card" id="pt-free">
-      <div class="pbadge">CREATIVE</div>
-      <div class="pi">✏️</div>
-      <div class="pname">Describe Your Own</div>
-      <div class="pdesc">Describe any scene you imagine. Full creative freedom — any background or theme.</div>
-    </div>
   </div>
-  <div class="btn-row"><button class="btn-next" id="btn1" disabled>Continue →</button></div>
-</div>
-</div>
 
-<!-- S2: OCCASION -->
-<div class="screen" id="s2">
-<div class="card">
-  <div class="ct">What's the <em>Occasion?</em></div>
-  <div class="cs">This helps us find the right style.</div>
-  <span class="lt">Select occasion</span>
-  <div class="occ-grid" id="occGrid"></div>
-  <div class="btn-row">
-    <button class="btn-back" id="s2back">Back</button>
-    <button class="btn-next" id="btn2" disabled>Continue →</button>
-  </div>
-</div>
-</div>
-
-<!-- S3: PERSONS (Flow A only) -->
-<div class="screen" id="s3">
-<div class="card">
-  <div class="ct">How Many <em>People?</em></div>
-  <div class="cs">We ask for 2 photos per person for the best result.</div>
-  <span class="lt">Number of persons</span>
-  <div class="per-grid" id="perGrid"></div>
-  <div class="btn-row">
-    <button class="btn-back" onclick="goTo(2)">Back</button>
-    <button class="btn-next" id="btn3" disabled>Continue →</button>
-  </div>
-</div>
-</div>
-
-<!-- S4T: TEMPLATE -->
-<div class="screen" id="s4t">
-<div class="card">
-  <div class="ct">Choose Your <em>Template</em></div>
-  <div class="cs">Your face will be placed on this scene using AI image-to-image generation.</div>
-  <span class="lt">Templates for <span id="occLabel">—</span></span>
-  <div class="tmpl-grid" id="tmplGrid"></div>
-  <div class="btn-row">
-    <button class="btn-back" onclick="goTo(2)">Back</button>
-    <button class="btn-next" id="btn4t" disabled>Continue →</button>
-  </div>
-</div>
-</div>
-
-<!-- S4F: FREE DESCRIPTION -->
-<div class="screen" id="s4f">
-<div class="card">
-  <div class="ct">Describe Your <em>Scene</em></div>
-  <div class="cs">The more detail you give, the better the result.</div>
-  <div class="alert-tip">💡 <strong>Example:</strong> "Santa Claus carrying a big red bag of gifts, snowy blue night sky, bright festive colours, cheerful mood"</div>
-  <div class="fg">
-    <label>Scene description *</label>
-    <textarea class="fi" id="descTxt" rows="5" placeholder="Describe the scene, background, what the person is doing, props, clothing, mood..."></textarea>
-    <div id="descHint" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>
-  </div>
-  <div class="fg">
-    <label>Extra notes (optional)</label>
-    <input type="text" class="fi" id="notesTxt" placeholder="Any special requests, personalisation...">
-  </div>
-  <div class="btn-row">
-    <button class="btn-back" onclick="goTo(3)">Back</button>
-    <button class="btn-next" id="btn4f" disabled>Continue →</button>
-  </div>
-</div>
-</div>
-
-<!-- S5: PHOTOS -->
-<div class="screen" id="s5">
-<div class="card">
-  <div class="ct">Upload <em>Photos</em></div>
-  <div class="cs">2 photos per person gives us the best facial reference.</div>
-  <div class="photo-tip">📸 <strong>Best results:</strong> Clear face, good lighting, front or slight angle.<br>
-  <strong>Avoid:</strong> Sunglasses, very small face, dark or backlit photos.</div>
-  <div id="personSecs"></div>
-  <div class="btn-row">
-    <button class="btn-back" id="s5back">Back</button>
-    <button class="btn-next" id="btn5" disabled>Continue →</button>
-  </div>
-</div>
-</div>
-
-<!-- S6: PAY -->
-<div class="screen" id="s6">
-<div class="card">
-  <div class="ct">Almost <em>Done!</em></div>
-  <div class="cs">Choose your plan and complete your order.</div>
-  <span class="lt">Plan</span>
-  <div class="plan-grid" id="planGrid"></div>
-  <div class="summary" id="summaryEl"></div>
-  <span class="lt">Your details</span>
-  <div class="fg"><label>Full name</label><input type="text" class="fi" id="nameIn" placeholder="Your name"></div>
-  <div class="fg"><label>Email</label><input type="email" class="fi" id="emailIn" placeholder="your@email.com"></div>
-  <span class="lt" style="margin-top:20px;">Payment</span>
-  <div id="card-element"></div>
-  <div id="cerr"></div>
-  <button class="pay-btn" id="payBtn" disabled>🎨 Complete Order</button>
-  <p class="pay-notice">🔒 Secured by Stripe · Results emailed in 60–90 seconds</p>
-  <div class="btn-row" style="margin-top:16px;"><button class="btn-back" onclick="goTo(5)">Back</button></div>
-</div>
-</div>
-
-<!-- SUCCESS -->
-<div class="screen" id="sSuccess">
-<div class="success-page">
-  <div class="success-icon">🎨</div>
-  <div class="success-title">Your Caricature is <em>Being Created!</em></div>
-  <div class="success-sub">We're generating your Antonos-style caricature right now. Check your email in 60–90 seconds.</div>
-  <div id="orderId" style="font-size:13px;color:var(--muted);margin-top:12px;"></div>
-</div>
-</div>
-
-</div></div>
-
-<script>
-// ═══════════════════════════════════════════════════════
-// CONFIG — Caricature.online order flow v2.2
-// Face-check UX aligned with backend v2.2
-// ═══════════════════════════════════════════════════════
-var API_URL = 'https://caricature-api-52458434183.us-central1.run.app';
-
-var OCCASIONS = [
-  {id:'wedding',   emoji:'💒', name:'Wedding',   desc:'For the happy couple'},
-  {id:'birthday',  emoji:'🎂', name:'Birthday',  desc:'Celebrate in style'},
-  {id:'business',  emoji:'💼', name:'Business',  desc:'Professional & fun'},
-  {id:'kids',      emoji:'🧸', name:'Kids',      desc:'For little ones'},
-  {id:'superhero', emoji:'🦸', name:'Superhero', desc:'Mighty caricatures'},
-  {id:'family',    emoji:'👨‍👩‍👧‍👦', name:'Family',   desc:'For everyone'},
-  {id:'sports',    emoji:'⚽', name:'Sports',    desc:'Active & energetic'},
-  {id:'other',     emoji:'✨', name:'Other',     desc:'Custom occasion'}
-];
-
-var PERSONS_LIST = [
-  {val:'1', label:'1',   sub:'person'},
-  {val:'2', label:'2',   sub:'people +€5'},
-  {val:'3', label:'3',   sub:'people +€10'},
-  {val:'4', label:'4',   sub:'people +€15'},
-  {val:'5', label:'5',   sub:'people +€20'}
-];
-
-var PERSON_EXTRA = {1:0, 2:5, 3:10, 4:15, 5:20};
-
-var PLANS = [
-  {id:'basic',    name:'Basic',    price:8.99,  popular:false,
-   features:['1 caricature in your chosen template','4K ultra-HD quality','Delivered by email in ~90 seconds','1 free revision included']},
-  {id:'standard', name:'Standard', price:14.99, popular:true,
-   features:['1 caricature in your chosen template','4K ultra-HD quality','2 free revisions if not 100% happy','Priority generation queue','Personalisation questions included']},
-  {id:'premium',  name:'Premium',  price:19.99, popular:false,
-   features:['1 caricature in your chosen template','4K ultra-HD quality','3 free revisions included','Priority generation queue']}
-];
-
-var QUALITY_TIPS = {
-  no_face:       'Upload a photo showing the face clearly — front-facing, not covered.',
-  backlit:       'Take the photo facing a light source. Avoid bright backgrounds behind the person.',
-  blurred:       'Use a sharp, in-focus photo. Try portrait mode on your phone.',
-  dark:          'Take the photo in good natural light or a well-lit room.',
-  face_too_small:'Use a closer shot where the face fills at least 1/3 of the image.',
-  multiple_faces:'Upload a photo with only the one person for this caricature.',
-  obstructed:    'Remove sunglasses, hats or anything covering the face.',
-  low_resolution:'Use a higher resolution photo — avoid compressed screenshots.',
-  quality_check_failed:'We could not complete the automatic quality check, but your photo was accepted.',
-  quality_check_uncertain:'Face detection was uncertain, but your photo was accepted.'
-};
-
-// ═══════════════════════════════════════════════════════
-// STATE
-// ═══════════════════════════════════════════════════════
-var S = {
-  flow: null,
-  occasion: null,
-  persons: null,
-  templateId: null,
-  templateName: null,
-  description: '',
-  notes: '',
-  plan: 'standard',
-  personUploads: [],
-  step: 1
-};
-
-// ═══════════════════════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', function() {
-  buildOccasions();
-  buildPersons();
-  buildPlans();
-  initStripe();
-
-  document.getElementById('pt-template').addEventListener('click', function() { selectPath('template'); });
-  document.getElementById('pt-free').addEventListener('click', function() { selectPath('free'); });
-  document.getElementById('btn1').addEventListener('click', function() { goTo(2); });
-  document.getElementById('btn2').addEventListener('click', function() {
-    goTo(S.flow === 'template' ? 4 : 3);
-  });
-  document.getElementById('s2back').addEventListener('click', function() { goTo(1); });
-  document.getElementById('btn3').addEventListener('click', function() { goTo(4); });
-  document.getElementById('btn4t').addEventListener('click', function() { goTo(5); });
-  document.getElementById('btn4f').addEventListener('click', function() { goTo(5); });
-  document.getElementById('btn5').addEventListener('click', function() { goTo(6); });
-  document.getElementById('s5back').addEventListener('click', function() {
-    goTo(S.flow === 'template' ? 4 : 3);
-  });
-  document.getElementById('descTxt').addEventListener('input', onDescInput);
-  document.getElementById('nameIn').addEventListener('input', checkPay);
-  document.getElementById('emailIn').addEventListener('input', checkPay);
-  document.getElementById('payBtn').addEventListener('click', handlePay);
-});
-
-async function initStripe() {
-  try {
-    var r = await fetch(API_URL + '/api/pricing');
-    var d = await r.json();
-    var stripe = Stripe(d.publishable_key || 'pk_test_REPLACE');
-    var els = stripe.elements();
-    window._stripe = stripe;
-    var card = els.create('card', {
-      style: { base: { fontFamily: "'Outfit',sans-serif", fontSize: '16px', color: '#2a2420' } }
-    });
-    card.mount('#card-element');
-    card.on('change', function(e) {
-      document.getElementById('cerr').textContent = e.error ? e.error.message : '';
-      window._cardOk = e.complete;
-      checkPay();
-    });
-    window._card = card;
-  } catch(e) { console.warn('Stripe init:', e); }
-}
-
-// ═══════════════════════════════════════════════════════
-// NAVIGATION
-// ═══════════════════════════════════════════════════════
-function goTo(step) {
-  var old = screenId(S.step);
-  document.getElementById(old).classList.remove('active');
-  S.step = step;
-  var nw = screenId(step);
-  document.getElementById(nw).classList.add('active');
-  updateProgress(step);
-  if (step === 4) onStep4();
-  if (step === 5) buildPhotoSections();
-  if (step === 6) onStep6();
-  window.scrollTo({top: 0, behavior: 'smooth'});
-}
-
-function screenId(s) {
-  if (s === 4) return S.flow === 'template' ? 's4t' : 's4f';
-  if (s === 7) return 'sSuccess';
-  return 's' + s;
-}
-
-function updateProgress(step) {
-  var flowB = S.flow === 'template';
-  var ps3 = document.getElementById('ps3');
-  if (ps3) ps3.style.display = flowB ? 'none' : '';
-
-  var steps = flowB ? [1,2,4,5,6] : [1,2,3,4,5,6];
-  for (var i = 1; i <= 6; i++) {
-    var el = document.getElementById('ps' + i);
-    if (!el) continue;
-    el.classList.remove('active', 'done');
-    if (i === step) el.classList.add('active');
-    else if (steps.indexOf(i) < steps.indexOf(step) && steps.indexOf(i) >= 0) el.classList.add('done');
-  }
-}
-
-// ═══════════════════════════════════════════════════════
-// STEP 1: PATH
-// ═══════════════════════════════════════════════════════
-function selectPath(p) {
-  S.flow = p;
-  document.getElementById('pt-template').classList.toggle('sel', p === 'template');
-  document.getElementById('pt-free').classList.toggle('sel', p === 'free');
-  document.getElementById('btn1').disabled = false;
-}
-
-// ═══════════════════════════════════════════════════════
-// STEP 2: OCCASION
-// ═══════════════════════════════════════════════════════
-function buildOccasions() {
-  var grid = document.getElementById('occGrid');
-  OCCASIONS.forEach(function(o) {
-    var div = document.createElement('div');
-    div.className = 'occ';
-    div.id = 'occ-' + o.id;
-    div.innerHTML = '<div class="oe">' + o.emoji + '</div>' +
-                    '<div class="on">' + o.name + '</div>' +
-                    '<div class="od">' + o.desc + '</div>';
-    div.addEventListener('click', function() { pickOcc(o.id); });
-    grid.appendChild(div);
-  });
-}
-
-function pickOcc(id) {
-  S.occasion = id;
-  document.querySelectorAll('.occ').forEach(function(c) { c.classList.remove('sel'); });
-  var el = document.getElementById('occ-' + id);
-  if (el) el.classList.add('sel');
-  document.getElementById('btn2').disabled = false;
-}
-
-// ═══════════════════════════════════════════════════════
-// STEP 3: PERSONS (Flow A only)
-// ═══════════════════════════════════════════════════════
-function buildPersons() {
-  var grid = document.getElementById('perGrid');
-  PERSONS_LIST.forEach(function(p) {
-    var div = document.createElement('div');
-    div.className = 'per-btn';
-    div.id = 'per-' + p.val;
-    div.innerHTML = '<div class="per-n">' + p.label + '</div><div class="per-l">' + p.sub + '</div>';
-    div.addEventListener('click', (function(val) {
-      return function() { pickPersons(val); };
-    })(p.val));
-    grid.appendChild(div);
-  });
-}
-
-function pickPersons(val) {
-  S.persons = val;
-  document.querySelectorAll('.per-btn').forEach(function(b) { b.classList.remove('sel'); });
-  var el = document.getElementById('per-' + val);
-  if (el) el.classList.add('sel');
-  document.getElementById('btn3').disabled = false;
-}
-
-// ═══════════════════════════════════════════════════════
-// STEP 4: TEMPLATE or FREE
-// ═══════════════════════════════════════════════════════
-function onStep4() {
-  if (S.flow === 'template') {
-    var lbl = document.getElementById('occLabel');
-    if (lbl) lbl.textContent = S.occasion || '—';
-    loadTemplates();
-  }
-}
-
-async function loadTemplates() {
-  var grid = document.getElementById('tmplGrid');
-  grid.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--muted)">Loading templates...</div>';
-  try {
-    var persons = S.persons || '1';
-    var r1 = await fetch(API_URL + '/api/templates?occasion=' + S.occasion + '&persons=' + persons);
-    var r2 = await fetch(API_URL + '/api/gallery');
-    var td = await r1.json();
-    var gd = await r2.json();
-    var entries = Object.entries(td.templates || {});
-    var gal = gd.gallery || {};
-
-    if (!entries.length) {
-      grid.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--muted)">No templates found. Try another occasion or use Describe Your Own.</div>';
-      return;
-    }
-
-    grid.innerHTML = '';
-    entries.forEach(function(entry) {
-      var id = entry[0], t = entry[1];
-      var imgUrl = gal[S.occasion] ? gal[S.occasion].image_url : null;
-
-      var div = document.createElement('div');
-      div.className = 'tc';
-      div.id = 'tc-' + id;
-
-      div.addEventListener('click', (function(tid, tname, tp) {
-        return function() { pickTemplate(tid, tname, tp); };
-      })(id, t.name, t.persons || 1));
-
-      if (imgUrl) {
-        var img = document.createElement('img');
-        img.src = imgUrl;
-        img.alt = t.name;
-        img.loading = 'lazy';
-        div.appendChild(img);
-      }
-
-      var ov = document.createElement('div');
-      ov.className = 'tc-ov';
-      div.appendChild(ov);
-
-      var info = document.createElement('div');
-      info.className = 'tc-info';
-
-      if (!imgUrl) {
-        var em = document.createElement('div');
-        em.className = 'tc-em';
-        em.textContent = t.emoji || '';
-        info.appendChild(em);
-      }
-
-      var nm = document.createElement('div');
-      nm.className = 'tc-name';
-      nm.textContent = t.name;
-      info.appendChild(nm);
-      div.appendChild(info);
-
-      var badge = document.createElement('div');
-      badge.className = 'tc-badge';
-      badge.textContent = (t.persons || 1) + 'p';
-      div.appendChild(badge);
-
-      grid.appendChild(div);
-    });
-  } catch(e) {
-    console.error('loadTemplates:', e);
-    grid.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--error)">Failed to load. Please refresh.</div>';
-  }
-}
-
-function pickTemplate(id, name, persons) {
-  S.templateId = id;
-  S.templateName = name;
-  S.persons = String(persons || 1);
-  document.querySelectorAll('.tc').forEach(function(c) { c.classList.remove('sel'); });
-  var el = document.getElementById('tc-' + id);
-  if (el) el.classList.add('sel');
-  document.getElementById('btn4t').disabled = false;
-}
-
-function onDescInput() {
-  var val = document.getElementById('descTxt').value.trim();
-  S.description = val;
-  var hint = document.getElementById('descHint');
-  if (val.length < 5) {
-    hint.textContent = (5 - val.length) + ' more characters needed';
-    hint.style.color = 'var(--muted)';
-  } else {
-    hint.textContent = val.length + ' characters ✓';
-    hint.style.color = 'var(--success)';
-  }
-  document.getElementById('btn4f').disabled = val.length < 5;
-}
-
-// ═══════════════════════════════════════════════════════
-// STEP 5: PHOTOS
-// ═══════════════════════════════════════════════════════
-function buildPhotoSections() {
-  var n = Math.min(parseInt(S.persons) || 1, 5);
-  var container = document.getElementById('personSecs');
-
-  while (S.personUploads.length < n) {
-    S.personUploads.push({p: S.personUploads.length + 1, u: [null, null], sameOk: null});
-  }
-  S.personUploads = S.personUploads.slice(0, n);
-
-  container.innerHTML = '';
-  S.personUploads.forEach(function(pu, pi) {
-    var sec = document.createElement('div');
-    sec.className = 'person-sec';
-
-    var title = document.createElement('div');
-    title.className = 'person-sec-title';
-    title.textContent = n > 1 ? 'Person ' + (pi + 1) : 'Your Photo';
-    sec.appendChild(title);
-
-    var row = document.createElement('div');
-    row.className = 'photo-row';
-
-    [0, 1].forEach(function(qi) {
-      var zone = document.createElement('div');
-      zone.className = 'uz';
-      zone.id = 'uz-' + pi + '-' + qi;
-
-      var prev = document.createElement('img');
-      prev.className = 'uz-prev';
-      prev.id = 'up-' + pi + '-' + qi;
-      zone.appendChild(prev);
-
-      var iconDiv = document.createElement('div');
-      iconDiv.id = 'ui-' + pi + '-' + qi;
-
-      var icon = document.createElement('div');
-      icon.className = 'uz-icon';
-      icon.textContent = qi === 0 ? '📸' : '🤳';
-      iconDiv.appendChild(icon);
-
-      var lbl = document.createElement('div');
-      lbl.className = 'uz-label';
-      lbl.textContent = qi === 0 ? 'Photo 1 (required)' : 'Photo 2 (optional)';
-      iconDiv.appendChild(lbl);
-
-      var hint = document.createElement('div');
-      hint.className = 'uz-hint';
-      hint.textContent = 'Click · JPG/PNG · max 15MB';
-      iconDiv.appendChild(hint);
-
-      zone.appendChild(iconDiv);
-
-      var st = document.createElement('div');
-      st.className = 'uz-st';
-      st.id = 'st-' + pi + '-' + qi;
-      zone.appendChild(st);
-
-      var inp = document.createElement('input');
-      inp.type = 'file';
-      inp.accept = 'image/*';
-      inp.addEventListener('change', (function(pii, qii) {
-        return function(e) { handleUpload(e, pii, qii); };
-      })(pi, qi));
-      zone.appendChild(inp);
-
-      // Delete (X) button — shown only when photo is uploaded
-      var delBtn = document.createElement('button');
-      delBtn.id = 'del-' + pi + '-' + qi;
-      delBtn.textContent = '✕';
-      delBtn.title = 'Remove photo';
-      delBtn.style.cssText = 'display:none;position:absolute;top:6px;right:6px;z-index:10;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.65);color:white;font-size:12px;font-weight:700;cursor:pointer;border:none;line-height:1;padding:0;';
-      delBtn.addEventListener('click', (function(pii, qii) {
-        return function(e) {
-          e.preventDefault(); e.stopPropagation();
-          deletePhoto(pii, qii);
-        };
-      })(pi, qi));
-      zone.appendChild(delBtn);
-
-      row.appendChild(zone);
-    });
-
-    sec.appendChild(row);
-    container.appendChild(sec);
-  });
-
-  checkPhotosBtn();
-}
-
-async function handleUpload(e, pi, qi) {
-  var file = e.target.files[0];
-  if (!file) return;
-
-  var zone = document.getElementById('uz-' + pi + '-' + qi);
-  var prev = document.getElementById('up-' + pi + '-' + qi);
-  var iconDiv = document.getElementById('ui-' + pi + '-' + qi);
-  var st = document.getElementById('st-' + pi + '-' + qi);
-
-  zone.classList.add('busy');
-  zone.classList.remove('bad');
-  st.className = 'uz-st';
-  st.textContent = 'Uploading & checking face...';
-
-  // Local preview
-  var reader = new FileReader();
-  reader.onload = function(ev) {
-    prev.src = ev.target.result;
-    prev.style.display = 'block';
-    iconDiv.style.display = 'none';
-  };
-  reader.readAsDataURL(file);
-
-  // Remove old quality alert
-  var oldQa = document.getElementById('qa-' + pi + '-' + qi);
-  if (oldQa) oldQa.remove();
-
-  try {
-    var fd = new FormData();
-    fd.append('file', file);
-    var res = await fetch(API_URL + '/api/upload?quality=true', {method: 'POST', body: fd});
-    var data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Upload failed');
-
-    S.personUploads[pi].u[qi] = {upload_id: data.upload_id, photo_url: data.photo_url};
-
-    zone.classList.remove('busy');
-    var score = (data.quality && data.quality.score) || data.score || 5;
-    var warns = (data.quality && data.quality.warnings) || data.warnings || [];
-
-    var q = data.quality || {};
-    var hardBlock = q.hard_block === true;
-    var explicitNoFace = hardBlock
-                        && warns.indexOf('no_face') >= 0
-                        && q.face_size === 'none'
-                        && score < 3;
-    var multiFace  = hardBlock
-                    && (warns.indexOf('multiple_faces') >= 0 || q.face_size === 'multiple');
-    var uncertain  = (!hardBlock) && (
-                      q.face_size === 'unknown'
-                      || warns.indexOf('quality_check_failed') >= 0
-                      || warns.indexOf('quality_check_uncertain') >= 0
-                      || data.usable === false
-                      || warns.indexOf('no_face') >= 0
-                    );
-
-    if (explicitNoFace || multiFace) {
-      // ❌ Hard block: clearly not a face photo OR multiple faces
-      zone.classList.add('bad');
-      st.className = 'uz-st err';
-      S.personUploads[pi].u[qi] = null;
-      prev.style.display = 'none';
-      iconDiv.style.display = '';
-      if (multiFace) {
-        st.textContent = 'Multiple faces detected.';
-        showQAWithOverride(pi, qi,
-          'This photo shows more than one person. Please upload a photo with only ONE person clearly visible.', null);
-      } else {
-        st.textContent = 'No face detected.';
-        showQAWithOverride(pi, qi,
-          'We could not detect a face in this photo. Please upload a clear photo of a person — front-facing, good lighting.', null);
-      }
-    } else if (uncertain) {
-      // ⚠️ Uncertain — accept automatically, show gentle note
-      zone.classList.add('has');
-      showDelBtn(pi, qi);
-      st.className = 'uz-st warn';
-      st.textContent = 'Accepted — face detection uncertain.';
-      showQAGentle(pi, qi, 'Face detection was uncertain for this photo. The result may be less accurate. For best results, try a clearer front-facing photo.');
-    } else if (score >= 7) {
-      zone.classList.add('has');
-      st.className = 'uz-st ok';
-      st.textContent = 'Excellent quality!';
-      showDelBtn(pi, qi);
-    } else if (score >= 4) {
-      zone.classList.add('has');
-      st.className = 'uz-st warn';
-      st.textContent = 'Good photo.';
-      showDelBtn(pi, qi);
-      var tip = getTip(warns);
-      if (tip) showQA(pi, qi, 'warn', tip);
-    } else {
-      zone.classList.add('has', 'bad');
-      st.className = 'uz-st err';
-      st.textContent = 'Low quality photo — accepted.';
-      showDelBtn(pi, qi);
-      showQA(pi, qi, 'warn', getTip(warns) || 'A clearer photo gives better results. You can still proceed.');
-    }
-  } catch(err) {
-    zone.classList.remove('busy');
-    zone.classList.add('bad');
-    st.className = 'uz-st err';
-    st.textContent = err.message;
-    S.personUploads[pi].u[qi] = null;
-    prev.style.display = 'none';
-    iconDiv.style.display = '';
-  }
-
-  // If both photos uploaded for this person, verify they're the same person
-  if (qi === 1 && S.personUploads[pi].u[0] !== null && S.personUploads[pi].u[1] !== null) {
-    verifySamePerson(pi);
-  }
-  checkPhotosBtn();
-}
-
-async function verifySamePerson(pi) {
-  var pu = S.personUploads[pi];
-  var url1 = pu.u[0] ? pu.u[0].photo_url : null;
-  var url2 = pu.u[1] ? pu.u[1].photo_url : null;
-  if (!url1 || !url2) return;
-
-  var el = document.getElementById('same-check-' + pi);
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'same-check-' + pi;
-    var sec = document.getElementById('personSecs').children[pi];
-    if (sec) sec.appendChild(el);
-  }
-  el.style.cssText = 'border-radius:8px;padding:10px 14px;font-size:13px;margin-top:8px;line-height:1.6;background:#f0f9ff;border:1px solid #bae6fd;color:#0369a1;';
-  el.textContent = 'Checking if both photos are of the same person...';
-
-  try {
-    var r = await fetch(API_URL + '/api/verify-same-person', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({photo_url1: url1, photo_url2: url2})
-    });
-    var d = await r.json();
-
-    if (d.same_person) {
-      // ✅ Same person — allow continue
-      S.personUploads[pi].sameOk = true;
-      el.style.cssText = 'border-radius:8px;padding:10px 14px;font-size:13px;margin-top:8px;line-height:1.6;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;';
-      el.textContent = 'Both photos are of the same person.';
-
-    } else {
-      // ❌ Different people — BLOCK continue, show delete button
-      S.personUploads[pi].sameOk = false;
-      var pLabel = S.personUploads.length > 1 ? 'Person ' + (pi + 1) : 'Your Photo';
-      el.style.cssText = 'border-radius:8px;padding:12px 14px;font-size:13px;margin-top:8px;line-height:1.6;background:#fef2f2;border:2px solid #fecaca;color:#991b1b;';
-
-      // Build warning with delete button
-      var msg = document.createElement('div');
-      msg.innerHTML = '<strong>The two photos appear to be of different people.</strong><br>' +
-        'Please delete Photo 2 and re-upload a photo of the same person as Photo 1.';
-      el.innerHTML = '';
-      el.appendChild(msg);
-
-      var delBtn = document.createElement('button');
-      delBtn.textContent = 'Delete Photo 2';
-      delBtn.style.cssText = 'display:inline-block;margin-top:10px;padding:8px 18px;border-radius:6px;' +
-        'background:#991b1b;color:white;font-size:13px;font-weight:700;cursor:pointer;border:none;';
-      delBtn.addEventListener('click', (function(pii) {
-        return function() {
-          deletePhoto(pii, 1);       // delete photo 2 (index 1)
-          S.personUploads[pii].sameOk = null;  // reset block
-          var checkEl2 = document.getElementById('same-check-' + pii);
-          if (checkEl2) checkEl2.remove();
-          checkPhotosBtn();
-        };
-      })(pi));
-      el.appendChild(delBtn);
-    }
-
-  } catch(e) {
-    S.personUploads[pi].sameOk = null;
-    el.remove();
-  }
-  checkPhotosBtn();
-}
-
-
-async function verifyCrossPersons(pi) {
-  var n = S.personUploads.length;
-  if (n < 2) return;
-  for (var j = 0; j < n; j++) {
-    if (j === pi) continue;
-    var urlA = S.personUploads[pi].u[0] ? S.personUploads[pi].u[0].photo_url : null;
-    var urlB = S.personUploads[j].u[0]  ? S.personUploads[j].u[0].photo_url  : null;
-    if (!urlA || !urlB) continue;
-    var crossId = 'cross-' + Math.min(pi,j) + '-' + Math.max(pi,j);
-    var oldEl = document.getElementById(crossId);
-    try {
-      var r = await fetch(API_URL + '/api/verify-same-person', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({photo_url1: urlA, photo_url2: urlB})
-      });
-      var d = await r.json();
-      if (d.same_person) {
-        if (!oldEl) {
-          oldEl = document.createElement('div');
-          oldEl.id = crossId;
-          var sec = document.getElementById('personSecs').children[pi];
-          if (sec) sec.appendChild(oldEl);
-        }
-        oldEl.style.cssText = 'border-radius:8px;padding:12px 14px;font-size:13px;margin-top:8px;line-height:1.6;background:#fffbeb;border:1px solid #fde68a;color:#92400e;';
-        oldEl.innerHTML = '<strong>Person ' + (Math.min(pi,j)+1) + ' and Person ' + (Math.max(pi,j)+1) +
-          ' appear to have the same face.</strong><br>' +
-          'If you want the same person twice, you can continue. Otherwise please re-upload different photos.';
-      } else {
-        if (oldEl) oldEl.remove();
-      }
-    } catch(e) { if (oldEl) oldEl.remove(); }
-  }
-}
-
-function showDelBtn(pi, qi) {
-  var btn = document.getElementById('del-' + pi + '-' + qi);
-  if (btn) btn.style.display = 'block';
-}
-
-function deletePhoto(pi, qi) {
-  // Clear state
-  S.personUploads[pi].u[qi] = null;
-
-  // Reset zone UI
-  var zone = document.getElementById('uz-' + pi + '-' + qi);
-  var prev = document.getElementById('up-' + pi + '-' + qi);
-  var iconDiv = document.getElementById('ui-' + pi + '-' + qi);
-  var st = document.getElementById('st-' + pi + '-' + qi);
-  var delBtn = document.getElementById('del-' + pi + '-' + qi);
-  var inp = zone ? zone.querySelector('input[type=file]') : null;
-
-  if (zone) { zone.classList.remove('has', 'bad'); }
-  if (prev) { prev.src = ''; prev.style.display = 'none'; }
-  if (iconDiv) { iconDiv.style.display = ''; }
-  if (st) { st.className = 'uz-st'; st.textContent = ''; }
-  if (delBtn) { delBtn.style.display = 'none'; }
-  if (inp) { inp.value = ''; }
-
-  // Remove quality alert
-  var qa = document.getElementById('qa-' + pi + '-' + qi);
-  if (qa) qa.remove();
-
-  // Remove same-person check result
-  var sc = document.getElementById('same-check-' + pi);
-  if (sc) sc.remove();
-
-  checkPhotosBtn();
-}
-
-function getTip(warns) {
-  var order = ['no_face','backlit','blurred','dark','face_too_small','obstructed','low_resolution','multiple_faces'];
-  for (var i = 0; i < order.length; i++) {
-    if (warns.indexOf(order[i]) >= 0 && QUALITY_TIPS[order[i]]) return QUALITY_TIPS[order[i]];
-  }
-  return null;
-}
-
-function showQAGentle(pi, qi, msg) {
-  var oldEl = document.getElementById('qa-' + pi + '-' + qi);
-  if (oldEl) oldEl.remove();
-  var el = document.createElement('div');
-  el.id = 'qa-' + pi + '-' + qi;
-  el.style.cssText = 'border-radius:8px;padding:10px 14px;font-size:12px;margin-top:6px;line-height:1.5;background:#fffbeb;border:1px solid #fde68a;color:#92400e;';
-  el.textContent = msg;
-  var zone = document.getElementById('uz-' + pi + '-' + qi);
-  if (zone) zone.parentNode.insertBefore(el, zone.nextSibling);
-}
-
-function showQA(pi, qi, type, msg) {
-  showQAWithOverride(pi, qi, msg, null);
-}
-
-function showQAWithOverride(pi, qi, msg, uploadData) {
-  var oldEl = document.getElementById('qa-' + pi + '-' + qi);
-  if (oldEl) oldEl.remove();
-  var el = document.createElement('div');
-  el.id = 'qa-' + pi + '-' + qi;
-  el.style.cssText = 'border-radius:8px;padding:12px 14px;font-size:13px;margin-top:8px;line-height:1.6;' +
-    (uploadData ? 'background:#fffbeb;border:1px solid #fde68a;color:#92400e;'
-                : 'background:#fef2f2;border:1px solid #fecaca;color:#991b1b;');
-  el.textContent = msg;
-  if (uploadData) {
-    var btn = document.createElement('button');
-    btn.textContent = 'Use this photo anyway';
-    btn.style.cssText = 'display:block;margin-top:8px;padding:7px 14px;border-radius:6px;' +
-      'background:#92400e;color:white;font-size:12px;font-weight:700;cursor:pointer;border:none;';
-    btn.addEventListener('click', (function(pii, qii, uData) {
-      return function() {
-        S.personUploads[pii].u[qii] = uData;
-        var zone = document.getElementById('uz-' + pii + '-' + qii);
-        var prev = document.getElementById('up-' + pii + '-' + qii);
-        var ic   = document.getElementById('ui-' + pii + '-' + qii);
-        var st   = document.getElementById('st-' + pii + '-' + qii);
-        if (zone) { zone.classList.remove('bad'); zone.classList.add('has'); }
-        if (prev) prev.style.display = 'block';
-        if (ic)   ic.style.display   = 'none';
-        if (st)   { st.className = 'uz-st warn'; st.textContent = 'Used (face detection uncertain)'; }
-        showDelBtn(pii, qii);
-        el.remove();
-        checkPhotosBtn();
-      };
-    })(pi, qi, uploadData));
-    el.appendChild(btn);
-  }
-  var zone = document.getElementById('uz-' + pi + '-' + qi);
-  if (zone) zone.parentNode.insertBefore(el, zone.nextSibling);
-}
-
-function photosOk() {
-  return S.personUploads.every(function(pu) {
-    if (pu.u[0] === null) return false;      // no photo 1
-    if (pu.sameOk === false) return false;   // photo1 ≠ photo2 confirmed
-    return true;
-  });
-}
-
-function checkPhotosBtn() {
-  document.getElementById('btn5').disabled = !photosOk();
-}
-
-// ═══════════════════════════════════════════════════════
-// STEP 6: PLAN & PAY
-// ═══════════════════════════════════════════════════════
-function buildPlans() {
-  var grid = document.getElementById('planGrid');
-  PLANS.forEach(function(p) {
-    var div = document.createElement('div');
-    div.className = 'plan-c' + (p.id === 'standard' ? ' sel' : '');
-    div.id = 'plan-' + p.id;
-    var featuresHtml = (p.features||[]).map(function(f){
-      return '<li style="font-size:12px;color:#8a7968;margin-top:4px;list-style:none;padding-left:16px;position:relative;">' +
-             '<span style="position:absolute;left:0;color:#c8792a;">✓</span>' + f + '</li>';
-    }).join('');
-    div.innerHTML = (p.popular ? '<div class="plan-badge">MOST POPULAR</div>' : '') +
-      '<div class="plan-name" style="font-size:15px;font-weight:700;margin-bottom:2px;">' + p.name + '</div>' +
-      '<div style="font-size:11px;color:#8a7968;margin-bottom:8px;">one-time · 1 person</div>' +
-      '<div class="plan-price" style="font-size:28px;">€' + p.price.toFixed(2) + '</div>' +
-      '<ul style="margin-top:10px;padding:0;">' + featuresHtml + '</ul>';
-    div.addEventListener('click', (function(pid) {
-      return function() { pickPlan(pid); };
-    })(p.id));
-    grid.appendChild(div);
-  });
-}
-
-function pickPlan(id) {
-  S.plan = id;
-  document.querySelectorAll('.plan-c').forEach(function(c) { c.classList.remove('sel'); });
-  var el = document.getElementById('plan-' + id);
-  if (el) el.classList.add('sel');
-  updateSummary();
-  checkPay();
-}
-
-function onStep6() { updateSummary(); checkPay(); }
-
-function updateSummary() {
-  var plan = PLANS.filter(function(p) { return p.id === S.plan; })[0] || PLANS[0];
-  var n = parseInt(S.persons) || 1;
-  var extra = PERSON_EXTRA[n] || 0;
-  var total = plan.price + extra;
-  var sel = S.flow === 'template' ? (S.templateName || 'Custom') : 'Custom scene';
-  var el = document.getElementById('summaryEl');
-  el.innerHTML = '<div class="sr"><span>Style</span><span class="sv">' + sel + '</span></div>' +
-    '<div class="sr"><span>Persons</span><span class="sv">' + n + '</span></div>' +
-    '<div class="sr"><span>Plan</span><span class="sv">' + plan.name + '</span></div>' +
-    (extra > 0 ? '<div class="sr"><span>Extra persons</span><span class="sv">+€' + extra.toFixed(2) + '</span></div>' : '') +
-    '<div class="sr"><span>Total</span><span class="sv">€' + total.toFixed(2) + '</span></div>';
-}
-
-function checkPay() {
-  var email = (document.getElementById('emailIn').value || '').trim();
-  var name = (document.getElementById('nameIn').value || '').trim();
-  document.getElementById('payBtn').disabled = !(email && email.indexOf('@') > 0 && name && window._cardOk);
-}
-
-// ═══════════════════════════════════════════════════════
-// PAYMENT
-// ═══════════════════════════════════════════════════════
-async function handlePay() {
-  var btn = document.getElementById('payBtn');
-  var cerr = document.getElementById('cerr');
-  var email = document.getElementById('emailIn').value.trim();
-  var name = document.getElementById('nameIn').value.trim();
-
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spin"></span>Creating order...';
-  cerr.textContent = '';
-
-  try {
-    var pph = S.personUploads.map(function(pu) {
-      return {
-        person: pu.p,
-        upload_ids: pu.u.filter(function(u) { return u !== null; }).map(function(u) { return u.upload_id; })
-      };
-    });
-
-    var flatUploadIds = [];
-    pph.forEach(function(person) {
-      flatUploadIds = flatUploadIds.concat(person.upload_ids || []);
-    });
-
-    var desc = S.flow === 'free'
-      ? document.getElementById('descTxt').value.trim()
-      : '';
-    var notes = S.flow === 'free'
-      ? document.getElementById('notesTxt').value.trim()
-      : '';
-    var finalTemplateId = S.flow === 'free' ? 'custom_free' : S.templateId;
-
-    var payload = {
-      flow: S.flow,
-      template_id: finalTemplateId,
-      description: desc,
-      occasion: S.occasion,
-      persons: S.persons || '1',
-      plan: S.plan,
-      upload_ids: flatUploadIds,
-      person_photos: pph,
-      answers: {
-        occasion: S.occasion,
-        template_id: finalTemplateId,
-        template_name: S.templateName || (S.flow === 'free' ? 'Custom Scene' : ''),
-        description: desc,
-        notes: notes
-      },
-      notes: notes || desc,
-      email: email,
-      name: name
+  <script>
+    // ═══════════════════════════════════════════════════════
+    // CONFIG — Caricature.online order flow v2.2
+    // Face-check UX aligned with backend v2.2
+    // ═══════════════════════════════════════════════════════
+    var API_URL = 'https://caricature-api-52458434183.us-central1.run.app';
+
+    var OCCASIONS = [
+      { id: 'wedding', emoji: '💒', name: 'Wedding', desc: 'For the happy couple' },
+      { id: 'birthday', emoji: '🎂', name: 'Birthday', desc: 'Celebrate in style' },
+      { id: 'business', emoji: '💼', name: 'Business', desc: 'Professional & fun' },
+      { id: 'kids', emoji: '🧸', name: 'Kids', desc: 'For little ones' },
+      { id: 'superhero', emoji: '🦸', name: 'Superhero', desc: 'Mighty caricatures' },
+      { id: 'family', emoji: '👨‍👩‍👧‍👦', name: 'Family', desc: 'For everyone' },
+      { id: 'sports', emoji: '⚽', name: 'Sports', desc: 'Active & energetic' },
+      { id: 'other', emoji: '✨', name: 'Other', desc: 'Custom occasion' }
+    ];
+
+    var PERSONS_LIST = [
+      { val: '1', label: '1', sub: 'person' },
+      { val: '2', label: '2', sub: 'people +€5' },
+      { val: '3', label: '3', sub: 'people +€10' },
+      { val: '4', label: '4', sub: 'people +€15' },
+      { val: '5', label: '5', sub: 'people +€20' }
+    ];
+
+    var PERSON_EXTRA = { 1: 0, 2: 5, 3: 10, 4: 15, 5: 20 };
+
+    var BASE_PRICES = {
+      basic: 8.99,
+      standard: 14.99,
+      premium: 19.99
     };
 
-    var r = await fetch(API_URL + '/api/create-payment-intent', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload)
+    function getPlanPrice(planId) {
+      var people = parseInt(S.persons || 1);
+
+      var extra = 0;
+
+      if (people > 1) {
+        extra = (people - 1) * 5;
+      }
+
+      return (BASE_PRICES[planId] + extra).toFixed(2);
+    }
+
+    var PLANS = [
+      {
+        id: 'basic',
+        name: 'Basic',
+        popular: false,
+        features: [
+          '1 caricature in your chosen template',
+          '4K ultra-HD quality',
+          'Delivered by email in ~90 seconds',
+          '1 free revision included'
+        ]
+      },
+      {
+        id: 'standard',
+        name: 'Standard',
+        popular: true,
+        features: [
+          '1 caricature in your chosen template',
+          '4K ultra-HD quality',
+          '2 free revisions if not 100% happy',
+          'Priority generation queue',
+          'Personalisation questions included'
+        ]
+      },
+      {
+        id: 'premium',
+        name: 'Premium',
+        popular: false,
+        features: [
+          '1 caricature in your chosen template',
+          '4K ultra-HD quality',
+          '3 free revisions included',
+          'Priority generation queue'
+        ]
+      }
+    ];
+
+    var QUALITY_TIPS = {
+      no_face: 'Upload a photo showing the face clearly — front-facing, not covered.',
+      backlit: 'Take the photo facing a light source. Avoid bright backgrounds behind the person.',
+      blurred: 'Use a sharp, in-focus photo. Try portrait mode on your phone.',
+      dark: 'Take the photo in good natural light or a well-lit room.',
+      face_too_small: 'Use a closer shot where the face fills at least 1/3 of the image.',
+      multiple_faces: 'Upload a photo with only the one person for this caricature.',
+      obstructed: 'Remove sunglasses, hats or anything covering the face.',
+      low_resolution: 'Use a higher resolution photo — avoid compressed screenshots.',
+      quality_check_failed: 'We could not complete the automatic quality check, but your photo was accepted.',
+      quality_check_uncertain: 'Face detection was uncertain, but your photo was accepted.'
+    };
+
+    // ═══════════════════════════════════════════════════════
+    // STATE
+    // ═══════════════════════════════════════════════════════
+    var S = {
+      flow: null,
+      occasion: null,
+      persons: null,
+      templateId: null,
+      templateName: null,
+      description: '',
+      notes: '',
+      plan: 'standard',
+      personUploads: [],
+      step: 1
+    };
+
+    // ═══════════════════════════════════════════════════════
+    // INIT
+    // ═══════════════════════════════════════════════════════
+    document.addEventListener('DOMContentLoaded', function () {
+      buildOccasions();
+      buildPersons();
+      buildPlans();
+      initStripe();
+
+      document.getElementById('pt-template').addEventListener('click', function () { selectPath('template'); });
+      document.getElementById('pt-free').addEventListener('click', function () { selectPath('free'); });
+      document.getElementById('btn1').addEventListener('click', function () { goTo(2); });
+      document.getElementById('btn2').addEventListener('click', function () {
+        goTo(S.flow === 'template' ? 4 : 3);
+      });
+      document.getElementById('s2back').addEventListener('click', function () { goTo(1); });
+      document.getElementById('btn3').addEventListener('click', function () { goTo(4); });
+      document.getElementById('btn4t').addEventListener('click', function () { goTo(5); });
+      document.getElementById('btn4f').addEventListener('click', function () { goTo(5); });
+      document.getElementById('btn5').addEventListener('click', function () { goTo(6); });
+      document.getElementById('s5back').addEventListener('click', function () {
+        goTo(S.flow === 'template' ? 4 : 3);
+      });
+      document.getElementById('descTxt').addEventListener('input', onDescInput);
+      document.getElementById('nameIn').addEventListener('input', checkPay);
+      document.getElementById('emailIn').addEventListener('input', checkPay);
+      document.getElementById('payBtn').addEventListener('click', handlePay);
     });
-    var d = await r.json();
-    if (!d.success) throw new Error(d.error || 'Order creation failed');
 
-    btn.innerHTML = '<span class="spin"></span>Processing payment...';
+    async function initStripe() {
+      try {
+        var r = await fetch(API_URL + '/api/pricing');
+        var d = await r.json();
+        var stripe = Stripe(d.publishable_key || 'pk_test_REPLACE');
+        var els = stripe.elements();
+        window._stripe = stripe;
+        var card = els.create('card', {
+          style: { base: { fontFamily: "'Outfit',sans-serif", fontSize: '16px', color: '#2a2420' } }
+        });
+        card.mount('#card-element');
+        card.on('change', function (e) {
+          document.getElementById('cerr').textContent = e.error ? e.error.message : '';
+          window._cardOk = e.complete;
+          checkPay();
+        });
+        window._card = card;
+      } catch (e) { console.warn('Stripe init:', e); }
+    }
 
-    var result = await window._stripe.confirmCardPayment(d.clientSecret, {
-      payment_method: {card: window._card, billing_details: {name: name, email: email}}
-    });
-    if (result.error) throw new Error(result.error.message);
+    // ═══════════════════════════════════════════════════════
+    // NAVIGATION
+    // ═══════════════════════════════════════════════════════
+    function goTo(step) {
+      var old = screenId(S.step);
+      document.getElementById(old).classList.remove('active');
+      S.step = step;
+      var nw = screenId(step);
+      document.getElementById(nw).classList.add('active');
+      updateProgress(step);
+      if (step === 4) onStep4();
+      if (step === 5) buildPhotoSections();
+      if (step === 6) onStep6();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
 
-    document.getElementById('s6').classList.remove('active');
-    document.getElementById('sSuccess').classList.add('active');
-    document.getElementById('orderId').textContent = 'Order ID: ' + d.order_id;
-    document.getElementById('prog').style.display = 'none';
-    window.scrollTo({top: 0, behavior: 'smooth'});
+    function screenId(s) {
+      if (s === 4) return S.flow === 'template' ? 's4t' : 's4f';
+      if (s === 7) return 'sSuccess';
+      return 's' + s;
+    }
 
-  } catch(err) {
-    cerr.textContent = err.message;
-    btn.disabled = false;
-    btn.innerHTML = '🎨 Complete Order';
-  }
-}
-</script>
+    function updateProgress(step) {
+      var flowB = S.flow === 'template';
+      var ps3 = document.getElementById('ps3');
+      if (ps3) ps3.style.display = flowB ? 'none' : '';
+
+      var steps = flowB ? [1, 2, 4, 5, 6] : [1, 2, 3, 4, 5, 6];
+      for (var i = 1; i <= 6; i++) {
+        var el = document.getElementById('ps' + i);
+        if (!el) continue;
+        el.classList.remove('active', 'done');
+        if (i === step) el.classList.add('active');
+        else if (steps.indexOf(i) < steps.indexOf(step) && steps.indexOf(i) >= 0) el.classList.add('done');
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // STEP 1: PATH
+    // ═══════════════════════════════════════════════════════
+    function selectPath(p) {
+      S.flow = p;
+      document.getElementById('pt-template').classList.toggle('sel', p === 'template');
+      document.getElementById('pt-free').classList.toggle('sel', p === 'free');
+      document.getElementById('btn1').disabled = false;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // STEP 2: OCCASION
+    // ═══════════════════════════════════════════════════════
+    function buildOccasions() {
+      var grid = document.getElementById('occGrid');
+      OCCASIONS.forEach(function (o) {
+        var div = document.createElement('div');
+        div.className = 'occ';
+        div.id = 'occ-' + o.id;
+        div.innerHTML = '<div class="oe">' + o.emoji + '</div>' +
+          '<div class="on">' + o.name + '</div>' +
+          '<div class="od">' + o.desc + '</div>';
+        div.addEventListener('click', function () { pickOcc(o.id); });
+        grid.appendChild(div);
+      });
+    }
+
+    function pickOcc(id) {
+      S.occasion = id;
+      document.querySelectorAll('.occ').forEach(function (c) { c.classList.remove('sel'); });
+      var el = document.getElementById('occ-' + id);
+      if (el) el.classList.add('sel');
+      document.getElementById('btn2').disabled = false;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // STEP 3: PERSONS (Flow A only)
+    // ═══════════════════════════════════════════════════════
+    function buildPersons() {
+      var grid = document.getElementById('perGrid');
+      PERSONS_LIST.forEach(function (p) {
+        var div = document.createElement('div');
+        div.className = 'per-btn';
+        div.id = 'per-' + p.val;
+        div.innerHTML = '<div class="per-n">' + p.label + '</div><div class="per-l">' + p.sub + '</div>';
+        div.addEventListener('click', (function (val) {
+          return function () { pickPersons(val); };
+        })(p.val));
+        grid.appendChild(div);
+      });
+    }
+
+    function pickPersons(val) {
+      S.persons = val;
+
+      document.querySelectorAll('.per-btn').forEach(function (b) {
+        b.classList.remove('sel');
+      });
+
+      var el = document.getElementById('per-' + val);
+
+      if (el) {
+        el.classList.add('sel');
+      }
+
+      document.getElementById('btn3').disabled = false;
+
+      // refresh pricing + summary
+      buildPlans();
+
+      if (typeof updateSummary === 'function') {
+        updateSummary();
+      }
+
+      if (S.step === 6) {
+        checkPay();
+      }
+    }
+    // ═══════════════════════════════════════════════════════
+    // STEP 4: TEMPLATE or FREE
+    // ═══════════════════════════════════════════════════════
+    function onStep4() {
+      if (S.flow === 'template') {
+        var lbl = document.getElementById('occLabel');
+        if (lbl) lbl.textContent = S.occasion || '—';
+        loadTemplates();
+      }
+    }
+
+    async function loadTemplates() {
+      var grid = document.getElementById('tmplGrid');
+      grid.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--muted)">Loading templates...</div>';
+      try {
+        var persons = S.persons || '1';
+        var r1 = await fetch(API_URL + '/api/templates?occasion=' + S.occasion + '&persons=' + persons);
+        var r2 = await fetch(API_URL + '/api/gallery');
+        var td = await r1.json();
+        var gd = await r2.json();
+        var entries = Object.entries(td.templates || {});
+        var gal = gd.gallery || {};
+
+        if (!entries.length) {
+          grid.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--muted)">No templates found. Try another occasion or use Describe Your Own.</div>';
+          return;
+        }
+
+        grid.innerHTML = '';
+        entries.forEach(function (entry) {
+          var id = entry[0], t = entry[1];
+          var imgUrl = gal[S.occasion] ? gal[S.occasion].image_url : null;
+
+          var div = document.createElement('div');
+          div.className = 'tc';
+          div.id = 'tc-' + id;
+
+          div.addEventListener('click', (function (tid, tname, tp) {
+            return function () { pickTemplate(tid, tname, tp); };
+          })(id, t.name, t.persons || 1));
+
+          if (imgUrl) {
+            var img = document.createElement('img');
+            img.src = imgUrl;
+            img.alt = t.name;
+            img.loading = 'lazy';
+            div.appendChild(img);
+          }
+
+          var ov = document.createElement('div');
+          ov.className = 'tc-ov';
+          div.appendChild(ov);
+
+          var info = document.createElement('div');
+          info.className = 'tc-info';
+
+          if (!imgUrl) {
+            var em = document.createElement('div');
+            em.className = 'tc-em';
+            em.textContent = t.emoji || '';
+            info.appendChild(em);
+          }
+
+          var nm = document.createElement('div');
+          nm.className = 'tc-name';
+          nm.textContent = t.name;
+          info.appendChild(nm);
+          div.appendChild(info);
+
+          var badge = document.createElement('div');
+          badge.className = 'tc-badge';
+          badge.textContent = (t.persons || 1) + 'p';
+          div.appendChild(badge);
+
+          grid.appendChild(div);
+        });
+      } catch (e) {
+        console.error('loadTemplates:', e);
+        grid.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--error)">Failed to load. Please refresh.</div>';
+      }
+    }
+
+    function pickTemplate(id, name, persons) {
+      S.templateId = id;
+      S.templateName = name;
+      S.persons = String(persons || 1);
+      document.querySelectorAll('.tc').forEach(function (c) { c.classList.remove('sel'); });
+      var el = document.getElementById('tc-' + id);
+      if (el) el.classList.add('sel');
+      document.getElementById('btn4t').disabled = false;
+    }
+
+    function onDescInput() {
+      var val = document.getElementById('descTxt').value.trim();
+      S.description = val;
+      var hint = document.getElementById('descHint');
+      if (val.length < 5) {
+        hint.textContent = (5 - val.length) + ' more characters needed';
+        hint.style.color = 'var(--muted)';
+      } else {
+        hint.textContent = val.length + ' characters ✓';
+        hint.style.color = 'var(--success)';
+      }
+      document.getElementById('btn4f').disabled = val.length < 5;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // STEP 5: PHOTOS
+    // ═══════════════════════════════════════════════════════
+    function buildPhotoSections() {
+      var n = Math.min(parseInt(S.persons) || 1, 5);
+      var container = document.getElementById('personSecs');
+
+      while (S.personUploads.length < n) {
+        S.personUploads.push({ p: S.personUploads.length + 1, u: [null, null], sameOk: null });
+      }
+      S.personUploads = S.personUploads.slice(0, n);
+
+      container.innerHTML = '';
+      S.personUploads.forEach(function (pu, pi) {
+        var sec = document.createElement('div');
+        sec.className = 'person-sec';
+
+        var title = document.createElement('div');
+        title.className = 'person-sec-title';
+        title.textContent = n > 1 ? 'Person ' + (pi + 1) : 'Your Photo';
+        sec.appendChild(title);
+
+        var row = document.createElement('div');
+        row.className = 'photo-row';
+
+        [0, 1].forEach(function (qi) {
+          var zone = document.createElement('div');
+          zone.className = 'uz';
+          zone.id = 'uz-' + pi + '-' + qi;
+
+          var prev = document.createElement('img');
+          prev.className = 'uz-prev';
+          prev.id = 'up-' + pi + '-' + qi;
+          zone.appendChild(prev);
+
+          var iconDiv = document.createElement('div');
+          iconDiv.id = 'ui-' + pi + '-' + qi;
+
+          var icon = document.createElement('div');
+          icon.className = 'uz-icon';
+          icon.textContent = qi === 0 ? '📸' : '🤳';
+          iconDiv.appendChild(icon);
+
+          var lbl = document.createElement('div');
+          lbl.className = 'uz-label';
+          lbl.textContent = qi === 0 ? 'Photo 1 (required)' : 'Photo 2 (optional)';
+          iconDiv.appendChild(lbl);
+
+          var hint = document.createElement('div');
+          hint.className = 'uz-hint';
+          hint.textContent = 'Click · JPG/PNG · max 15MB';
+          iconDiv.appendChild(hint);
+
+          zone.appendChild(iconDiv);
+
+          var st = document.createElement('div');
+          st.className = 'uz-st';
+          st.id = 'st-' + pi + '-' + qi;
+          zone.appendChild(st);
+
+          var inp = document.createElement('input');
+          inp.type = 'file';
+          inp.accept = 'image/*';
+          inp.addEventListener('change', (function (pii, qii) {
+            return function (e) { handleUpload(e, pii, qii); };
+          })(pi, qi));
+          zone.appendChild(inp);
+
+          // Delete (X) button — shown only when photo is uploaded
+          var delBtn = document.createElement('button');
+          delBtn.id = 'del-' + pi + '-' + qi;
+          delBtn.textContent = '✕';
+          delBtn.title = 'Remove photo';
+          delBtn.style.cssText = 'display:none;position:absolute;top:6px;right:6px;z-index:10;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.65);color:white;font-size:12px;font-weight:700;cursor:pointer;border:none;line-height:1;padding:0;';
+          delBtn.addEventListener('click', (function (pii, qii) {
+            return function (e) {
+              e.preventDefault(); e.stopPropagation();
+              deletePhoto(pii, qii);
+            };
+          })(pi, qi));
+          zone.appendChild(delBtn);
+
+          row.appendChild(zone);
+        });
+
+        sec.appendChild(row);
+        container.appendChild(sec);
+      });
+
+      checkPhotosBtn();
+    }
+
+    async function handleUpload(e, pi, qi) {
+      var file = e.target.files[0];
+      if (!file) return;
+
+      var zone = document.getElementById('uz-' + pi + '-' + qi);
+      var prev = document.getElementById('up-' + pi + '-' + qi);
+      var iconDiv = document.getElementById('ui-' + pi + '-' + qi);
+      var st = document.getElementById('st-' + pi + '-' + qi);
+
+      zone.classList.add('busy');
+      zone.classList.remove('bad');
+      st.className = 'uz-st';
+      st.textContent = 'Uploading & checking face...';
+
+      // Local preview
+      var reader = new FileReader();
+      reader.onload = function (ev) {
+        prev.src = ev.target.result;
+        prev.style.display = 'block';
+        iconDiv.style.display = 'none';
+      };
+      reader.readAsDataURL(file);
+
+      // Remove old quality alert
+      var oldQa = document.getElementById('qa-' + pi + '-' + qi);
+      if (oldQa) oldQa.remove();
+
+      try {
+        var fd = new FormData();
+        fd.append('file', file);
+        var res = await fetch(API_URL + '/api/upload?quality=true', { method: 'POST', body: fd });
+        var data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Upload failed');
+
+        S.personUploads[pi].u[qi] = { upload_id: data.upload_id, photo_url: data.photo_url };
+
+        zone.classList.remove('busy');
+        var score = (data.quality && data.quality.score) || data.score || 5;
+        var warns = (data.quality && data.quality.warnings) || data.warnings || [];
+
+        var q = data.quality || {};
+        var hardBlock = q.hard_block === true;
+        var explicitNoFace = hardBlock
+          && warns.indexOf('no_face') >= 0
+          && q.face_size === 'none'
+          && score < 3;
+        var multiFace = hardBlock
+          && (warns.indexOf('multiple_faces') >= 0 || q.face_size === 'multiple');
+        var uncertain = (!hardBlock) && (
+          q.face_size === 'unknown'
+          || warns.indexOf('quality_check_failed') >= 0
+          || warns.indexOf('quality_check_uncertain') >= 0
+          || data.usable === false
+          || warns.indexOf('no_face') >= 0
+        );
+
+        if (explicitNoFace || multiFace) {
+          // ❌ Hard block: clearly not a face photo OR multiple faces
+          zone.classList.add('bad');
+          st.className = 'uz-st err';
+          S.personUploads[pi].u[qi] = null;
+          prev.style.display = 'none';
+          iconDiv.style.display = '';
+          if (multiFace) {
+            st.textContent = 'Multiple faces detected.';
+            showQAWithOverride(pi, qi,
+              'This photo shows more than one person. Please upload a photo with only ONE person clearly visible.', null);
+          } else {
+            st.textContent = 'No face detected.';
+            showQAWithOverride(pi, qi,
+              'We could not detect a face in this photo. Please upload a clear photo of a person — front-facing, good lighting.', null);
+          }
+        } else if (uncertain) {
+          // ⚠️ Uncertain — accept automatically, show gentle note
+          zone.classList.add('has');
+          showDelBtn(pi, qi);
+          st.className = 'uz-st warn';
+          st.textContent = 'Accepted — face detection uncertain.';
+          showQAGentle(pi, qi, 'Face detection was uncertain for this photo. The result may be less accurate. For best results, try a clearer front-facing photo.');
+        } else if (score >= 7) {
+          zone.classList.add('has');
+          st.className = 'uz-st ok';
+          st.textContent = 'Excellent quality!';
+          showDelBtn(pi, qi);
+        } else if (score >= 4) {
+          zone.classList.add('has');
+          st.className = 'uz-st warn';
+          st.textContent = 'Good photo.';
+          showDelBtn(pi, qi);
+          var tip = getTip(warns);
+          if (tip) showQA(pi, qi, 'warn', tip);
+        } else {
+          zone.classList.add('has', 'bad');
+          st.className = 'uz-st err';
+          st.textContent = 'Low quality photo — accepted.';
+          showDelBtn(pi, qi);
+          showQA(pi, qi, 'warn', getTip(warns) || 'A clearer photo gives better results. You can still proceed.');
+        }
+      } catch (err) {
+        zone.classList.remove('busy');
+        zone.classList.add('bad');
+        st.className = 'uz-st err';
+        st.textContent = err.message;
+        S.personUploads[pi].u[qi] = null;
+        prev.style.display = 'none';
+        iconDiv.style.display = '';
+      }
+
+      // If both photos uploaded for this person, verify they're the same person
+      if (qi === 1 && S.personUploads[pi].u[0] !== null && S.personUploads[pi].u[1] !== null) {
+        verifySamePerson(pi);
+      }
+      checkPhotosBtn();
+    }
+
+    async function verifySamePerson(pi) {
+      var pu = S.personUploads[pi];
+      var url1 = pu.u[0] ? pu.u[0].photo_url : null;
+      var url2 = pu.u[1] ? pu.u[1].photo_url : null;
+      if (!url1 || !url2) return;
+
+      var el = document.getElementById('same-check-' + pi);
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'same-check-' + pi;
+        var sec = document.getElementById('personSecs').children[pi];
+        if (sec) sec.appendChild(el);
+      }
+      el.style.cssText = 'border-radius:8px;padding:10px 14px;font-size:13px;margin-top:8px;line-height:1.6;background:#f0f9ff;border:1px solid #bae6fd;color:#0369a1;';
+      el.textContent = 'Checking if both photos are of the same person...';
+
+      try {
+        var r = await fetch(API_URL + '/api/verify-same-person', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ photo_url1: url1, photo_url2: url2 })
+        });
+        var d = await r.json();
+
+        if (d.same_person) {
+          // ✅ Same person — allow continue
+          S.personUploads[pi].sameOk = true;
+          el.style.cssText = 'border-radius:8px;padding:10px 14px;font-size:13px;margin-top:8px;line-height:1.6;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;';
+          el.textContent = 'Both photos are of the same person.';
+
+        } else {
+          // ❌ Different people — BLOCK continue, show delete button
+          S.personUploads[pi].sameOk = false;
+          var pLabel = S.personUploads.length > 1 ? 'Person ' + (pi + 1) : 'Your Photo';
+          el.style.cssText = 'border-radius:8px;padding:12px 14px;font-size:13px;margin-top:8px;line-height:1.6;background:#fef2f2;border:2px solid #fecaca;color:#991b1b;';
+
+          // Build warning with delete button
+          var msg = document.createElement('div');
+          msg.innerHTML = '<strong>The two photos appear to be of different people.</strong><br>' +
+            'Please delete Photo 2 and re-upload a photo of the same person as Photo 1.';
+          el.innerHTML = '';
+          el.appendChild(msg);
+
+          var delBtn = document.createElement('button');
+          delBtn.textContent = 'Delete Photo 2';
+          delBtn.style.cssText = 'display:inline-block;margin-top:10px;padding:8px 18px;border-radius:6px;' +
+            'background:#991b1b;color:white;font-size:13px;font-weight:700;cursor:pointer;border:none;';
+          delBtn.addEventListener('click', (function (pii) {
+            return function () {
+              deletePhoto(pii, 1);       // delete photo 2 (index 1)
+              S.personUploads[pii].sameOk = null;  // reset block
+              var checkEl2 = document.getElementById('same-check-' + pii);
+              if (checkEl2) checkEl2.remove();
+              checkPhotosBtn();
+            };
+          })(pi));
+          el.appendChild(delBtn);
+        }
+
+      } catch (e) {
+        S.personUploads[pi].sameOk = null;
+        el.remove();
+      }
+      checkPhotosBtn();
+    }
+
+
+    async function verifyCrossPersons(pi) {
+      var n = S.personUploads.length;
+      if (n < 2) return;
+      for (var j = 0; j < n; j++) {
+        if (j === pi) continue;
+        var urlA = S.personUploads[pi].u[0] ? S.personUploads[pi].u[0].photo_url : null;
+        var urlB = S.personUploads[j].u[0] ? S.personUploads[j].u[0].photo_url : null;
+        if (!urlA || !urlB) continue;
+        var crossId = 'cross-' + Math.min(pi, j) + '-' + Math.max(pi, j);
+        var oldEl = document.getElementById(crossId);
+        try {
+          var r = await fetch(API_URL + '/api/verify-same-person', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ photo_url1: urlA, photo_url2: urlB })
+          });
+          var d = await r.json();
+          if (d.same_person) {
+            if (!oldEl) {
+              oldEl = document.createElement('div');
+              oldEl.id = crossId;
+              var sec = document.getElementById('personSecs').children[pi];
+              if (sec) sec.appendChild(oldEl);
+            }
+            oldEl.style.cssText = 'border-radius:8px;padding:12px 14px;font-size:13px;margin-top:8px;line-height:1.6;background:#fffbeb;border:1px solid #fde68a;color:#92400e;';
+            oldEl.innerHTML = '<strong>Person ' + (Math.min(pi, j) + 1) + ' and Person ' + (Math.max(pi, j) + 1) +
+              ' appear to have the same face.</strong><br>' +
+              'If you want the same person twice, you can continue. Otherwise please re-upload different photos.';
+          } else {
+            if (oldEl) oldEl.remove();
+          }
+        } catch (e) { if (oldEl) oldEl.remove(); }
+      }
+    }
+
+    function showDelBtn(pi, qi) {
+      var btn = document.getElementById('del-' + pi + '-' + qi);
+      if (btn) btn.style.display = 'block';
+    }
+
+    function deletePhoto(pi, qi) {
+      // Clear state
+      S.personUploads[pi].u[qi] = null;
+
+      // Reset zone UI
+      var zone = document.getElementById('uz-' + pi + '-' + qi);
+      var prev = document.getElementById('up-' + pi + '-' + qi);
+      var iconDiv = document.getElementById('ui-' + pi + '-' + qi);
+      var st = document.getElementById('st-' + pi + '-' + qi);
+      var delBtn = document.getElementById('del-' + pi + '-' + qi);
+      var inp = zone ? zone.querySelector('input[type=file]') : null;
+
+      if (zone) { zone.classList.remove('has', 'bad'); }
+      if (prev) { prev.src = ''; prev.style.display = 'none'; }
+      if (iconDiv) { iconDiv.style.display = ''; }
+      if (st) { st.className = 'uz-st'; st.textContent = ''; }
+      if (delBtn) { delBtn.style.display = 'none'; }
+      if (inp) { inp.value = ''; }
+
+      // Remove quality alert
+      var qa = document.getElementById('qa-' + pi + '-' + qi);
+      if (qa) qa.remove();
+
+      // Remove same-person check result
+      var sc = document.getElementById('same-check-' + pi);
+      if (sc) sc.remove();
+
+      checkPhotosBtn();
+    }
+
+    function getTip(warns) {
+      var order = ['no_face', 'backlit', 'blurred', 'dark', 'face_too_small', 'obstructed', 'low_resolution', 'multiple_faces'];
+      for (var i = 0; i < order.length; i++) {
+        if (warns.indexOf(order[i]) >= 0 && QUALITY_TIPS[order[i]]) return QUALITY_TIPS[order[i]];
+      }
+      return null;
+    }
+
+    function showQAGentle(pi, qi, msg) {
+      var oldEl = document.getElementById('qa-' + pi + '-' + qi);
+      if (oldEl) oldEl.remove();
+      var el = document.createElement('div');
+      el.id = 'qa-' + pi + '-' + qi;
+      el.style.cssText = 'border-radius:8px;padding:10px 14px;font-size:12px;margin-top:6px;line-height:1.5;background:#fffbeb;border:1px solid #fde68a;color:#92400e;';
+      el.textContent = msg;
+      var zone = document.getElementById('uz-' + pi + '-' + qi);
+      if (zone) zone.parentNode.insertBefore(el, zone.nextSibling);
+    }
+
+    function showQA(pi, qi, type, msg) {
+      showQAWithOverride(pi, qi, msg, null);
+    }
+
+    function showQAWithOverride(pi, qi, msg, uploadData) {
+      var oldEl = document.getElementById('qa-' + pi + '-' + qi);
+      if (oldEl) oldEl.remove();
+      var el = document.createElement('div');
+      el.id = 'qa-' + pi + '-' + qi;
+      el.style.cssText = 'border-radius:8px;padding:12px 14px;font-size:13px;margin-top:8px;line-height:1.6;' +
+        (uploadData ? 'background:#fffbeb;border:1px solid #fde68a;color:#92400e;'
+          : 'background:#fef2f2;border:1px solid #fecaca;color:#991b1b;');
+      el.textContent = msg;
+      if (uploadData) {
+        var btn = document.createElement('button');
+        btn.textContent = 'Use this photo anyway';
+        btn.style.cssText = 'display:block;margin-top:8px;padding:7px 14px;border-radius:6px;' +
+          'background:#92400e;color:white;font-size:12px;font-weight:700;cursor:pointer;border:none;';
+        btn.addEventListener('click', (function (pii, qii, uData) {
+          return function () {
+            S.personUploads[pii].u[qii] = uData;
+            var zone = document.getElementById('uz-' + pii + '-' + qii);
+            var prev = document.getElementById('up-' + pii + '-' + qii);
+            var ic = document.getElementById('ui-' + pii + '-' + qii);
+            var st = document.getElementById('st-' + pii + '-' + qii);
+            if (zone) { zone.classList.remove('bad'); zone.classList.add('has'); }
+            if (prev) prev.style.display = 'block';
+            if (ic) ic.style.display = 'none';
+            if (st) { st.className = 'uz-st warn'; st.textContent = 'Used (face detection uncertain)'; }
+            showDelBtn(pii, qii);
+            el.remove();
+            checkPhotosBtn();
+          };
+        })(pi, qi, uploadData));
+        el.appendChild(btn);
+      }
+      var zone = document.getElementById('uz-' + pi + '-' + qi);
+      if (zone) zone.parentNode.insertBefore(el, zone.nextSibling);
+    }
+
+    function photosOk() {
+      return S.personUploads.every(function (pu) {
+        if (pu.u[0] === null) return false;      // no photo 1
+        if (pu.sameOk === false) return false;   // photo1 ≠ photo2 confirmed
+        return true;
+      });
+    }
+
+    function checkPhotosBtn() {
+      document.getElementById('btn5').disabled = !photosOk();
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // STEP 6: PLAN & PAY
+    // ═══════════════════════════════════════════════════════
+    function buildPlans() {
+      var grid = document.getElementById('planGrid');
+
+      if (!grid) return;
+
+      grid.innerHTML = '';
+
+      var n = parseInt(S.persons) || 1;
+      var peopleLabel = n === 1 ? '1 person' : n + ' people';
+
+      PLANS.forEach(function (p) {
+        var div = document.createElement('div');
+
+        div.className = 'plan-c' + (p.id === S.plan ? ' sel' : '');
+        div.id = 'plan-' + p.id;
+
+        var featuresHtml = (p.features || []).map(function (f) {
+          return '<li style="font-size:12px;color:#8a7968;margin-top:4px;list-style:none;padding-left:16px;position:relative;">' +
+            '<span style="position:absolute;left:0;color:#c8792a;">✓</span>' + f + '</li>';
+        }).join('');
+
+        div.innerHTML =
+          (p.popular ? '<div class="plan-badge">MOST POPULAR</div>' : '') +
+          '<div class="plan-name" style="font-size:15px;font-weight:700;margin-bottom:2px;">' + p.name + '</div>' +
+          '<div style="font-size:11px;color:#8a7968;margin-bottom:8px;">one-time · ' + peopleLabel + '</div>' +
+          '<div class="plan-price" style="font-size:28px;">€' + getPlanPrice(p.id) + '</div>' +
+          '<ul style="margin-top:10px;padding:0;">' + featuresHtml + '</ul>';
+
+        div.addEventListener('click', function () {
+          pickPlan(p.id);
+        });
+
+        grid.appendChild(div);
+      });
+    }
+
+    function pickPlan(id) {
+      S.plan = id;
+      document.querySelectorAll('.plan-c').forEach(function (c) { c.classList.remove('sel'); });
+      var el = document.getElementById('plan-' + id);
+      if (el) el.classList.add('sel');
+      updateSummary();
+      checkPay();
+    }
+
+    function onStep6() {
+      buildPlans();
+      updateSummary();
+      checkPay();
+    }
+
+    function updateSummary() {
+
+      var plan = PLANS.filter(function (p) {
+        return p.id === S.plan;
+      })[0] || PLANS[0];
+
+      var n = parseInt(S.persons) || 1;
+
+      var extra = PERSON_EXTRA[n] || 0;
+
+      var total = parseFloat(getPlanPrice(S.plan));
+
+      var sel =
+        S.flow === 'template'
+          ? (S.templateName || 'Custom')
+          : 'Custom scene';
+
+      var el = document.getElementById('summaryEl');
+
+      el.innerHTML =
+        '<div class="sr"><span>Style</span><span class="sv">' + sel + '</span></div>' +
+
+        '<div class="sr"><span>Persons</span><span class="sv">' + n + '</span></div>' +
+
+        '<div class="sr"><span>Plan</span><span class="sv">' + plan.name + '</span></div>' +
+
+        (extra > 0
+          ? '<div class="sr"><span>Extra persons</span><span class="sv">+€' + extra.toFixed(2) + '</span></div>'
+          : '') +
+
+        '<div class="sr"><span>Total</span><span class="sv">€' + total.toFixed(2) + '</span></div>';
+    }
+
+    function checkPay() {
+
+      var email = (document.getElementById('emailIn').value || '').trim();
+
+      var name = (document.getElementById('nameIn').value || '').trim();
+
+      document.getElementById('payBtn').disabled =
+        !(email &&
+          email.indexOf('@') > 0 &&
+          name &&
+          window._cardOk);
+
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // PAYMENT
+    // ═══════════════════════════════════════════════════════
+    async function handlePay() {
+      var btn = document.getElementById('payBtn');
+      var cerr = document.getElementById('cerr');
+      var email = document.getElementById('emailIn').value.trim();
+      var name = document.getElementById('nameIn').value.trim();
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spin"></span>Creating order...';
+      cerr.textContent = '';
+
+      try {
+        var pph = S.personUploads.map(function (pu) {
+          return {
+            person: pu.p,
+            upload_ids: pu.u.filter(function (u) { return u !== null; }).map(function (u) { return u.upload_id; })
+          };
+        });
+
+        var flatUploadIds = [];
+        pph.forEach(function (person) {
+          flatUploadIds = flatUploadIds.concat(person.upload_ids || []);
+        });
+
+        var desc = S.flow === 'free'
+          ? document.getElementById('descTxt').value.trim()
+          : '';
+        var notes = S.flow === 'free'
+          ? document.getElementById('notesTxt').value.trim()
+          : '';
+        var finalTemplateId = S.flow === 'free' ? 'custom_free' : S.templateId;
+
+        var payload = {
+          flow: S.flow,
+          template_id: finalTemplateId,
+          description: desc,
+          occasion: S.occasion,
+          persons: S.persons || '1',
+          plan: S.plan,
+          upload_ids: flatUploadIds,
+          person_photos: pph,
+          answers: {
+            occasion: S.occasion,
+            template_id: finalTemplateId,
+            template_name: S.templateName || (S.flow === 'free' ? 'Custom Scene' : ''),
+            description: desc,
+            notes: notes
+          },
+          notes: notes || desc,
+          email: email,
+          name: name
+        };
+
+        var r = await fetch(API_URL + '/api/create-payment-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        var d = await r.json();
+        if (!d.success) throw new Error(d.error || 'Order creation failed');
+
+        btn.innerHTML = '<span class="spin"></span>Processing payment...';
+
+        var result = await window._stripe.confirmCardPayment(d.clientSecret, {
+          payment_method: { card: window._card, billing_details: { name: name, email: email } }
+        });
+        if (result.error) throw new Error(result.error.message);
+
+        document.getElementById('s6').classList.remove('active');
+        document.getElementById('sSuccess').classList.add('active');
+        document.getElementById('orderId').textContent = 'Order ID: ' + d.order_id;
+        document.getElementById('prog').style.display = 'none';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      } catch (err) {
+        cerr.textContent = err.message;
+        btn.disabled = false;
+        btn.innerHTML = '🎨 Complete Order';
+      }
+    }
+  </script>
+  <script src="cookie-banner.js"></script>
 </body>
+
 </html>
