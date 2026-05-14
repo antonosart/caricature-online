@@ -701,7 +701,7 @@ def run_generation_pipeline(order_id: str):
         if not order:
             raise Exception("Order not found")
 
-        update_order_status(order_id, "generating", {"pipeline_version": "2.3.2-expert-identity-fix"})
+        update_order_status(order_id, "generating", {"pipeline_version": "2.3.3-expert-admin-debug"})
         print(f"[Pipeline] Starting generation for {order_id}")
 
         template_id    = order["template_id"]
@@ -775,7 +775,7 @@ def run_generation_pipeline(order_id: str):
     except Exception as e:
         print(f"[Pipeline] ERROR for {order_id}: {e}")
         try:
-            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "2.3.2-expert-identity-fix"})
+            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "2.3.3-expert-admin-debug"})
         except Exception:
             pass
         notify_admin(f"❌ Order {order_id} FAILED: {e}")
@@ -1188,7 +1188,7 @@ def create_payment_intent():
                 "template_id": template_id,
                 "plan_id": plan_id,
                 "persons": str(persons),
-                "pipeline": "v2.3.2-expert-identity-fix",
+                "pipeline": "v2.3.3-expert-admin-debug",
             },
             description=f"Caricature — {template['name']} ({plan_id})"
         )
@@ -1214,7 +1214,7 @@ def create_payment_intent():
         "email": email,
         "name": name,
         "status": "pending",
-        "pipeline_version": "2.3.2-expert-identity-fix",
+        "pipeline_version": "2.3.3-expert-admin-debug",
         "moderation": moderation,
         "created_at": datetime.utcnow().isoformat(),
     })
@@ -2197,6 +2197,8 @@ def admin_test_generate():
             plan_id = "premium"
 
         notes = (request.form.get("notes") or request.form.get("description") or "Admin direct generation test").strip()
+        strict_mode = (request.form.get("strict", "true").lower() not in {"0", "false", "no", "off"})
+        debug_mode = (request.form.get("debug", "true").lower() not in {"0", "false", "no", "off"})
         moderation = moderate_text(notes)
         if not moderation.get("allowed"):
             return err("This test request violates content guidelines.", 400)
@@ -2263,28 +2265,52 @@ def admin_test_generate():
         # ── 4. Generate, apply identity reference, QA, upscale ──────────
         final_ai_url = None
         qa = {}
+        candidate_debug = []
         attempts = max(1, min(3, int(CFG.get("MAX_GENERATION_RETRIES", 2))))
         working_prompt = prompt
 
         for attempt in range(1, attempts + 1):
-            print(f"[AdminTest] {test_id} generation attempt {attempt}/{attempts}")
+            print(f"[AdminTest] {test_id} generation attempt {attempt}/{attempts} strict={strict_mode}")
             base_url = generate_base_art(working_prompt, photo_urls, attempt=attempt)
             if not base_url:
+                candidate_debug.append({"attempt": attempt, "stage": "base_generation", "ok": False, "error": "no_base_url"})
                 continue
-            candidate_url, identity_meta = apply_identity_reference(base_url, photo_urls, strict=True)
+
+            # In admin debug mode, allow inspection even when the identity step or QA is imperfect.
+            candidate_url, identity_meta = apply_identity_reference(base_url, photo_urls, strict=strict_mode)
             if not candidate_url:
                 qa = {"deliverable": False, "quality_score": 1, "identity_score": 1, "reason": "identity_reference_failed", "identity_meta": identity_meta}
+                candidate_debug.append({"attempt": attempt, "base_url": base_url, "candidate_url": None, "identity_meta": identity_meta, "qa": qa})
                 print(f"[AdminTest] {test_id} identity failed attempt {attempt}: {identity_meta}")
                 continue
+
             qa = assess_generated_result(working_prompt, candidate_url, photo_urls[0] if photo_urls else None)
             qa["identity_meta"] = identity_meta
-            if qa.get("deliverable", True) and qa.get("quality_score", 7) >= 5 and qa.get("identity_score", 7) >= 5:
+            candidate_debug.append({"attempt": attempt, "base_url": base_url, "candidate_url": candidate_url, "identity_meta": identity_meta, "qa": qa})
+            print(f"[AdminTest] {test_id} QA attempt {attempt}: {json.dumps(qa, ensure_ascii=False)[:1200]}")
+
+            passes_strict = qa.get("deliverable", True) and qa.get("quality_score", 7) >= 5 and qa.get("identity_score", 7) >= 5
+            if passes_strict or not strict_mode:
                 final_ai_url = candidate_url
                 break
             working_prompt += ", stronger likeness to uploaded face, clear finished caricature, no artifacts"
 
         if not final_ai_url:
-            return err("Admin test generation failed: no deliverable image returned", 500)
+            return ok({
+                "test_id": test_id,
+                "success": False,
+                "error": "Admin test generation failed: no deliverable image returned",
+                "strict_mode": strict_mode,
+                "debug_mode": debug_mode,
+                "template_id": template_id,
+                "template_name": template.get("name", template_id),
+                "photo_urls": photo_urls,
+                "quality": primary_quality,
+                "all_quality": qualities,
+                "prompt": working_prompt[:1800],
+                "debug_candidate_urls": candidate_debug,
+                "message": "No candidate passed strict QA. Retry with -F strict=false to inspect candidates."
+            }, 422)
 
         img_bytes, upscale_meta = upscale_to_4k(final_ai_url, test_id)
         result_filename = f"{test_id}_result_4k.jpg" if upscale_meta.get("upscaled") else f"{test_id}_result.jpg"
@@ -2309,7 +2335,10 @@ def admin_test_generate():
             "generation_prompt": working_prompt[:1800],
             "generation_qa": qa,
             "upscale_meta": upscale_meta,
-            "pipeline_version": "2.3.2-expert-identity-fix",
+            "pipeline_version": "2.3.3-expert-admin-debug",
+            "strict_mode": strict_mode,
+            "debug_mode": debug_mode,
+            "debug_candidate_urls": candidate_debug if debug_mode else [],
         }
         if save_test:
             try:
@@ -2331,6 +2360,9 @@ def admin_test_generate():
             "upscale_meta": upscale_meta,
             "prompt": working_prompt[:1800],
             "duration_seconds": duration_seconds,
+            "strict_mode": strict_mode,
+            "debug_mode": debug_mode,
+            "debug_candidate_urls": candidate_debug if debug_mode else [],
             "message": "Admin test generated successfully. Open result_url to inspect likeness and 4K output.",
         })
 
@@ -2342,7 +2374,7 @@ def admin_test_generate():
                 "created_at": started_at.isoformat(),
                 "status": "failed",
                 "error": str(e),
-                "pipeline_version": "2.3.2-expert-identity-fix",
+                "pipeline_version": "2.3.3-expert-admin-debug",
             }, merge=True)
         except Exception:
             pass
@@ -2353,14 +2385,14 @@ def admin_test_generate():
 def health():
     return ok({
         "status":    "healthy",
-        "version":   "2.3.2-expert-identity-fix",
+        "version":   "2.3.3-expert-admin-debug",
         "timestamp": datetime.utcnow().isoformat(),
         "lora_ready": bool(CFG["FAL_LORA_URL"]),
     })
 
 @app.route("/", methods=["GET"])
 def root():
-    return ok({"service": "Caricature API", "version": "2.3.2-expert-identity-fix", "docs": "/health"})
+    return ok({"service": "Caricature API", "version": "2.3.3-expert-admin-debug", "docs": "/health"})
 
 
 if __name__ == "__main__":
