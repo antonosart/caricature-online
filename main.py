@@ -936,6 +936,9 @@ def stylize_face_blend(image_url: str, prompt: str) -> tuple[str | None, dict]:
         print(f"[StyleUnify] Failed: {e}")
 
     return None, meta
+
+
+def upscale_to_4k(image_url: str, order_id: str) -> tuple[bytes, dict]:
     """Return high-resolution bytes. Tries AI upscale first, then Pillow local upscale, then original."""
     meta = {"target": "4k", "method": "original", "width": None, "height": None, "upscaled": False}
 
