@@ -593,14 +593,14 @@ function onDescInput() {
   var val = document.getElementById('descTxt').value.trim();
   S.description = val;
   var hint = document.getElementById('descHint');
-  if (val.length < 20) {
-    hint.textContent = (20 - val.length) + ' more characters needed';
+  if (val.length < 10) {
+    hint.textContent = (10 - val.length) + ' more characters needed';
     hint.style.color = 'var(--muted)';
   } else {
     hint.textContent = val.length + ' characters ✓';
     hint.style.color = 'var(--success)';
   }
-  document.getElementById('btn4f').disabled = val.length < 20;
+  document.getElementById('btn4f').disabled = val.length < 10;
 }
 
 // ═══════════════════════════════════════════════════════
