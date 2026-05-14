@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Privacy Policy — Caricature.online</title>
-<meta name="description" content="Privacy Policy for Caricature.online. How we collect, use and protect your personal data.">
+<meta name="description" content="Privacy Policy for Caricature.online. How we collect, use, protect and delete personal data, photos and AI order information.">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -43,6 +43,8 @@ body{font-family:var(--body);background:var(--cream);color:var(--ink);line-heigh
 .callout{background:var(--gold-pale);border:1px solid rgba(200,121,42,.25);border-left:4px solid var(--gold);border-radius:0 12px 12px 0;padding:18px 22px;margin:24px 0}
 .callout p{margin:0;font-size:14px;color:#5a3d1a;line-height:1.65}
 .callout strong{color:var(--ink)}
+.callout-warn{background:#fff4f4;border-color:#e05050;border-left-color:#c03030}
+.callout-warn p{color:#6a1a1a}
 .data-table{width:100%;border-collapse:collapse;margin:20px 0 24px;border-radius:12px;overflow:hidden;border:1px solid var(--border)}
 .data-table th{background:var(--obsidian);color:var(--parchment);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:12px 16px;text-align:left}
 .data-table td{padding:12px 16px;font-size:13px;color:#4a3e34;border-bottom:1px solid var(--border);vertical-align:top;line-height:1.5}
@@ -69,13 +71,13 @@ body{font-family:var(--body);background:var(--cream);color:var(--ink);line-heigh
 <div class="policy-hero">
   <div class="label">Legal</div>
   <h1>Privacy <em>Policy</em></h1>
-  <div class="meta">Last updated: 11 May 2025 · GDPR compliant</div>
+  <div class="meta">Last updated: 14 May 2026 · GDPR aligned</div>
 </div>
 
 <div class="policy-body">
 
   <div class="callout" style="margin-bottom:40px">
-    <p><strong>The short version:</strong> We only collect what we need to process your order. Your photo is deleted 72 hours after delivery. We never sell your data. We use Stripe for payments so we never see your card details. That's it.</p>
+    <p><strong>The short version:</strong> We collect only what we need to process your order, generate your caricature, deliver it by email, prevent abuse, and meet legal obligations. Your original photo and generated caricature are deleted after 72 hours. We never sell your data, and Stripe handles payments so we never see your card details.</p>
   </div>
 
   <div class="toc">
@@ -84,6 +86,7 @@ body{font-family:var(--body);background:var(--cream);color:var(--ink);line-heigh
       <li><a href="#controller">Who we are</a></li>
       <li><a href="#data">What data we collect</a></li>
       <li><a href="#how">How we use your data</a></li>
+      <li><a href="#ai">AI processing and content safety checks</a></li>
       <li><a href="#legal">Legal basis for processing</a></li>
       <li><a href="#photo">Your photo — special notice</a></li>
       <li><a href="#sharing">Who we share data with</a></li>
@@ -91,15 +94,17 @@ body{font-family:var(--body);background:var(--cream);color:var(--ink);line-heigh
       <li><a href="#rights">Your rights</a></li>
       <li><a href="#security">Security</a></li>
       <li><a href="#children">Children</a></li>
+      <li><a href="#international">International transfers</a></li>
       <li><a href="#changes">Changes to this policy</a></li>
-      <li><a href="#contact">Contact & DPO</a></li>
+      <li><a href="#contact">Contact</a></li>
     </ol>
   </div>
 
   <div class="section" id="controller">
     <h2>1. Who we are</h2>
-    <p>Caricature.online is an AI-powered caricature e-commerce service. When this policy refers to "we", "us" or "our", it means the operator of caricature.online, who acts as the data controller for the personal data described in this policy.</p>
-    <p><strong>Contact:</strong> <a href="mailto:privacy@caricature.online">privacy@caricature.online</a></p>
+    <p>Caricature.online is an AI-powered caricature e-commerce service. When this policy says “we”, “us” or “our”, it refers to the operator of caricature.online, acting as the data controller for the personal data described in this policy.</p>
+    <p><strong>Privacy contact:</strong> <a href="mailto:privacy@caricature.online">privacy@caricature.online</a></p>
+    <p><strong>Support contact:</strong> <a href="mailto:support@caricature.online">support@caricature.online</a></p>
   </div>
 
   <div class="section" id="data">
@@ -109,11 +114,13 @@ body{font-family:var(--body);background:var(--cream);color:var(--ink);line-heigh
     <table class="data-table">
       <thead><tr><th>Data</th><th>When collected</th><th>Why</th></tr></thead>
       <tbody>
-        <tr><td>Email address</td><td>Checkout</td><td>To deliver your caricature and send your receipt</td></tr>
-        <tr><td>Full name</td><td>Checkout</td><td>To personalise your delivery email</td></tr>
-        <tr><td>Photo(s) of people</td><td>Order flow</td><td>To generate your caricature — deleted 72h after delivery</td></tr>
-        <tr><td>Personalisation answers</td><td>Order flow</td><td>Hair colour, occasion details, etc. — to improve the caricature result</td></tr>
-        <tr><td>Free-text notes</td><td>Order flow</td><td>Any extra instructions you provide</td></tr>
+        <tr><td>Email address</td><td>Checkout, support, review forms</td><td>To deliver your caricature, send receipts, support your order, and send review/free-order links where applicable</td></tr>
+        <tr><td>Full name</td><td>Checkout</td><td>To personalise order records, emails and customer support</td></tr>
+        <tr><td>Uploaded photo(s)</td><td>Order flow</td><td>To assess photo quality, generate the caricature, prevent abuse, and deliver the result</td></tr>
+        <tr><td>Personalisation answers</td><td>Order flow</td><td>To adapt the caricature to your selected theme, occasion and preferences</td></tr>
+        <tr><td>Free-text description and notes</td><td>Order flow</td><td>To generate custom scenes and check requests against our content safety rules</td></tr>
+        <tr><td>Order ID, template, plan and price</td><td>Checkout and order processing</td><td>To fulfil the contract, provide support, prevent fraud and keep accounting records</td></tr>
+        <tr><td>Review feedback and ratings</td><td>Optional review form</td><td>To improve service quality and issue free-caricature tokens when offered</td></tr>
       </tbody>
     </table>
 
@@ -121,143 +128,180 @@ body{font-family:var(--body);background:var(--cream);color:var(--ink);line-heigh
     <table class="data-table">
       <thead><tr><th>Data</th><th>Source</th><th>Why</th></tr></thead>
       <tbody>
-        <tr><td>IP address (truncated)</td><td>Server logs</td><td>Security and fraud prevention — not stored in full</td></tr>
-        <tr><td>Browser & device type</td><td>Server logs</td><td>To ensure the site displays correctly</td></tr>
-        <tr><td>Pages visited, time on site</td><td>Google Analytics (anonymised)</td><td>To improve the website — only with your consent</td></tr>
-        <tr><td>Referral source</td><td>URL parameters</td><td>To understand which channels bring visitors — only with your consent</td></tr>
-        <tr><td>Cookie preferences</td><td>localStorage</td><td>To remember your consent choices</td></tr>
+        <tr><td>IP address and request metadata</td><td>Server logs</td><td>Security, abuse prevention, debugging and fraud prevention</td></tr>
+        <tr><td>Browser and device type</td><td>Server logs</td><td>To ensure the site works correctly across devices</td></tr>
+        <tr><td>Pages visited, time on site and referral source</td><td>Analytics tools, only where enabled</td><td>To improve the website and understand performance, subject to cookie choices where required</td></tr>
+        <tr><td>Cookie preferences</td><td>Browser localStorage</td><td>To remember your consent choices</td></tr>
       </tbody>
     </table>
 
     <h3>Payment data</h3>
-    <p>We use <strong>Stripe</strong> to process payments. We never see, receive or store your card number, CVV or banking details. Stripe is PCI-DSS Level 1 certified. The only payment-related data we store is the Stripe payment intent ID (a reference number) and the amount charged.</p>
+    <p>Payments are processed by <strong>Stripe</strong>. We do not receive, process or store your full card number, CVV or banking credentials. We store only payment references such as the Stripe PaymentIntent ID, amount, currency and payment status, because these are needed for order fulfilment, support, refunds and accounting.</p>
   </div>
 
   <div class="section" id="how">
     <h2>3. How we use your data</h2>
     <ul>
-      <li><strong>Order fulfilment</strong> — to generate your caricature and deliver it by email</li>
-      <li><strong>Customer support</strong> — to respond to questions, revision requests or refunds</li>
-      <li><strong>Fraud prevention</strong> — to detect and prevent fraudulent transactions</li>
-      <li><strong>Site improvement</strong> — anonymised analytics to understand how people use the site (with consent)</li>
-      <li><strong>Legal compliance</strong> — to meet our obligations under applicable law</li>
+      <li><strong>Order fulfilment</strong> — to generate and deliver your caricature.</li>
+      <li><strong>AI image processing</strong> — to analyse the uploaded photo, create a prompt, generate the caricature and save the result temporarily.</li>
+      <li><strong>Photo quality checks</strong> — to detect whether a usable human face is present and whether the image is suitable for generation.</li>
+      <li><strong>Content safety checks</strong> — to detect and block prohibited requests, including sexual content, exploitation of minors, hate, harassment, graphic violence, illegal activity and deceptive public-figure content.</li>
+      <li><strong>Customer support</strong> — to answer questions, manage revisions, issue refunds or resolve failed orders.</li>
+      <li><strong>Fraud and abuse prevention</strong> — to protect customers, payment systems, AI providers and our platform.</li>
+      <li><strong>Service improvement</strong> — to understand technical errors, improve templates, and monitor quality.</li>
+      <li><strong>Legal and accounting compliance</strong> — to meet tax, consumer protection, fraud prevention and record-keeping obligations.</li>
     </ul>
-    <p>We do <strong>not</strong> use your data for: advertising profiling, automated decision-making that affects you legally, selling to third parties, or any purpose other than those listed above.</p>
+    <p>We do <strong>not</strong> sell your personal data. We do <strong>not</strong> use your uploaded photo to train our own AI models. We do <strong>not</strong> intentionally publish your uploaded photo or generated caricature without your permission.</p>
+  </div>
+
+  <div class="section" id="ai">
+    <h2>4. AI processing and content safety checks</h2>
+    <p>Caricature.online uses AI services to help assess uploaded photos, create generation prompts and produce caricature images. This means your uploaded photo and order instructions may be processed automatically by our systems and by selected AI processors strictly for the purpose of fulfilling your order and maintaining platform safety.</p>
+
+    <h3>What may be checked automatically</h3>
+    <ul>
+      <li>Whether the uploaded file is a valid image and within accepted limits.</li>
+      <li>Whether the photo contains a visible human face suitable for caricature generation.</li>
+      <li>Whether there are multiple faces when the order requires one clear person photo.</li>
+      <li>Whether the request text contains prohibited or unsafe content.</li>
+      <li>Whether a request requires manual review or cancellation.</li>
+    </ul>
+
+    <h3>Moderation and blocked requests</h3>
+    <p>We may refuse, cancel or refund orders that violate our Terms and Conditions or content safety rules. Where possible, moderation decisions are based on the minimum information needed to detect abuse. We may store a short moderation record, such as the order ID, moderation category, timestamp and blocked reason, for security and dispute-resolution purposes.</p>
+
+    <div class="callout callout-warn">
+      <p><strong>Important:</strong> Safety checks are designed to protect people and the platform. They are not used to profile you, make unrelated decisions about you, or sell advertising data.</p>
+    </div>
   </div>
 
   <div class="section" id="legal">
-    <h2>4. Legal basis for processing (GDPR)</h2>
+    <h2>5. Legal basis for processing under GDPR</h2>
     <table class="data-table">
       <thead><tr><th>Processing activity</th><th>Legal basis</th></tr></thead>
       <tbody>
-        <tr><td>Generating and delivering your caricature</td><td>Contract performance (Art. 6(1)(b))</td></tr>
-        <tr><td>Sending your receipt and delivery email</td><td>Contract performance (Art. 6(1)(b))</td></tr>
-        <tr><td>Fraud prevention and security</td><td>Legitimate interests (Art. 6(1)(f))</td></tr>
-        <tr><td>Analytics cookies (anonymised)</td><td>Consent (Art. 6(1)(a))</td></tr>
-        <tr><td>Marketing/referral tracking</td><td>Consent (Art. 6(1)(a))</td></tr>
-        <tr><td>Keeping financial records</td><td>Legal obligation (Art. 6(1)(c))</td></tr>
+        <tr><td>Generating and delivering your caricature</td><td>Contract performance — Art. 6(1)(b)</td></tr>
+        <tr><td>Sending order, delivery, receipt and support emails</td><td>Contract performance — Art. 6(1)(b)</td></tr>
+        <tr><td>Processing payments and refunds</td><td>Contract performance — Art. 6(1)(b); Legal obligation — Art. 6(1)(c)</td></tr>
+        <tr><td>Photo quality assessment and AI prompt generation</td><td>Contract performance — Art. 6(1)(b)</td></tr>
+        <tr><td>Content safety checks, abuse prevention and fraud prevention</td><td>Legitimate interests — Art. 6(1)(f)</td></tr>
+        <tr><td>Keeping accounting records</td><td>Legal obligation — Art. 6(1)(c)</td></tr>
+        <tr><td>Optional analytics and marketing/referral tracking</td><td>Consent — Art. 6(1)(a), where required</td></tr>
+        <tr><td>Review feedback and optional promotional/free-order token</td><td>Consent or legitimate interests depending on the context</td></tr>
       </tbody>
     </table>
   </div>
 
   <div class="section" id="photo">
-    <h2>5. Your photo — special notice</h2>
+    <h2>6. Your photo — special notice</h2>
     <div class="callout">
-      <p><strong>Your photo is the most sensitive data we handle.</strong> Here is exactly what happens to it:</p>
+      <p><strong>Your photo is the most sensitive data we handle.</strong> We use it only to process your order, perform safety/quality checks and generate your caricature.</p>
     </div>
     <ol>
-      <li>You upload your photo securely (TLS encryption) to Google Cloud Storage</li>
-      <li>The photo is sent to our AI processing services (fal.ai and/or Anthropic) to generate the caricature</li>
-      <li>The resulting caricature is saved to Google Cloud Storage and sent to your email</li>
-      <li><strong>Your original photo is permanently deleted within 72 hours of delivery</strong></li>
-      <li>The generated caricature download link also expires after 72 hours</li>
+      <li>You upload your photo securely over HTTPS.</li>
+      <li>The photo is stored temporarily in Google Cloud Storage.</li>
+      <li>The photo may be analysed by AI to check face visibility and generate a better caricature prompt.</li>
+      <li>The photo may be sent to selected AI processors such as fal.ai and/or Anthropic strictly for order generation and related safety/quality checks.</li>
+      <li>The generated caricature is saved temporarily and delivered to your email.</li>
+      <li><strong>Your original photo and generated caricature are scheduled for deletion after 72 hours from delivery.</strong></li>
     </ol>
-    <p>We do not use your photo to train AI models. We do not share your photo with anyone except the AI processing services strictly necessary to generate your caricature. fal.ai and Anthropic process your photo as data processors under our instructions and are contractually prohibited from using it for any other purpose.</p>
+    <p>We do not claim ownership of your original photo. You are responsible for ensuring that you have permission to upload any photo and that each person depicted has consented where required.</p>
   </div>
 
   <div class="section" id="sharing">
-    <h2>6. Who we share data with</h2>
-    <p>We use the following data processors. All are bound by data processing agreements and GDPR-compliant contractual clauses:</p>
+    <h2>7. Who we share data with</h2>
+    <p>We share data only with service providers needed to run the platform, process orders, generate caricatures, send emails, prevent abuse and comply with the law.</p>
     <table class="data-table">
-      <thead><tr><th>Processor</th><th>Role</th><th>Data shared</th><th>Location</th></tr></thead>
+      <thead><tr><th>Processor</th><th>Role</th><th>Data shared</th><th>Location / safeguards</th></tr></thead>
       <tbody>
-        <tr><td><strong>Stripe</strong></td><td>Payment processing</td><td>Email, name, order amount</td><td>US / EU</td></tr>
-        <tr><td><strong>Google Cloud Platform</strong></td><td>Hosting, database, file storage</td><td>All order data, photos (temporarily)</td><td>EU (us-central1)</td></tr>
-        <tr><td><strong>SendGrid / Twilio</strong></td><td>Transactional email</td><td>Email address, name, download links</td><td>US (SCCs)</td></tr>
-        <tr><td><strong>fal.ai</strong></td><td>AI image generation (face swap)</td><td>Your photo (temporarily, for generation)</td><td>US (SCCs)</td></tr>
-        <tr><td><strong>Anthropic</strong></td><td>AI prompt enhancement</td><td>Your photo (temporarily, for analysis)</td><td>US (SCCs)</td></tr>
-        <tr><td><strong>Google Analytics</strong></td><td>Anonymised analytics</td><td>Anonymised usage data (consent only)</td><td>US (SCCs)</td></tr>
+        <tr><td><strong>Stripe</strong></td><td>Payment processing</td><td>Email, name, order amount, payment metadata</td><td>US / EU, contractual safeguards</td></tr>
+        <tr><td><strong>Google Cloud Platform</strong></td><td>Hosting, database, file storage</td><td>Order data, uploaded photos, generated images, logs</td><td>Configured cloud infrastructure with contractual safeguards</td></tr>
+        <tr><td><strong>Resend</strong></td><td>Transactional email</td><td>Email address, name, order ID, delivery links</td><td>Contractual safeguards</td></tr>
+        <tr><td><strong>fal.ai</strong></td><td>AI image generation / image processing</td><td>Uploaded photo and generation prompt where required</td><td>Contractual safeguards</td></tr>
+        <tr><td><strong>Anthropic</strong></td><td>Photo analysis, prompt enhancement, safety/quality checks</td><td>Uploaded image data or order text where required</td><td>Contractual safeguards</td></tr>
+        <tr><td><strong>Google Analytics or similar analytics</strong></td><td>Optional analytics</td><td>Anonymised or pseudonymised usage data, subject to consent where required</td><td>Contractual safeguards</td></tr>
       </tbody>
     </table>
-    <p>SCCs = EU Standard Contractual Clauses, which provide adequate protection for transfers outside the EEA.</p>
-    <p>We will disclose data to law enforcement or regulatory authorities if required by law. We will notify you where legally permitted to do so.</p>
+    <p>We may disclose information to courts, regulators, law enforcement, payment providers or legal advisers if required by law, necessary to defend our rights, or necessary to investigate serious abuse, fraud or illegal content.</p>
   </div>
 
   <div class="section" id="retention">
-    <h2>7. How long we keep your data</h2>
+    <h2>8. How long we keep your data</h2>
     <table class="data-table">
       <thead><tr><th>Data type</th><th>Retention period</th><th>Reason</th></tr></thead>
       <tbody>
-        <tr><td>Your photo (original upload)</td><td><strong>72 hours after delivery</strong></td><td>Automatically deleted — no longer needed</td></tr>
-        <tr><td>Generated caricature file</td><td><strong>72 hours after delivery</strong></td><td>Download link expires, file deleted</td></tr>
-        <tr><td>Order record (email, name, template, amount)</td><td>7 years</td><td>Legal / accounting obligation</td></tr>
-        <tr><td>Personalisation answers & notes</td><td>90 days</td><td>Customer support window</td></tr>
-        <tr><td>Analytics data</td><td>26 months</td><td>Google Analytics default (anonymised)</td></tr>
-        <tr><td>Cookie consent record</td><td>1 year</td><td>To avoid showing banner repeatedly</td></tr>
+        <tr><td>Original uploaded photo</td><td><strong>72 hours after delivery</strong></td><td>Temporary generation, quality checks and support window</td></tr>
+        <tr><td>Generated caricature file</td><td><strong>72 hours after delivery</strong></td><td>Download window and short support window</td></tr>
+        <tr><td>Order record: email, name, template, plan, amount, Stripe reference</td><td>Up to 7 years</td><td>Accounting, tax, refund, fraud-prevention and legal obligations</td></tr>
+        <tr><td>Personalisation answers and free-text notes</td><td>Up to 90 days</td><td>Customer support, quality review and dispute handling</td></tr>
+        <tr><td>Moderation records</td><td>Up to 12 months, unless legally required longer</td><td>Abuse prevention, dispute handling and platform safety</td></tr>
+        <tr><td>Reviews and feedback</td><td>Until deletion request or business need ends</td><td>Service improvement and review/free-token handling</td></tr>
+        <tr><td>Free-order tokens</td><td>Up to 12 months after creation or use</td><td>Fraud prevention and token validation</td></tr>
+        <tr><td>Server logs</td><td>Typically up to 90 days</td><td>Security, debugging and abuse prevention</td></tr>
+        <tr><td>Analytics data</td><td>Up to 26 months</td><td>Site improvement, where analytics are enabled</td></tr>
+        <tr><td>Cookie consent record</td><td>Up to 12 months</td><td>To remember your preferences</td></tr>
       </tbody>
     </table>
+    <p>Deletion times may vary if an order is subject to a chargeback, refund dispute, fraud investigation, legal claim or technical incident. In those cases, relevant records may be retained for as long as necessary to resolve the issue.</p>
   </div>
 
   <div class="section" id="rights">
-    <h2>8. Your rights</h2>
-    <p>Under GDPR, you have the following rights. To exercise any of them, email <a href="mailto:privacy@caricature.online">privacy@caricature.online</a>. We will respond within 30 days.</p>
+    <h2>9. Your rights</h2>
+    <p>Under GDPR, you may have the following rights. To exercise them, email <a href="mailto:privacy@caricature.online">privacy@caricature.online</a>. We will respond within 30 days unless a lawful extension applies.</p>
     <ul>
-      <li><strong>Access</strong> — Request a copy of all personal data we hold about you</li>
-      <li><strong>Rectification</strong> — Correct inaccurate data</li>
-      <li><strong>Erasure</strong> — Request deletion of your data ("right to be forgotten")</li>
-      <li><strong>Restriction</strong> — Limit how we process your data</li>
-      <li><strong>Portability</strong> — Receive your data in a machine-readable format</li>
-      <li><strong>Objection</strong> — Object to processing based on legitimate interests</li>
-      <li><strong>Withdraw consent</strong> — Withdraw cookie/analytics consent at any time via the <a href="cookies.html#manage">Cookie Preference Centre</a></li>
-      <li><strong>Lodge a complaint</strong> — Contact your national supervisory authority</li>
+      <li><strong>Access</strong> — request a copy of personal data we hold about you.</li>
+      <li><strong>Rectification</strong> — correct inaccurate or incomplete data.</li>
+      <li><strong>Erasure</strong> — request deletion of your data where legally possible.</li>
+      <li><strong>Restriction</strong> — ask us to limit how we process your data.</li>
+      <li><strong>Portability</strong> — receive certain data in a structured, machine-readable format.</li>
+      <li><strong>Objection</strong> — object to processing based on legitimate interests, including some fraud/safety processing where applicable.</li>
+      <li><strong>Withdraw consent</strong> — withdraw consent for optional cookies or analytics at any time via the <a href="cookies.html#manage">Cookie Preference Centre</a>.</li>
+      <li><strong>Lodge a complaint</strong> — contact your national data protection authority.</li>
     </ul>
-    <p>In Greece: <a href="https://www.dpa.gr" target="_blank" rel="noopener">Hellenic Data Protection Authority (HDPA)</a> — www.dpa.gr</p>
+    <p>If you are in Greece, you may contact the Hellenic Data Protection Authority (HDPA): <a href="https://www.dpa.gr" target="_blank" rel="noopener">www.dpa.gr</a>.</p>
   </div>
 
   <div class="section" id="security">
-    <h2>9. Security</h2>
-    <p>We implement appropriate technical and organisational measures to protect your personal data:</p>
+    <h2>10. Security</h2>
+    <p>We apply appropriate technical and organisational measures to protect personal data, including:</p>
     <ul>
-      <li>All data transmitted between your browser and our servers is encrypted with TLS (HTTPS)</li>
-      <li>Photos are stored in Google Cloud Storage with server-side encryption at rest</li>
-      <li>Access to production systems is restricted to authorised personnel only</li>
-      <li>API keys and secrets are stored in Google Cloud Secret Manager — never in code</li>
-      <li>Stripe handles all card data — we have no access to raw payment credentials</li>
-      <li>Admin endpoints are protected with a secret key</li>
+      <li>HTTPS/TLS encryption for data transmitted between your browser and our systems.</li>
+      <li>Cloud storage with server-side protection for uploaded and generated files.</li>
+      <li>Restricted access to production systems.</li>
+      <li>Secrets and API keys stored outside public code and managed through secure infrastructure.</li>
+      <li>Stripe-hosted payment processing so we do not handle raw card data.</li>
+      <li>Admin endpoints protected by authentication/secret controls.</li>
+      <li>Logging and monitoring for technical failures and suspicious activity.</li>
     </ul>
-    <p>No system is 100% secure. In the event of a data breach affecting your rights, we will notify you and the relevant supervisory authority within 72 hours as required by GDPR.</p>
+    <p>No online system is perfectly secure. If a personal data breach occurs and GDPR notification rules apply, we will notify the relevant authority and affected users where required.</p>
   </div>
 
   <div class="section" id="children">
-    <h2>10. Children</h2>
-    <p>Our service is not directed at children under 16 years of age. We do not knowingly collect personal data from children. If you are a parent or guardian and believe your child has provided us with personal data, please contact us at <a href="mailto:privacy@caricature.online">privacy@caricature.online</a> and we will delete it promptly.</p>
-    <p>Caricatures featuring children may be ordered by adults (parents, guardians) on behalf of children — in this context, the adult ordering is the data subject for purposes of this policy.</p>
+    <h2>11. Children</h2>
+    <p>You must be at least 18 years old to place an order. If an uploaded photo includes a child, you confirm that you are the child’s parent or legal guardian, or that you have explicit permission from the parent or legal guardian.</p>
+    <p>We do not knowingly collect personal data from children for account creation or marketing. Requests that sexualise, exploit, endanger or otherwise misuse images of children are strictly prohibited and may be blocked, cancelled or reported where legally required.</p>
+  </div>
+
+  <div class="section" id="international">
+    <h2>12. International transfers</h2>
+    <p>Some of our processors may operate outside the European Economic Area. Where personal data is transferred internationally, we rely on appropriate safeguards such as contractual protections, Standard Contractual Clauses, provider compliance frameworks, or other lawful transfer mechanisms available under GDPR.</p>
   </div>
 
   <div class="section" id="changes">
-    <h2>11. Changes to this policy</h2>
-    <p>We may update this Privacy Policy from time to time to reflect changes in our practices or applicable law. We will notify you of significant changes by displaying a notice on our website for at least 30 days before the change takes effect.</p>
-    <p>The "Last updated" date at the top of this page indicates when the policy was last revised. We encourage you to review it periodically.</p>
+    <h2>13. Changes to this policy</h2>
+    <p>We may update this Privacy Policy to reflect changes in our service, AI providers, legal obligations, safety systems or business operations. The updated version will be posted on this page with a new “Last updated” date.</p>
+    <p>If a change materially affects your rights or how we process your data, we will take reasonable steps to notify you where required.</p>
   </div>
 
   <div class="section" id="contact">
-    <h2>12. Contact & DPO</h2>
-    <p>For any privacy-related questions, data subject requests, or concerns:</p>
+    <h2>14. Contact</h2>
+    <p>For privacy questions or data rights requests:</p>
     <ul>
-      <li><strong>Email:</strong> <a href="mailto:privacy@caricature.online">privacy@caricature.online</a></li>
-      <li><strong>Response time:</strong> Within 5 business days for general queries; 30 days for formal GDPR requests</li>
+      <li><strong>Privacy:</strong> <a href="mailto:privacy@caricature.online">privacy@caricature.online</a></li>
+      <li><strong>Support:</strong> <a href="mailto:support@caricature.online">support@caricature.online</a></li>
+      <li><strong>Response time:</strong> usually within 2 business days for support, and within 30 days for GDPR rights requests.</li>
     </ul>
-    <p style="margin-top:24px;font-size:13px;color:var(--muted)">Last updated: <strong>11 May 2025</strong></p>
+    <p style="margin-top:24px;font-size:13px;color:var(--muted)">Last updated: <strong>14 May 2026</strong></p>
   </div>
 
 </div>
@@ -267,9 +311,9 @@ body{font-family:var(--body);background:var(--cream);color:var(--ink);line-heigh
     <div class="pf-logo">Caricature<span>.online</span></div>
     <div class="pf-links">
       <a href="index.html">Home</a>
+      <a href="terms.html">Terms</a>
       <a href="cookies.html">Cookie Policy</a>
-      <a href="terms.html">Terms & Conditions</a>
-      <a href="mailto:privacy@caricature.online">Contact</a>
+      <a href="mailto:support@caricature.online">Contact</a>
     </div>
   </div>
 </div>

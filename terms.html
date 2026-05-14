@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Terms & Conditions — Caricature.online</title>
-<meta name="description" content="Terms and Conditions for Caricature.online — AI caricature service.">
+<meta name="description" content="Terms and Conditions for Caricature.online — AI caricature service, payments, delivery, refunds, content rules and prohibited uses.">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -12,9 +12,11 @@
   --obsidian:#0f0d0a;--charcoal:#1c1814;--ink:#2a2420;
   --parchment:#f8f0e3;--cream:#fdf9f4;--gold:#c8792a;
   --gold-pale:#f5e6d0;--muted:#8a7968;--border:#e8ddd0;
+  --danger:#c03030;--danger-bg:#fff4f4;--success:#2d7a4f;
   --display:'Cormorant Garamond',Georgia,serif;
   --body:'Outfit',sans-serif;
 }
+html{scroll-behavior:smooth}
 body{font-family:var(--body);background:var(--cream);color:var(--ink);line-height:1.7}
 .nav{background:var(--obsidian);height:64px;display:flex;align-items:center;position:sticky;top:0;z-index:100}
 .nav-inner{max-width:900px;margin:0 auto;padding:0 24px;display:flex;align-items:center;justify-content:space-between;width:100%}
@@ -43,8 +45,15 @@ body{font-family:var(--body);background:var(--cream);color:var(--ink);line-heigh
 .callout{background:var(--gold-pale);border:1px solid rgba(200,121,42,.25);border-left:4px solid var(--gold);border-radius:0 12px 12px 0;padding:18px 22px;margin:24px 0}
 .callout p{margin:0;font-size:14px;color:#5a3d1a;line-height:1.65}
 .callout strong{color:var(--ink)}
-.callout-warn{background:#fff4f4;border-color:#e05050;border-left-color:#c03030}
+.callout-warn{background:var(--danger-bg);border-color:#e05050;border-left-color:var(--danger)}
 .callout-warn p{color:#6a1a1a}
+.callout-ok{background:#f0fdf4;border-color:#bbf7d0;border-left-color:var(--success)}
+.callout-ok p{color:#166534}
+.policy-table{width:100%;border-collapse:collapse;margin:20px 0 24px;border-radius:12px;overflow:hidden;border:1px solid var(--border)}
+.policy-table th{background:var(--obsidian);color:var(--parchment);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:12px 16px;text-align:left}
+.policy-table td{padding:12px 16px;font-size:13px;color:#4a3e34;border-bottom:1px solid var(--border);vertical-align:top;line-height:1.5}
+.policy-table tr:last-child td{border-bottom:none}
+.policy-table tr:nth-child(even) td{background:var(--parchment)}
 .policy-footer{background:var(--charcoal);padding:40px 0;border-top:1px solid rgba(255,255,255,.05)}
 .pf-inner{max-width:760px;margin:0 auto;padding:0 24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px}
 .pf-logo{font-family:var(--display);font-size:18px;font-weight:700;color:var(--parchment)}
@@ -52,6 +61,7 @@ body{font-family:var(--body);background:var(--cream);color:var(--ink);line-heigh
 .pf-links{display:flex;gap:20px;flex-wrap:wrap}
 .pf-links a{font-size:12px;color:rgba(248,240,227,.4);text-decoration:none;transition:color .2s}
 .pf-links a:hover{color:var(--parchment)}
+@media(max-width:600px){.policy-body{padding:56px 20px 80px}.toc{padding:22px 24px}.policy-table th,.policy-table td{padding:10px 12px}.pf-inner{align-items:flex-start}}
 </style>
 </head>
 <body>
@@ -66,13 +76,13 @@ body{font-family:var(--body);background:var(--cream);color:var(--ink);line-heigh
 <div class="policy-hero">
   <div class="label">Legal</div>
   <h1>Terms & <em>Conditions</em></h1>
-  <div class="meta">Last updated: 11 May 2025 · Effective immediately</div>
+  <div class="meta">Last updated: 14 May 2026 · Effective immediately</div>
 </div>
 
 <div class="policy-body">
 
   <div class="callout" style="margin-bottom:40px">
-    <p><strong>Plain English summary:</strong> You upload a photo, we generate a caricature in our artist's style and send it to your email. You get a licence to use it personally. We do not guarantee exact likeness. Refunds are available if we fail to deliver. Don't upload photos of people without their consent.</p>
+    <p><strong>Plain English summary:</strong> You upload a photo, choose or describe a caricature style, pay securely, and we generate an AI caricature for delivery by email. You must have permission to use the photo. We do not guarantee exact likeness. We may refuse or cancel orders that are unsafe, illegal, exploitative, hateful, defamatory, misleading, or otherwise abusive.</p>
   </div>
 
   <div class="toc">
@@ -86,8 +96,11 @@ body{font-family:var(--body);background:var(--cream);color:var(--ink);line-heigh
       <li><a href="#delivery">Delivery</a></li>
       <li><a href="#refunds">Refunds & revisions</a></li>
       <li><a href="#licence">Licence & intellectual property</a></li>
-      <li><a href="#photos">Your photos & content</a></li>
+      <li><a href="#photos">Your photos, prompts & content</a></li>
+      <li><a href="#ai-safety">AI safety & moderation</a></li>
       <li><a href="#prohibited">Prohibited uses</a></li>
+      <li><a href="#public-figures">Public figures, satire & impersonation</a></li>
+      <li><a href="#copyright">Copyright, brands & style requests</a></li>
       <li><a href="#liability">Limitation of liability</a></li>
       <li><a href="#availability">Service availability</a></li>
       <li><a href="#law">Governing law</a></li>
@@ -97,173 +110,271 @@ body{font-family:var(--body);background:var(--cream);color:var(--ink);line-heigh
 
   <div class="section" id="acceptance">
     <h2>1. Acceptance of terms</h2>
-    <p>By placing an order on caricature.online, you agree to these Terms and Conditions in full. If you do not agree, please do not use the service.</p>
-    <p>These terms apply to all visitors, users and customers of caricature.online. We may update these terms at any time — the version in effect at the time of your order governs that transaction.</p>
+    <p>By accessing caricature.online, uploading content, placing an order, or using any part of the service, you agree to these Terms and Conditions in full. If you do not agree, please do not use the service.</p>
+    <p>These terms apply to all visitors, users and customers of caricature.online. We may update these terms from time to time. The version in effect at the time of your order governs that transaction.</p>
   </div>
 
   <div class="section" id="service">
     <h2>2. The service</h2>
-    <p>Caricature.online provides an AI-powered caricature generation service. You submit a photo and personalisation details; our system processes your photo using AI face-swap technology and delivers a caricature image in our artist's signature style.</p>
-    <p>The caricature is generated automatically. While we strive for high quality and accurate likeness, the output is created by AI and may not perfectly replicate every facial feature or detail. We cannot guarantee an exact likeness.</p>
-    <p>The service is provided in four languages: English, Greek, Spanish, and French.</p>
+    <p>Caricature.online provides an AI-powered caricature generation service. You submit one or more photos and personalisation details; our system processes them using AI image generation and/or face-reference technology and delivers a caricature image in our artist-led visual direction.</p>
+    <p>The caricature is generated automatically. While we aim for high quality and recognisable likeness, AI-generated art is inherently variable and may not perfectly reproduce every facial feature, pose, accessory, colour, expression or detail.</p>
+    <p>The service may include template-based caricatures, free-description caricatures, gift packs, premium revisions, review incentives, and promotional free-order links where available.</p>
+    <p>The service is intended for lawful, light-hearted, family-friendly, gift-oriented, personal and professional use.</p>
   </div>
 
   <div class="section" id="eligibility">
     <h2>3. Eligibility</h2>
-    <p>You must be at least 18 years old to place an order. By ordering, you confirm that you are 18 or over.</p>
-    <p>If you are ordering a caricature featuring a minor, you confirm that you are the parent or legal guardian of that child, or have explicit permission from their parent or guardian to submit their image.</p>
+    <p>You must be at least 18 years old to place an order. By ordering, you confirm that you are 18 or over and legally able to enter into this agreement.</p>
+    <p>If you order a caricature featuring a minor, you confirm that you are the parent or legal guardian of that child, or that you have explicit permission from the parent or legal guardian to submit the child’s image for this purpose.</p>
+    <p>We may refuse, cancel, or refund an order if we reasonably believe the order involves a minor without proper consent, unsafe content, identity misuse, or any prohibited use listed below.</p>
   </div>
 
   <div class="section" id="ordering">
     <h2>4. Ordering</h2>
-    <p>To place an order you must:</p>
+    <p>To place an order you may be asked to:</p>
     <ol>
-      <li>Select an occasion and template</li>
-      <li>Specify the number of people (1 / 2 / 3–4 / 5+)</li>
-      <li>Answer personalisation questions and add any notes</li>
-      <li>Upload a clear, well-lit photo for each person</li>
-      <li>Provide a valid email address and pay</li>
+      <li>Select a style path, occasion and template, or describe your own scene</li>
+      <li>Specify the number of people in the caricature</li>
+      <li>Upload clear, well-lit photo references</li>
+      <li>Provide personalisation answers, notes, or scene instructions</li>
+      <li>Provide your name, email address, and payment details</li>
+      <li>Confirm payment through Stripe or use a valid promotional/free-order token</li>
     </ol>
-    <p>A contract is formed between you and caricature.online when your payment is successfully processed and we send you a confirmation email.</p>
+    <p>A contract is formed when your payment is successfully processed, or when a valid free-order token is accepted and your order is confirmed by the system.</p>
+
     <h3>Photo requirements</h3>
     <ul>
-      <li>The face must be clearly visible and not obscured</li>
-      <li>Minimum resolution: 600 × 600 pixels</li>
-      <li>Accepted formats: JPG, PNG, WEBP — maximum 10 MB per photo</li>
-      <li>The face should be well-lit and roughly facing forward</li>
+      <li>The face should be clearly visible and not heavily obscured</li>
+      <li>The photo should be sharp, well-lit, and not strongly backlit</li>
+      <li>Accepted formats: JPG, PNG and WEBP</li>
+      <li>Maximum file size: 10 MB per upload, unless otherwise stated in the order flow</li>
+      <li>For best results, each photo should show only the person intended for that upload slot</li>
     </ul>
-    <p>We reserve the right to cancel and refund an order if the submitted photo does not meet these requirements and cannot be used to generate an acceptable result.</p>
+    <p>We reserve the right to cancel and refund an order if the submitted photo cannot be used to generate an acceptable result or violates these terms.</p>
   </div>
 
   <div class="section" id="pricing">
     <h2>5. Pricing & payment</h2>
-    <p>All prices are displayed in Euros (€) and include VAT where applicable. Prices vary based on the number of people and the plan selected:</p>
-    <ul>
-      <li>Base price: €14.99 (1 person, Standard plan)</li>
-      <li>Additional persons: +€5 (2 people), +€10 (3–4), +€20 (5+)</li>
-      <li>Premium plan: +€10 (includes 1 free revision)</li>
-      <li>Gift Pack: +€35 (3 caricatures, 4K quality)</li>
-    </ul>
-    <p>The exact total is displayed on the payment screen before you confirm your order.</p>
-    <p>Payments are processed securely by <strong>Stripe</strong>. We accept all major credit and debit cards, Apple Pay and Google Pay. We never store your card details.</p>
+    <p>All prices are displayed in Euros (€) and include VAT where applicable. Prices may vary based on the number of people, selected plan, promotional offers, or the type of caricature requested.</p>
+    <p>The exact total is displayed on the payment screen before you confirm your order. If a price displayed elsewhere on the site differs from the checkout total because of an error, the checkout total shown before payment is the amount that applies.</p>
+    <p>Payments are processed securely by <strong>Stripe</strong>. We may accept major credit and debit cards, Apple Pay, Google Pay and other Stripe-supported payment methods. We do not store your card number, CVV or banking details.</p>
+    <p>Promotional discounts, free caricature links and review tokens may be subject to expiry, one-time-use limits, anti-abuse checks, and eligibility restrictions.</p>
   </div>
 
   <div class="section" id="delivery">
     <h2>6. Delivery</h2>
-    <p>Your caricature is delivered by email to the address you provide at checkout. Typical delivery time is 30–90 seconds after payment confirmation.</p>
-    <p>In rare cases (high load, AI processing issues), delivery may take up to 10 minutes. If you have not received your caricature within 15 minutes, please check your spam folder and then contact us.</p>
-    <p>Download links in the delivery email are valid for <strong>72 hours</strong>. After this time, the files are permanently deleted from our servers. Please download your caricature promptly. We cannot restore deleted files.</p>
-    <p>We are not responsible for delivery failure caused by an incorrect email address provided at checkout.</p>
+    <p>Your caricature is delivered by email to the address you provide at checkout. Typical delivery time is approximately 30–90 seconds after payment confirmation, although this may vary depending on system load, AI provider availability and image complexity.</p>
+    <p>In rare cases, delivery may take longer. If you have not received your caricature within 15 minutes, please check your spam folder and then contact us.</p>
+    <p>Download links in the delivery email are valid for <strong>72 hours</strong>. After this period, files may be permanently deleted from our storage. Please download your caricature promptly. We cannot guarantee restoration of expired or deleted files.</p>
+    <p>We are not responsible for delivery failure caused by an incorrect email address, spam filtering, mailbox restrictions, or technical issues outside our control.</p>
   </div>
 
   <div class="section" id="refunds">
     <h2>7. Refunds & revisions</h2>
 
     <h3>Free revision</h3>
-    <p><strong>Premium plan customers</strong> are entitled to one (1) free revision. To request a revision, reply to your delivery email within 48 hours describing what you would like changed. Revision requests are processed within 24 hours.</p>
-    <p>A revision means regenerating the caricature with updated instructions. It does not mean creating an entirely different template or occasion.</p>
+    <p>Premium plan customers may be entitled to one free revision, where this is stated in the order flow. To request a revision, reply to your delivery email within 48 hours and describe what you would like changed.</p>
+    <p>A revision means regenerating or adjusting the caricature using updated instructions. It does not include creating a completely unrelated new order, changing the subject person after generation, or replacing a selected product with a different commercial package.</p>
 
     <h3>Refunds</h3>
     <p>You are entitled to a full refund if:</p>
     <ul>
-      <li>We fail to deliver your caricature within 30 minutes of payment</li>
-      <li>The delivered caricature has a significant technical defect (e.g. corrupted file, clearly wrong template applied)</li>
-      <li>A system error on our side results in a double charge</li>
+      <li>We fail to deliver your caricature within 30 minutes of successful payment and cannot complete the order manually</li>
+      <li>The delivered file has a significant technical defect, such as a corrupted download or clearly wrong template applied</li>
+      <li>A system error on our side causes a duplicate charge</li>
+      <li>We cancel your order before generation because your photo is technically unusable</li>
     </ul>
-    <p>Refunds are <strong>not</strong> provided in the following cases:</p>
+
+    <p>Refunds are generally not provided if:</p>
     <ul>
-      <li>You are dissatisfied with the artistic style or likeness (AI-generated art is inherently variable)</li>
-      <li>You submitted a poor-quality photo that did not meet our requirements</li>
+      <li>You are dissatisfied with the artistic style or likeness, where the file was successfully generated and delivered</li>
+      <li>You submitted poor-quality photos despite the photo requirements</li>
       <li>You changed your mind after delivery</li>
-      <li>The download link has expired (72 hours)</li>
+      <li>You failed to download the file before the 72-hour link expired</li>
+      <li>Your request violates these terms or our content safety policy</li>
     </ul>
+
     <div class="callout callout-warn">
-      <p><strong>Our commitment:</strong> If you are genuinely unhappy with the result and it's not covered above, email us. We will always try to find a fair solution. We would rather lose €14.99 than lose a customer.</p>
+      <p><strong>Important:</strong> If an order is refused because it requests illegal, exploitative, sexualised minor content, hateful content, severe harassment, fraud, impersonation or other serious abuse, we may cancel the order without generating the image and may refuse future access to the service.</p>
     </div>
-    <p>To request a refund, email <a href="mailto:support@caricature.online">support@caricature.online</a> with your order ID. Approved refunds are processed within 5–10 business days back to your original payment method.</p>
+
+    <div class="callout">
+      <p><strong>Our commitment:</strong> If you are genuinely unhappy and your case is not clearly covered above, contact us. We will review it fairly. We would rather fix the experience than win an argument over pixels.</p>
+    </div>
+
+    <p>To request a refund or revision, email <a href="mailto:support@caricature.online">support@caricature.online</a> with your order ID. Approved refunds are processed within 5–10 business days back to your original payment method.</p>
   </div>
 
   <div class="section" id="licence">
     <h2>8. Licence & intellectual property</h2>
 
     <h3>What you receive</h3>
-    <p>Upon successful payment and delivery, we grant you a <strong>non-exclusive, non-transferable, personal licence</strong> to use your caricature for personal, non-commercial purposes. This includes:</p>
+    <p>Upon successful payment and delivery, we grant you a <strong>non-exclusive, non-transferable, personal licence</strong> to use the delivered caricature for personal, non-commercial purposes, unless your selected plan expressly includes commercial use rights.</p>
+    <p>Personal use includes:</p>
     <ul>
-      <li>Printing and framing for personal use</li>
+      <li>Printing and framing for yourself or as a gift</li>
       <li>Sharing on personal social media profiles</li>
-      <li>Using as a profile picture or avatar</li>
-      <li>Giving as a gift to the person depicted</li>
+      <li>Using as a personal avatar or profile image</li>
+      <li>Sending privately to friends, family or colleagues</li>
     </ul>
 
     <h3>Commercial use</h3>
-    <p>Commercial use (selling prints, using in advertising, merchandise, etc.) requires the <strong>Gift Pack plan</strong>, which includes a commercial licence. "Commercial use" means any use that generates revenue or promotes a business or product.</p>
+    <p>Commercial use, including advertising, merchandise, resale, paid campaigns, company branding, product packaging, editorial publication, or promotional use for a business, requires a plan or written permission that expressly includes commercial rights.</p>
 
     <h3>Our intellectual property</h3>
-    <p>The templates, artistic style, website design, branding, and software are the intellectual property of caricature.online. You may not copy, reproduce, or imitate our templates or artistic style for commercial purposes.</p>
-    <p>The AI-generated caricature incorporates our artist's style as expressed through the template. The caricature itself, as a derivative work, is licensed to you under the terms above.</p>
+    <p>The templates, website design, branding, software, prompts, workflow, style direction, and related creative assets are the intellectual property of caricature.online and/or its creators. You may not copy, reproduce, reverse-engineer, train on, resell, or imitate our templates, software, prompt structure or artistic system for commercial purposes.</p>
+    <p>You retain rights in your original uploaded photos. The delivered caricature is licensed to you under these terms.</p>
   </div>
 
   <div class="section" id="photos">
-    <h2>9. Your photos & content</h2>
-    <p>By uploading a photo, you confirm that:</p>
+    <h2>9. Your photos, prompts & content</h2>
+    <p>By uploading a photo or entering a prompt, description, name, note or instruction, you confirm that:</p>
     <ul>
-      <li>You own the photo or have the right to use it for this purpose</li>
-      <li>You have the consent of every person depicted in the photo to submit it for caricature generation</li>
-      <li>The photo does not infringe any third-party intellectual property rights</li>
-      <li>The photo does not contain illegal content of any kind</li>
+      <li>You own the content or have the right to use it for this purpose</li>
+      <li>You have the consent of every person depicted in the photo</li>
+      <li>For minors, you are the parent/legal guardian or have explicit permission from one</li>
+      <li>Your content does not infringe third-party intellectual property, privacy, publicity, moral or personality rights</li>
+      <li>Your content does not contain illegal, exploitative, hateful, violent, defamatory, deceptive or otherwise prohibited material</li>
+      <li>Your description and notes are accurate enough for us to process the order safely</li>
     </ul>
-    <p>You retain ownership of your original photo. We do not claim ownership of it. See our <a href="privacy.html">Privacy Policy</a> for how we handle and delete your photo.</p>
+    <p>You retain ownership of your original photos and written content. You grant us a limited licence to process, store temporarily, transmit to our service providers, moderate, generate, deliver and support your order.</p>
+    <p>See our <a href="privacy.html">Privacy Policy</a> for how we handle, store and delete your photo and order data.</p>
+  </div>
+
+  <div class="section" id="ai-safety">
+    <h2>10. AI safety & moderation</h2>
+    <p>To protect customers, depicted persons, minors, public figures, our service providers and the wider public, we may automatically or manually review uploaded photos, written prompts, notes, template choices and generated outputs for safety and abuse prevention.</p>
+    <p>Moderation may occur before payment, after upload, before generation, after generation, or during customer support review. We may block, refuse, alter, queue for manual review, cancel or refund an order if we reasonably believe it violates these terms.</p>
+
+    <table class="policy-table">
+      <thead><tr><th>Moderation outcome</th><th>What it means</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Allowed</strong></td><td>The request appears suitable for normal generation.</td></tr>
+        <tr><td><strong>Allowed with limits</strong></td><td>We may remove unsafe details while preserving the general creative idea.</td></tr>
+        <tr><td><strong>Manual review</strong></td><td>The order may be delayed while we check consent, safety or legal risk.</td></tr>
+        <tr><td><strong>Rejected</strong></td><td>The order will not be generated because it violates these terms or poses unacceptable risk.</td></tr>
+      </tbody>
+    </table>
+
+    <p>We are not required to provide detailed moderation logic, keyword lists, model outputs or internal safety decisions. This prevents abuse and protects the platform. Tiny lawyer goblin clause, but necessary.</p>
   </div>
 
   <div class="section" id="prohibited">
-    <h2>10. Prohibited uses</h2>
-    <p>You may not use caricature.online to generate:</p>
+    <h2>11. Prohibited uses</h2>
+    <p>You may not use caricature.online to upload, request, generate, distribute, promote or attempt to create content in any of the following categories:</p>
+
+    <h3>Sexual or adult content</h3>
     <ul>
-      <li>Caricatures of public figures intended to defame, harass or mislead</li>
-      <li>Content that sexualises, exploits or demeans any person</li>
-      <li>Content intended for harassment, bullying or intimidation</li>
-      <li>Caricatures to be used in deceptive contexts (fake profiles, misinformation)</li>
-      <li>Any content that is illegal in your jurisdiction</li>
+      <li>Nudity, pornography, explicit sexual acts, fetish content, erotic roleplay or sexualised depictions</li>
+      <li>Requests to make a real person look sexually available, exposed, nude, semi-nude, pornographic or fetishised</li>
+      <li>Non-consensual sexualisation of any person</li>
     </ul>
-    <p>Violation of these prohibitions may result in immediate cancellation of your order without refund and may be reported to relevant authorities.</p>
+
+    <h3>Minors and child safety</h3>
+    <ul>
+      <li>Any sexual, erotic, nude, exploitative, suggestive or unsafe depiction of a minor</li>
+      <li>Age-play, “young-looking” sexual content, schoolgirl/schoolboy sexualisation, or similar requests</li>
+      <li>Requests involving children where consent from a parent or legal guardian is missing or doubtful</li>
+    </ul>
+
+    <h3>Hate, harassment and demeaning content</h3>
+    <ul>
+      <li>Hateful, racist, antisemitic, xenophobic, homophobic, transphobic or discriminatory content</li>
+      <li>Content targeting a protected characteristic such as race, ethnicity, nationality, religion, sex, gender identity, sexual orientation, disability, age or caste</li>
+      <li>Humiliation, bullying, revenge caricatures, demeaning body-shaming, targeted abuse or intimidation</li>
+      <li>Caricatures intended to degrade a private person, coworker, teacher, ex-partner, customer, patient or any other real person</li>
+    </ul>
+
+    <h3>Violence, gore and self-harm</h3>
+    <ul>
+      <li>Graphic injury, gore, torture, mutilation, execution, corpses or severe bloodshed</li>
+      <li>Content encouraging suicide, self-harm, eating disorders or physical harm</li>
+      <li>Threatening imagery directed at real people or groups</li>
+    </ul>
+
+    <h3>Illegal, dangerous or criminal activity</h3>
+    <ul>
+      <li>Instructions, celebration or promotion of terrorism, violent extremism, organised crime or weapons misuse</li>
+      <li>Drug manufacturing, trafficking, fraud, scams, money laundering or other criminal conduct</li>
+      <li>Content designed to evade law enforcement, impersonate authorities or facilitate illegal acts</li>
+    </ul>
+
+    <h3>Deception, fraud and identity misuse</h3>
+    <ul>
+      <li>Fake evidence, fake scandals, fake endorsements, fake official documents or deceptive political material</li>
+      <li>Impersonation intended to mislead others into believing the image is real or officially authorised</li>
+      <li>Deepfake-style misuse of a real person’s identity, likeness or reputation</li>
+      <li>Fake profiles, catfishing, fraud, blackmail, extortion or reputational harm</li>
+    </ul>
+
+    <h3>Medical, legal, financial or official misrepresentation</h3>
+    <ul>
+      <li>Images falsely implying medical diagnosis, professional endorsement, legal authority or financial approval</li>
+      <li>Caricatures used to mislead patients, clients, voters, consumers or the public</li>
+    </ul>
+
+    <div class="callout callout-warn">
+      <p><strong>Zero tolerance:</strong> Sexualised minors, child exploitation, credible threats, hateful extremism, terrorism support, blackmail, fraud and severe harassment may result in account blocking, order cancellation, non-delivery and reporting where legally required.</p>
+    </div>
+  </div>
+
+  <div class="section" id="public-figures">
+    <h2>12. Public figures, satire & impersonation</h2>
+    <p>Caricature is a satirical art form, and we may allow respectful, clearly fictional, non-deceptive caricatures of public figures, celebrities or politicians where lawful.</p>
+    <p>However, you may not use the service to create:</p>
+    <ul>
+      <li>False evidence of a public figure doing or saying something they did not do or say</li>
+      <li>Political misinformation, fake scandals, deceptive campaign material or voter manipulation</li>
+      <li>Defamatory, sexually explicit, hateful or threatening depictions of a public figure</li>
+      <li>Content that falsely suggests endorsement, sponsorship, affiliation or official approval</li>
+    </ul>
+    <p>Where a request involves a public figure, we may require the result to remain obviously stylised, humorous, fictional and non-realistic.</p>
+  </div>
+
+  <div class="section" id="copyright">
+    <h2>13. Copyright, brands & style requests</h2>
+    <p>You may not upload or request content that infringes another person’s copyright, trademark, design right, publicity right or other intellectual property rights.</p>
+    <p>We may refuse requests that ask for an exact copy of a living artist’s style, a copyrighted character, a protected brand mascot, a studio-specific look, or a commercial trademarked universe where the output could confuse users or infringe rights.</p>
+    <p>Safer requests include broad, generic visual directions such as “comic-inspired”, “retro poster style”, “bold editorial cartoon”, “watercolour look”, “fun superhero-inspired costume”, or “vintage travel poster mood”.</p>
+    <p>You are responsible for ensuring that your use of the delivered caricature does not violate third-party rights.</p>
   </div>
 
   <div class="section" id="liability">
-    <h2>11. Limitation of liability</h2>
+    <h2>14. Limitation of liability</h2>
     <p>To the fullest extent permitted by law, caricature.online shall not be liable for:</p>
     <ul>
-      <li>Indirect, consequential or incidental damages</li>
-      <li>Loss of profits or revenue</li>
-      <li>Dissatisfaction with the artistic quality or likeness of the caricature</li>
-      <li>Delays caused by third-party AI services or payment processors</li>
-      <li>Expired download links not downloaded within the 72-hour window</li>
+      <li>Indirect, consequential, special or incidental damages</li>
+      <li>Loss of profits, business, revenue, goodwill, data or opportunity</li>
+      <li>Dissatisfaction with artistic style, likeness, humour, exaggeration or subjective quality</li>
+      <li>Delays or failures caused by third-party AI providers, payment processors, email providers, hosting platforms or internet services</li>
+      <li>Expired download links not downloaded within the 72-hour availability window</li>
+      <li>Misuse of the delivered image by you or any third party</li>
     </ul>
     <p>Our maximum liability to you in connection with any order shall not exceed the amount you paid for that order.</p>
-    <p>Nothing in these terms limits our liability for death or personal injury caused by negligence, fraud, or any other liability that cannot be excluded by law.</p>
+    <p>Nothing in these terms limits liability that cannot be excluded under applicable law, including liability for fraud or death/personal injury caused by negligence where such exclusion is not permitted.</p>
   </div>
 
   <div class="section" id="availability">
-    <h2>12. Service availability</h2>
-    <p>We aim to maintain the service 24/7 but do not guarantee uninterrupted availability. The service may be temporarily unavailable due to maintenance, AI provider outages, or circumstances beyond our control.</p>
-    <p>If a system outage prevents delivery of your order, we will contact you by email and either complete your order when the service is restored or issue a full refund.</p>
+    <h2>15. Service availability</h2>
+    <p>We aim to maintain the service reliably but do not guarantee uninterrupted availability. The service may be temporarily unavailable due to maintenance, AI provider outages, payment provider issues, infrastructure incidents, security updates, or circumstances beyond our control.</p>
+    <p>If a system outage prevents delivery of your order, we may complete the order when the service is restored, offer a manual fallback where available, or issue a refund.</p>
   </div>
 
   <div class="section" id="law">
-    <h2>13. Governing law</h2>
-    <p>These Terms and Conditions are governed by the laws of Greece and the European Union. Any disputes arising from or related to these terms shall be subject to the exclusive jurisdiction of the courts of Greece.</p>
-    <p>If you are a consumer resident in another EU member state, you retain the benefit of any mandatory consumer protection provisions of the law of your country of residence.</p>
-    <p>The European Commission provides an online dispute resolution platform at <a href="https://ec.europa.eu/consumers/odr" target="_blank" rel="noopener">ec.europa.eu/consumers/odr</a>.</p>
+    <h2>16. Governing law</h2>
+    <p>These terms are governed by the laws of Greece and applicable European Union law, unless mandatory consumer protection rules in your country provide you with additional rights.</p>
+    <p>If a dispute arises, we encourage you to contact us first so we can try to resolve it fairly and quickly.</p>
   </div>
 
   <div class="section" id="contact">
-    <h2>14. Contact</h2>
-    <p>For any questions about these terms or your order:</p>
+    <h2>17. Contact</h2>
+    <p>For questions, refund requests, revision requests, safety concerns or legal notices:</p>
     <ul>
-      <li><strong>General & support:</strong> <a href="mailto:support@caricature.online">support@caricature.online</a></li>
-      <li><strong>Privacy & data:</strong> <a href="mailto:privacy@caricature.online">privacy@caricature.online</a></li>
-      <li><strong>Response time:</strong> Within 2 business days</li>
+      <li><strong>Support:</strong> <a href="mailto:support@caricature.online">support@caricature.online</a></li>
+      <li><strong>Privacy:</strong> <a href="mailto:privacy@caricature.online">privacy@caricature.online</a></li>
+      <li><strong>Website:</strong> <a href="https://caricature.online">caricature.online</a></li>
     </ul>
-    <p style="margin-top:24px;font-size:13px;color:var(--muted)">Last updated: <strong>11 May 2025</strong></p>
+    <p style="margin-top:24px;font-size:13px;color:var(--muted)">Last updated: <strong>14 May 2026</strong></p>
   </div>
 
 </div>

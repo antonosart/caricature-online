@@ -612,7 +612,7 @@ function buildPhotoSections() {
   var container = document.getElementById('personSecs');
 
   while (S.personUploads.length < n) {
-    S.personUploads.push({p: S.personUploads.length + 1, u: [null, null], sameOk: null});
+    S.personUploads.push({p: S.personUploads.length + 1, u: [null, null]});
   }
   S.personUploads = S.personUploads.slice(0, n);
 
@@ -782,13 +782,9 @@ async function handleUpload(e, pi, qi) {
     iconDiv.style.display = '';
   }
 
-  // Intra-person: if both photos for this person are uploaded, check same person
+  // If both photos uploaded for this person, verify they're the same person
   if (qi === 1 && S.personUploads[pi].u[0] !== null && S.personUploads[pi].u[1] !== null) {
     verifySamePerson(pi);
-  }
-  // Cross-person: if photo1 uploaded, check vs other persons' photo1
-  if (qi === 0 && S.personUploads[pi].u[0] !== null) {
-    verifyCrossPersons(pi);
   }
   checkPhotosBtn();
 }
@@ -798,70 +794,35 @@ async function verifySamePerson(pi) {
   var url1 = pu.u[0] ? pu.u[0].photo_url : null;
   var url2 = pu.u[1] ? pu.u[1].photo_url : null;
   if (!url1 || !url2) return;
-  var el = document.getElementById('same-check-' + pi);
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'same-check-' + pi;
-    el.style.cssText = 'border-radius:8px;padding:10px 14px;font-size:13px;margin-top:8px;line-height:1.6;';
+
+  var checkEl = document.getElementById('same-check-' + pi);
+  if (!checkEl) {
+    checkEl = document.createElement('div');
+    checkEl.id = 'same-check-' + pi;
+    checkEl.style.cssText = 'border-radius:8px;padding:10px 14px;font-size:13px;margin-top:8px;line-height:1.6;';
     var sec = document.getElementById('personSecs').children[pi];
-    if (sec) sec.appendChild(el);
+    if (sec) sec.appendChild(checkEl);
   }
-  el.style.cssText = 'border-radius:8px;padding:10px 14px;font-size:13px;margin-top:8px;line-height:1.6;background:#f0f9ff;border:1px solid #bae6fd;color:#0369a1;';
-  el.textContent = 'Checking if both photos are of the same person...';
+  checkEl.style.cssText += 'background:#f0f9ff;border:1px solid #bae6fd;color:#0369a1;';
+  checkEl.textContent = 'Checking if both photos are of the same person...';
+
   try {
     var r = await fetch(API_URL + '/api/verify-same-person', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({photo_url1: url1, photo_url2: url2})
     });
     var d = await r.json();
     if (d.same_person) {
-      S.personUploads[pi].sameOk = true;
-      el.style.cssText = 'border-radius:8px;padding:10px 14px;font-size:13px;margin-top:8px;line-height:1.6;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;';
-      el.textContent = 'Both photos are of the same person.';
+      checkEl.style.cssText = 'border-radius:8px;padding:10px 14px;font-size:13px;margin-top:8px;line-height:1.6;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;';
+      checkEl.textContent = 'Both photos appear to be the same person.';
     } else {
-      S.personUploads[pi].sameOk = false;
-      el.style.cssText = 'border-radius:8px;padding:10px 14px;font-size:13px;margin-top:8px;line-height:1.6;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;';
-      el.innerHTML = '<strong>Photo 1 and Photo 2 are different people.</strong><br>' +
-        'Person ' + (pi+1) + ': please re-upload two photos of the <strong>same person</strong>.<br>' +
-        '<em>Continue is disabled until resolved.</em>';
+      checkEl.style.cssText = 'border-radius:8px;padding:10px 14px;font-size:13px;margin-top:8px;line-height:1.6;background:#fffbeb;border:1px solid #fde68a;color:#92400e;';
+      var personLabel = S.personUploads.length > 1 ? 'Person ' + (pi + 1) : 'this person';
+      checkEl.innerHTML = '<strong>⚠️ The two photos may be of different people.</strong><br>Please check that both photos are of ' + personLabel + ' and re-upload if needed.';
     }
   } catch(e) {
-    S.personUploads[pi].sameOk = null;
-    el.remove();
-  }
-  checkPhotosBtn();
-}
-
-async function verifyCrossPersons(pi) {
-  var n = S.personUploads.length;
-  if (n < 2) return;
-  for (var j = 0; j < n; j++) {
-    if (j === pi) continue;
-    var urlA = S.personUploads[pi].u[0] ? S.personUploads[pi].u[0].photo_url : null;
-    var urlB = S.personUploads[j].u[0]  ? S.personUploads[j].u[0].photo_url  : null;
-    if (!urlA || !urlB) continue;
-    try {
-      var r = await fetch(API_URL + '/api/verify-same-person', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({photo_url1: urlA, photo_url2: urlB})
-      });
-      var d = await r.json();
-      var crossId = 'cross-' + Math.min(pi,j) + '-' + Math.max(pi,j);
-      var oldEl = document.getElementById(crossId);
-      if (d.same_person && d.confidence !== 'low') {
-        if (!oldEl) {
-          oldEl = document.createElement('div');
-          oldEl.id = crossId;
-          var sec = document.getElementById('personSecs').children[pi];
-          if (sec) sec.appendChild(oldEl);
-        }
-        oldEl.style.cssText = 'border-radius:8px;padding:12px 14px;font-size:13px;margin-top:8px;line-height:1.6;background:#fffbeb;border:1px solid #fde68a;color:#92400e;';
-        oldEl.innerHTML = '<strong>Person ' + (pi+1) + ' and Person ' + (j+1) + ' appear to have the same face.</strong><br>' +
-          'Please check that you uploaded photos of two <strong>different people</strong>.';
-      } else {
-        if (oldEl) oldEl.remove();
-      }
-    } catch(e) {}
+    checkEl.remove();
   }
 }
 
@@ -873,7 +834,6 @@ function showDelBtn(pi, qi) {
 function deletePhoto(pi, qi) {
   // Clear state
   S.personUploads[pi].u[qi] = null;
-  if (qi === 0 || qi === 1) { S.personUploads[pi].sameOk = null; }
 
   // Reset zone UI
   var zone = document.getElementById('uz-' + pi + '-' + qi);
@@ -920,11 +880,7 @@ function showQA(pi, qi, type, msg) {
 }
 
 function photosOk() {
-  return S.personUploads.every(function(pu) {
-    if (pu.u[0] === null) return false;        // no first photo
-    if (pu.sameOk === false) return false;     // photo1 ≠ photo2 confirmed
-    return true;
-  });
+  return S.personUploads.every(function(pu) { return pu.u[0] !== null; });
 }
 
 function checkPhotosBtn() {
