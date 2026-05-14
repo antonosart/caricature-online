@@ -2128,7 +2128,8 @@
       </div>
 
       <p style="text-align:center;font-size:14px;color:rgba(248,240,227,.3);margin-top:24px">
-        Prices shown for 1 person. 2 people +€5 · 3 people +€10 · 4 people +€15. Always shown before payment.
+        Prices shown for 1 person. 2 people +€5 · 3 people +€10 · 4 people +€15 · 5 people +€20. Always shown before
+        payment.
       </p>
     </div>
   </section>
@@ -2160,8 +2161,8 @@
           <div class="faq-q">Can I order for multiple people? <div class="faq-icon">+</div>
           </div>
           <div class="faq-a">Absolutely. Select the number of people at the start of the order process and you'll only
-            see templates that fit. Pricing adjusts accordingly — couples from +€5, groups of 3-4 from +€10, 5+ from
-            +€20 on top of the base price.</div>
+            see templates that fit. Pricing adjusts accordingly — 2 people +€5, 3 people +€10, 4 people +€15 and 5
+            people +€20 on top of the base price.</div>
         </div>
         <div class="faq-item" onclick="toggleFaq(this)">
           <div class="faq-q">How quickly will I receive it? <div class="faq-icon">+</div>
@@ -2268,186 +2269,451 @@
   <script>
     // ── Hero mini switcher ──────────────────────────────
     function switchHero(el) {
-      document.querySelectorAll('.hero-mini-card').forEach(c => c.classList.remove('active'));
+      document.querySelectorAll('.hero-mini-card').forEach(function (c) {
+        c.classList.remove('active');
+      });
+
       el.classList.add('active');
-      const img = el.dataset.img;
-      const label = el.dataset.label;
-      const heroMain = document.getElementById('heroMain');
-      heroMain.style.backgroundImage = "url('" + img + "')";
-      document.getElementById('heroPill').textContent = label;
+
+      var img = el.dataset.img;
+      var label = el.dataset.label;
+      var heroMain = document.getElementById('heroMain');
+      var heroPill = document.getElementById('heroPill');
+
+      if (heroMain && img) {
+        heroMain.style.backgroundImage = "url('" + img + "')";
+      }
+
+      if (heroPill && label) {
+        heroPill.textContent = label;
+      }
     }
 
-    // ── Countdown timer (to midnight) ──────────────────
+    // ── Countdown timer to midnight ─────────────────────
     function updateCountdown() {
-      const now = new Date();
-      const end = new Date(); end.setHours(23, 59, 59, 999);
-      const diff = end - now;
-      const h = Math.floor(diff / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      const s = Math.floor((diff % 60000) / 1000);
-      document.getElementById('ch').textContent = String(h).padStart(2, '0');
-      document.getElementById('cm').textContent = String(m).padStart(2, '0');
-      document.getElementById('cs').textContent = String(s).padStart(2, '0');
+      var now = new Date();
+      var end = new Date();
+
+      end.setHours(23, 59, 59, 999);
+
+      var diff = Math.max(0, end - now);
+      var h = Math.floor(diff / 3600000);
+      var m = Math.floor((diff % 3600000) / 60000);
+      var s = Math.floor((diff % 60000) / 1000);
+
+      var ch = document.getElementById('ch');
+      var cm = document.getElementById('cm');
+      var cs = document.getElementById('cs');
+
+      if (ch) ch.textContent = String(h).padStart(2, '0');
+      if (cm) cm.textContent = String(m).padStart(2, '0');
+      if (cs) cs.textContent = String(s).padStart(2, '0');
     }
+
     updateCountdown();
     setInterval(updateCountdown, 1000);
 
     // ── Dynamic urgency band based on visitor timezone ──
     (function () {
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-      const now = new Date();
-      const month = now.getMonth() + 1; // 1-12
-      const day = now.getDate();
+      var urgencyIcon = document.getElementById('urgencyIcon');
+      var urgencyTitle = document.getElementById('urgencyTitle');
+      var urgencySubtitle = document.getElementById('urgencySubtitle');
 
-      // Map timezone region to country group
-      const isGreece = tz.includes('Athens') || tz.includes('Europe/Athens');
-      const isUK = tz.includes('London');
-      const isGermany = tz.includes('Berlin') || tz.includes('Vienna') || tz.includes('Zurich');
-      const isUSA = tz.includes('America/New_York') || tz.includes('America/Chicago') || tz.includes('America/Los_Angeles') || tz.includes('America/Denver');
-      const isFrance = tz.includes('Paris');
-      const isSpain = tz.includes('Madrid');
-      const isItaly = tz.includes('Rome');
-
-      // Upcoming holidays by country (month, day, icon, title, subtitle)
-      const holidays = [
-        // Universal / seasonal
-        { m: 12, d: 25, icon: '🎄', title: "Christmas is almost here!", subtitle: "Order a caricature gift — ready in 90 seconds, delivered instantly." },
-        { m: 12, d: 24, icon: '🎄', title: "Christmas Eve! Last chance for gifts.", subtitle: "Order now and receive your caricature in 90 seconds." },
-        { m: 12, d: 31, icon: '🎆', title: "Happy New Year's Eve!", subtitle: "Celebrate with a personalised caricature — the perfect memory." },
-        { m: 2, d: 14, icon: '❤️', title: "Valentine's Day is coming!", subtitle: "Gift a caricature to someone special — they'll love it." },
-        { m: 3, d: 8, icon: '🌸', title: "International Women's Day!", subtitle: "Gift a stunning caricature to the women in your life." },
-        { m: 5, d: 12, icon: '💐', title: "Mother's Day is close!", subtitle: "Surprise Mum with a personalised caricature — order in seconds." },
-        { m: 6, d: 16, icon: '👔', title: "Father's Day is this weekend!", subtitle: "Dad deserves a caricature. Order now — done in 90 seconds." },
-        { m: 10, d: 31, icon: '🎃', title: "Halloween is here!", subtitle: "Create a Superhero or spooky caricature for the occasion." },
-        // Greece-specific
-        ...(isGreece ? [
-          { m: 3, d: 25, icon: '🇬🇷', title: "Χρόνια Πολλά! Ελληνική Εθνική Εορτή", subtitle: "Δωρίσε μια καρικατούρα — έτοιμη σε 90 δευτερόλεπτα." },
-          { m: 10, d: 28, icon: '🇬🇷', title: "Χρόνια Πολλά! 28η Οκτωβρίου", subtitle: "Γιόρτασε με μια μοναδική καρικατούρα — άμεση παράδοση." },
-          { m: 4, d: 23, icon: '🕊️', title: "Καλό Πάσχα! Easter is coming!", subtitle: "Η καλύτερη δωρεά για τις γιορτές — έτοιμη σε 90''." },
-        ] : []),
-        // UK
-        ...(isUK ? [
-          { m: 4, d: 23, icon: '🌹', title: "St George's Day!", subtitle: "Celebrate with a one-of-a-kind caricature gift." },
-        ] : []),
-        // Default
-      ];
-
-      // Find closest upcoming holiday within next 30 days
-      function daysUntil(hm, hd) {
-
-        const target = new Date(
-          now.getFullYear(),
-          hm - 1,
-          hd
-        );
-
-        if (target < now) {
-          target.setFullYear(
-            now.getFullYear() + 1
-          );
-        }
-
-        return Math.ceil(
-          (target - now) / 86400000
-        );
+      if (!urgencyIcon || !urgencyTitle || !urgencySubtitle) {
+        return;
       }
 
-      let best = null;
-      let bestDays = 999;
+      var tz = '';
+      try {
+        tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      } catch (e) {
+        tz = '';
+      }
 
-      for (const h of holidays) {
+      var now = new Date();
+      var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-        const d = daysUntil(
-          h.m,
-          h.d
-        );
+      var isGreece = tz.indexOf('Athens') >= 0 || tz.indexOf('Europe/Athens') >= 0;
+      var isUK = tz.indexOf('London') >= 0;
+      var isGermany =
+        tz.indexOf('Berlin') >= 0 ||
+        tz.indexOf('Vienna') >= 0 ||
+        tz.indexOf('Zurich') >= 0;
+      var isUSA =
+        tz.indexOf('America/New_York') >= 0 ||
+        tz.indexOf('America/Chicago') >= 0 ||
+        tz.indexOf('America/Los_Angeles') >= 0 ||
+        tz.indexOf('America/Denver') >= 0;
+      var isFrance = tz.indexOf('Paris') >= 0;
+      var isSpain = tz.indexOf('Madrid') >= 0;
+      var isItaly = tz.indexOf('Rome') >= 0;
 
-        // next 30 days
-        if (d <= 30 && d < bestDays) {
+      var holidays = [
+        // Universal / seasonal
+        {
+          m: 12,
+          d: 24,
+          icon: '🎄',
+          title: "Christmas Eve is coming!",
+          subtitle: "Last-minute gift? Create a personalised caricature in 90 seconds."
+        },
+        {
+          m: 12,
+          d: 25,
+          icon: '🎄',
+          title: "Christmas is almost here!",
+          subtitle: "Order a caricature gift — ready in 90 seconds, delivered instantly."
+        },
+        {
+          m: 12,
+          d: 31,
+          icon: '🎆',
+          title: "New Year's Eve is coming!",
+          subtitle: "Celebrate with a personalised caricature — the perfect memory."
+        },
+        {
+          m: 2,
+          d: 14,
+          icon: '❤️',
+          title: "Valentine's Day is coming!",
+          subtitle: "Gift a caricature to someone special — personal, funny and unforgettable."
+        },
+        {
+          m: 3,
+          d: 8,
+          icon: '🌸',
+          title: "International Women's Day is coming!",
+          subtitle: "Gift a stunning personalised caricature to the women in your life."
+        },
+        {
+          m: 5,
+          d: 12,
+          icon: '💐',
+          title: "Mother's Day is close!",
+          subtitle: "Surprise Mum with a personalised caricature — order in seconds."
+        },
+        {
+          m: 6,
+          d: 16,
+          icon: '👔',
+          title: "Father's Day is close!",
+          subtitle: "Dad deserves a caricature. Order now — ready in 90 seconds."
+        },
+        {
+          m: 10,
+          d: 31,
+          icon: '🎃',
+          title: "Halloween is coming!",
+          subtitle: "Create a superhero, spooky or funny caricature for the occasion."
+        },
 
+        // Greece-specific
+        ...(isGreece ? [
+          {
+            m: 1,
+            d: 1,
+            icon: '🎆',
+            title: "Πρωτοχρονιά πλησιάζει!",
+            subtitle: "Ξεκίνα τη χρονιά με ένα προσωποποιημένο δώρο — έτοιμο σε 90 δευτερόλεπτα."
+          },
+          {
+            m: 1,
+            d: 6,
+            icon: '🕊️',
+            title: "Θεοφάνεια πλησιάζουν!",
+            subtitle: "Δώρισε μια προσωποποιημένη καρικατούρα — γρήγορα, έξυπνα και μοναδικά."
+          },
+          {
+            m: 2,
+            d: 10,
+            icon: '👨‍👩‍👧‍👦',
+            title: "Χαραλάμπους πλησιάζει!",
+            subtitle: "Μια καρικατούρα είναι ένα προσωπικό δώρο που μένει."
+          },
+          {
+            m: 3,
+            d: 25,
+            icon: '🇬🇷',
+            title: "25η Μαρτίου πλησιάζει!",
+            subtitle: "Γιόρτασε με μια μοναδική καρικατούρα — άμεση παράδοση."
+          },
+          {
+            m: 4,
+            d: 23,
+            icon: '🐎',
+            title: "Αγίου Γεωργίου πλησιάζει!",
+            subtitle: "Χάρισε ένα προσωποποιημένο δώρο με χιούμορ και χαρακτήρα."
+          },
+          {
+            m: 5,
+            d: 21,
+            icon: '👑',
+            title: "Κωνσταντίνου & Ελένης πλησιάζει!",
+            subtitle: "Δώρισε μια προσωποποιημένη καρικατούρα — άμεση παράδοση σε 90 δευτερόλεπτα."
+          },
+          {
+            m: 6,
+            d: 29,
+            icon: '⛪',
+            title: "Πέτρου & Παύλου πλησιάζει!",
+            subtitle: "Ένα προσωπικό δώρο με χιούμορ και χαρακτήρα — έτοιμο σε 90 δευτερόλεπτα."
+          },
+          {
+            m: 6,
+            d: 30,
+            icon: '🎉',
+            title: "Των Αγίων Αποστόλων πλησιάζει!",
+            subtitle: "Κάνε ένα ξεχωριστό δώρο με προσωποποιημένη καρικατούρα."
+          },
+          {
+            m: 7,
+            d: 17,
+            icon: '🌸',
+            title: "Αγίας Μαρίνας πλησιάζει!",
+            subtitle: "Μια προσωποποιημένη καρικατούρα είναι δώρο που δεν ξεχνιέται."
+          },
+          {
+            m: 8,
+            d: 15,
+            icon: '🕊️',
+            title: "Δεκαπενταύγουστος πλησιάζει!",
+            subtitle: "Χρόνια πολλά με ένα μοναδικό προσωποποιημένο δώρο."
+          },
+          {
+            m: 10,
+            d: 26,
+            icon: '🏙️',
+            title: "Αγίου Δημητρίου πλησιάζει!",
+            subtitle: "Δώρισε μια καρικατούρα που θα τους κάνει να χαμογελάσουν."
+          },
+          {
+            m: 10,
+            d: 28,
+            icon: '🇬🇷',
+            title: "28η Οκτωβρίου πλησιάζει!",
+            subtitle: "Γιόρτασε με μια μοναδική καρικατούρα — άμεση παράδοση."
+          },
+          {
+            m: 11,
+            d: 8,
+            icon: '👼',
+            title: "Μιχαήλ & Γαβριήλ πλησιάζει!",
+            subtitle: "Ένα ξεχωριστό δώρο για ονομαστική γιορτή — έτοιμο σε 90 δευτερόλεπτα."
+          },
+          {
+            m: 11,
+            d: 25,
+            icon: '🌿',
+            title: "Αγίας Αικατερίνης πλησιάζει!",
+            subtitle: "Κάνε ένα δώρο προσωπικό, αστείο και αξέχαστο."
+          },
+          {
+            m: 11,
+            d: 30,
+            icon: '⛪',
+            title: "Αγίου Ανδρέα πλησιάζει!",
+            subtitle: "Χάρισε μια προσωποποιημένη καρικατούρα — γρήγορα και μοναδικά."
+          },
+          {
+            m: 12,
+            d: 6,
+            icon: '⚓',
+            title: "Αγίου Νικολάου πλησιάζει!",
+            subtitle: "Ένα προσωπικό δώρο που ταιριάζει τέλεια σε γιορτή."
+          }
+        ] : []),
+
+        // UK
+        ...(isUK ? [
+          {
+            m: 4,
+            d: 23,
+            icon: '🌹',
+            title: "St George's Day is coming!",
+            subtitle: "Celebrate with a one-of-a-kind personalised caricature gift."
+          }
+        ] : []),
+
+        // Germany / Austria / Switzerland
+        ...(isGermany ? [
+          {
+            m: 10,
+            d: 3,
+            icon: '🇩🇪',
+            title: "German Unity Day is coming!",
+            subtitle: "Create a personalised caricature gift — ready in 90 seconds."
+          }
+        ] : []),
+
+        // France
+        ...(isFrance ? [
+          {
+            m: 7,
+            d: 14,
+            icon: '🇫🇷',
+            title: "Bastille Day is coming!",
+            subtitle: "Celebrate with a unique personalised caricature."
+          }
+        ] : []),
+
+        // Spain
+        ...(isSpain ? [
+          {
+            m: 10,
+            d: 12,
+            icon: '🇪🇸',
+            title: "Spain's National Day is coming!",
+            subtitle: "Create a fun personalised caricature gift in seconds."
+          }
+        ] : []),
+
+        // Italy
+        ...(isItaly ? [
+          {
+            m: 6,
+            d: 2,
+            icon: '🇮🇹',
+            title: "Republic Day is coming!",
+            subtitle: "Celebrate with a personalised caricature gift."
+          }
+        ] : []),
+
+        // USA
+        ...(isUSA ? [
+          {
+            m: 7,
+            d: 4,
+            icon: '🇺🇸',
+            title: "Independence Day is coming!",
+            subtitle: "Create a fun personalised caricature for the celebration."
+          },
+          {
+            m: 11,
+            d: 28,
+            icon: '🦃',
+            title: "Thanksgiving is close!",
+            subtitle: "Give a warm, funny and personalised caricature gift."
+          }
+        ] : [])
+      ];
+
+      function daysUntil(month, day) {
+        var target = new Date(today.getFullYear(), month - 1, day);
+
+        if (target < today) {
+          target.setFullYear(today.getFullYear() + 1);
+        }
+
+        return Math.round((target - today) / 86400000);
+      }
+
+      var best = null;
+      var bestDays = 999;
+
+      holidays.forEach(function (h) {
+        var d = daysUntil(h.m, h.d);
+
+        if (d >= 0 && d <= 30 && d < bestDays) {
           bestDays = d;
           best = h;
         }
-      }
+      });
 
       if (best) {
-
-        let when = '';
+        var when = '';
 
         if (bestDays === 0) {
-          when = 'Today';
-        }
-        else if (bestDays === 1) {
-          when = 'Tomorrow';
-        }
-        else {
-          when = 'In ' + bestDays + ' days';
+          when = isGreece ? 'Σήμερα' : 'Today';
+        } else if (bestDays === 1) {
+          when = isGreece ? 'Αύριο' : 'Tomorrow';
+        } else {
+          when = isGreece ? 'Σε ' + bestDays + ' ημέρες' : 'In ' + bestDays + ' days';
         }
 
-        document.getElementById(
-          'urgencyIcon'
-        ).textContent = best.icon;
-
-        document.getElementById(
-          'urgencyTitle'
-        ).textContent =
-          best.title + ' · ' + when;
-
-        document.getElementById(
-          'urgencySubtitle'
-        ).textContent =
-          best.subtitle;
-
+        urgencyIcon.textContent = best.icon;
+        urgencyTitle.textContent = best.title + ' · ' + when;
+        urgencySubtitle.textContent = best.subtitle;
       } else {
-
-        // fallback only if nothing found
-        document.getElementById(
-          'urgencyIcon'
-        ).textContent = '🎁';
-
-        document.getElementById(
-          'urgencyTitle'
-        ).textContent =
-          'Need a unique gift?';
-
-        document.getElementById(
-          'urgencySubtitle'
-        ).textContent =
-          'Create a personalised caricature from any photo — delivered in 90 seconds.';
+        urgencyIcon.textContent = '🎁';
+        urgencyTitle.textContent = isGreece ? 'Χρειάζεσαι ένα ξεχωριστό δώρο;' : 'Need a unique gift?';
+        urgencySubtitle.textContent = isGreece
+          ? 'Δημιούργησε μια προσωποποιημένη καρικατούρα από φωτογραφία — έτοιμη σε 90 δευτερόλεπτα.'
+          : 'Create a personalised caricature from any photo — delivered in 90 seconds.';
       }
     })();
 
     // ── FAQ toggle ──────────────────────────────────────
     function toggleFaq(el) {
-      const wasOpen = el.classList.contains('open');
-      document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
-      if (!wasOpen) el.classList.add('open');
+      var wasOpen = el.classList.contains('open');
+
+      document.querySelectorAll('.faq-item').forEach(function (i) {
+        i.classList.remove('open');
+      });
+
+      if (!wasOpen) {
+        el.classList.add('open');
+      }
     }
 
     // ── Scroll reveal ───────────────────────────────────
-    const observer = new IntersectionObserver(entries => {
-      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) {
+          e.target.classList.add('visible');
+        }
+      });
     }, { threshold: .15 });
-    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+    document.querySelectorAll('.reveal').forEach(function (el) {
+      observer.observe(el);
+    });
 
     // ── Rotating live notification ──────────────────────
-    const notifs = [
-      { emoji: '💍', text: '<strong>Elena from Thessaloniki</strong> just ordered a Wedding · Santorini', time: '1 minute ago' },
-      { emoji: '🎂', text: '<strong>Carlos from Madrid</strong> gifted a Birthday caricature', time: '3 minutes ago' },
-      { emoji: '⚽', text: '<strong>Thomas from London</strong> created a Football Star', time: '5 minutes ago' },
-      { emoji: '🦸', text: '<strong>Sophie from Paris</strong> ordered a Superhero for her son', time: '7 minutes ago' },
+    var notifs = [
+      {
+        emoji: '💍',
+        text: '<strong>Elena from Thessaloniki</strong> just ordered a Wedding · Santorini',
+        time: '1 minute ago'
+      },
+      {
+        emoji: '🎂',
+        text: '<strong>Katerina from Athens</strong> gifted a Birthday caricature',
+        time: '3 minutes ago'
+      },
+      {
+        emoji: '⚽',
+        text: '<strong>Thomas from London</strong> created a Football Star',
+        time: '5 minutes ago'
+      },
+      {
+        emoji: '🦸',
+        text: '<strong>Sophie from Paris</strong> ordered a Superhero for her son',
+        time: '7 minutes ago'
+      }
     ];
-    let ni = 0;
-    setTimeout(() => {
-      setInterval(() => {
-        const notif = document.getElementById('liveNotif');
+
+    var ni = 0;
+
+    setTimeout(function () {
+      setInterval(function () {
+        var notif = document.getElementById('liveNotif');
+
         if (!notif) return;
+
         ni = (ni + 1) % notifs.length;
-        const n = notifs[ni];
-        notif.querySelector('.notif-img').textContent = n.emoji;
-        notif.querySelector('.notif-text').innerHTML = n.text + `<div class="notif-time">${n.time}</div>`;
+
+        var n = notifs[ni];
+        var img = notif.querySelector('.notif-img');
+        var text = notif.querySelector('.notif-text');
+
+        if (img) img.textContent = n.emoji;
+
+        if (text) {
+          text.innerHTML = n.text + '<div class="notif-time">' + n.time + '</div>';
+        }
+
         notif.style.animation = 'none';
-        notif.offsetHeight; // reflow
+        notif.offsetHeight;
         notif.style.animation = '';
       }, 8000);
     }, 3000);
