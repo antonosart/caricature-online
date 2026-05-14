@@ -1,6 +1,6 @@
 # ══════════════════════════════════════════════════════════════
-#   CARICATURE.ONLINE — Backend v2.4.0 EXPERT LEVEL +9.5
-#   Identity-First 4K AI Caricature Engine · Stripe-safe · Admin Debug
+#   CARICATURE.ONLINE — Backend v2.4.1 EXPERT LEVEL +9.5
+#   Identity-Lock Stylized Caricature Engine · Stripe-safe · Admin Debug
 #   Stack: Flask · Firestore · GCS · fal.ai LoRA · Stripe · Resend
 # ══════════════════════════════════════════════════════════════
 
@@ -38,15 +38,18 @@ CFG = {
     "BASE_URL":            os.environ.get("BASE_URL",                 "https://caricature.online").strip(),
     "AI_OUTPUT_MODE":      os.environ.get("AI_OUTPUT_MODE",           "4k").strip().lower(),
     "FAL_UPSCALE_MODEL":   os.environ.get("FAL_UPSCALE_MODEL",        "fal-ai/esrgan").strip(),
-    # v2.4.0 identity-first engine: transforms the customer photo directly before any face-swap fallback.
+    # v2.4.1 identity-lock engine: transforms the customer photo directly, with stronger caricature styling.
     # Defaults use fal.ai FLUX LoRA image-to-image; override safely from Cloud Run env vars if needed.
     "FAL_IDENTITY_I2I_MODEL": os.environ.get("FAL_IDENTITY_I2I_MODEL", "fal-ai/flux-lora/image-to-image").strip(),
     "FAL_SECONDARY_I2I_MODEL": os.environ.get("FAL_SECONDARY_I2I_MODEL", "fal-ai/flux-general/image-to-image").strip(),
     "IDENTITY_FIRST_ENABLED": os.environ.get("IDENTITY_FIRST_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"},
-    "IDENTITY_STRENGTH_1": float(os.environ.get("IDENTITY_STRENGTH_1", "0.56")),
-    "IDENTITY_STRENGTH_2": float(os.environ.get("IDENTITY_STRENGTH_2", "0.64")),
-    "IDENTITY_STRENGTH_3": float(os.environ.get("IDENTITY_STRENGTH_3", "0.72")),
-    "MAX_GENERATION_RETRIES": int(os.environ.get("MAX_GENERATION_RETRIES", "2")),
+    "IDENTITY_STRENGTH_1": float(os.environ.get("IDENTITY_STRENGTH_1", "0.46")),
+    "IDENTITY_STRENGTH_2": float(os.environ.get("IDENTITY_STRENGTH_2", "0.52")),
+    "IDENTITY_STRENGTH_3": float(os.environ.get("IDENTITY_STRENGTH_3", "0.60")),
+    "LORA_SCALE_1": float(os.environ.get("LORA_SCALE_1", "1.18")),
+    "LORA_SCALE_2": float(os.environ.get("LORA_SCALE_2", "1.28")),
+    "LORA_SCALE_3": float(os.environ.get("LORA_SCALE_3", "1.38")),
+    "MAX_GENERATION_RETRIES": int(os.environ.get("MAX_GENERATION_RETRIES", "3")),
 }
 
 stripe.api_key     = CFG["STRIPE_SECRET"]
@@ -574,13 +577,13 @@ def _identity_strength_for_attempt(attempt: int) -> float:
     """Return img2img strength for attempt.
 
     Lower strength preserves face/pose more; higher strength allows stronger caricature/theme.
-    v2.4 starts conservative because likeness is the product, not decoration.
+    v2.4.1 uses a calibrated range: enough denoise for illustration, not enough to replace identity.
     """
     if attempt <= 1:
-        return max(0.25, min(0.95, float(CFG.get("IDENTITY_STRENGTH_1", 0.56))))
+        return max(0.25, min(0.95, float(CFG.get("IDENTITY_STRENGTH_1", 0.46))))
     if attempt == 2:
-        return max(0.25, min(0.95, float(CFG.get("IDENTITY_STRENGTH_2", 0.64))))
-    return max(0.25, min(0.95, float(CFG.get("IDENTITY_STRENGTH_3", 0.72))))
+        return max(0.25, min(0.95, float(CFG.get("IDENTITY_STRENGTH_2", 0.52))))
+    return max(0.25, min(0.95, float(CFG.get("IDENTITY_STRENGTH_3", 0.60))))
 
 
 def build_identity_first_prompt(prompt: str, attempt: int = 1) -> str:
@@ -597,21 +600,27 @@ def build_identity_first_prompt(prompt: str, attempt: int = 1) -> str:
         "Preserve recognisable likeness first; style second; theme third. "
     )
     exaggeration = (
-        "Tasteful professional caricature: larger head, expressive eyes, clean bold ink contours, warm editorial colour, "
-        "premium gift illustration, family-friendly, polished, not photorealistic, not grotesque. "
+        "ANTONOS hand-drawn caricature illustration, not a retouched photo. "
+        "Visible black/brown ink outlines, simplified painterly shading, warm editorial colours, premium gift-art rendering. "
+        "Slightly larger head, expressive eyes, tasteful caricature proportions, clean cartoon linework, polished poster quality. "
+        "Avoid photorealism, avoid selfie look, avoid skin-photo texture, avoid generic beauty portrait, avoid replacing the face. "
     )
-    if attempt >= 2:
+    if attempt == 1:
+        exaggeration += "Conservative facial structure, mild caricature, strongest likeness. "
+    elif attempt == 2:
+        exaggeration += "Balanced caricature: stronger linework and illustration style while preserving identity. "
         identity_rules += "Increase facial likeness and reduce invented beauty/age changes. "
-    if attempt >= 3:
-        identity_rules += "Very conservative identity preservation; only lightly transform facial structure. "
+    else:
+        exaggeration += "Stronger Antonos caricature styling, still recognisable as the uploaded person. "
+        identity_rules += "Very careful identity preservation; do not alter age, eye colour, nose, mouth or face shape. "
     return f"{identity_rules}{exaggeration}{prompt}"
 
 
 def _i2i_arguments(prompt: str, reference_url: str, attempt: int = 1, model: str | None = None) -> dict:
     """Build fal image-to-image arguments compatible with FLUX LoRA img2img endpoints."""
     strength = _identity_strength_for_attempt(attempt)
-    steps = 30 if attempt == 1 else 34 if attempt == 2 else 38
-    guidance = 4.2 if attempt == 1 else 4.8 if attempt == 2 else 5.2
+    steps = 34 if attempt == 1 else 38 if attempt == 2 else 42
+    guidance = 3.6 if attempt == 1 else 4.0 if attempt == 2 else 4.4
     args = {
         "prompt": build_identity_first_prompt(prompt, attempt),
         "image_url": reference_url,
@@ -624,14 +633,15 @@ def _i2i_arguments(prompt: str, reference_url: str, attempt: int = 1, model: str
         "output_format": "jpeg",
     }
     if CFG.get("FAL_LORA_URL"):
-        args["loras"] = [{"path": CFG["FAL_LORA_URL"], "scale": 0.85 if attempt == 1 else 0.95}]
+        scale_key = f"LORA_SCALE_{min(max(int(attempt), 1), 3)}"
+        args["loras"] = [{"path": CFG["FAL_LORA_URL"], "scale": float(CFG.get(scale_key, 1.25))}]
     return args
 
 
 def generate_identity_first_art(prompt: str, photo_urls: list, attempt: int = 1) -> tuple[str | None, dict]:
     """Generate by transforming the customer reference photo directly.
 
-    This is the v2.4.0 core upgrade. It uses FLUX LoRA image-to-image so the
+    This is the v2.4.1 core upgrade. It uses FLUX LoRA image-to-image so the
     original face/pose/age acts as the starting canvas. If the endpoint is not
     available or returns no image, it fails safely and lets the pipeline try the
     legacy base+face-reference fallback.
@@ -684,7 +694,7 @@ def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, stri
     Returns (candidate_url, meta). meta contains enough information for admin debug,
     QA history, and production troubleshooting.
     """
-    meta = {"pipeline": "v2.4_identity_first", "attempt": attempt, "stages": []}
+    meta = {"pipeline": "v2.4.1_identity_lock", "attempt": attempt, "stages": []}
 
     i2i_url, i2i_meta = generate_identity_first_art(prompt, photo_urls, attempt=attempt)
     meta["stages"].append({"stage": "identity_first_img2img", **i2i_meta})
@@ -848,7 +858,7 @@ def run_generation_pipeline(order_id: str):
         if not order:
             raise Exception("Order not found")
 
-        update_order_status(order_id, "generating", {"pipeline_version": "2.4.0-expert-identity-first"})
+        update_order_status(order_id, "generating", {"pipeline_version": "2.4.1-expert-identity-lock"})
         print(f"[Pipeline] Starting generation for {order_id}")
 
         template_id    = order["template_id"]
@@ -922,7 +932,7 @@ def run_generation_pipeline(order_id: str):
     except Exception as e:
         print(f"[Pipeline] ERROR for {order_id}: {e}")
         try:
-            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "2.4.0-expert-identity-first"})
+            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "2.4.1-expert-identity-lock"})
         except Exception:
             pass
         notify_admin(f"❌ Order {order_id} FAILED: {e}")
@@ -1335,7 +1345,7 @@ def create_payment_intent():
                 "template_id": template_id,
                 "plan_id": plan_id,
                 "persons": str(persons),
-                "pipeline": "v2.4.0-expert-identity-first",
+                "pipeline": "v2.4.1-expert-identity-lock",
             },
             description=f"Caricature — {template['name']} ({plan_id})"
         )
@@ -1361,7 +1371,7 @@ def create_payment_intent():
         "email": email,
         "name": name,
         "status": "pending",
-        "pipeline_version": "2.4.0-expert-identity-first",
+        "pipeline_version": "2.4.1-expert-identity-lock",
         "moderation": moderation,
         "created_at": datetime.utcnow().isoformat(),
     })
@@ -2437,10 +2447,24 @@ def admin_test_generate():
             print(f"[AdminTest v2.4] {test_id} QA attempt {attempt}: {json.dumps(qa, ensure_ascii=False)[:1200]}")
 
             passes_strict = qa.get("deliverable", True) and qa.get("quality_score", 7) >= 6 and qa.get("identity_score", 7) >= 6
-            if passes_strict or not strict_mode:
+            if passes_strict:
                 final_ai_url = candidate_url
                 break
-            working_prompt += ", preserve exact uploaded identity, same age and facial structure, avoid generic adult beauty portrait, stronger likeness"
+            # In admin debug / strict=false, do not stop at the first weak candidate.
+            # Generate all variants and later return the best score for inspection.
+            if not strict_mode:
+                pass
+            working_prompt += ", preserve exact uploaded identity, same age and facial structure, avoid generic adult beauty portrait, stronger hand-drawn caricature linework, not photorealistic"
+
+        if not final_ai_url and (not strict_mode) and candidate_debug:
+            valid_candidates = [c for c in candidate_debug if c.get("candidate_url")]
+            if valid_candidates:
+                def _score(c):
+                    q = c.get("qa", {}) or {}
+                    return (int(q.get("identity_score", 0)) * 2) + int(q.get("quality_score", 0))
+                best = sorted(valid_candidates, key=_score, reverse=True)[0]
+                final_ai_url = best.get("candidate_url")
+                qa = best.get("qa", qa)
 
         if not final_ai_url:
             return ok({
@@ -2482,7 +2506,7 @@ def admin_test_generate():
             "generation_prompt": working_prompt[:1800],
             "generation_qa": qa,
             "upscale_meta": upscale_meta,
-            "pipeline_version": "2.4.0-expert-identity-first",
+            "pipeline_version": "2.4.1-expert-identity-lock",
             "strict_mode": strict_mode,
             "debug_mode": debug_mode,
             "debug_candidate_urls": candidate_debug if debug_mode else [],
@@ -2521,7 +2545,7 @@ def admin_test_generate():
                 "created_at": started_at.isoformat(),
                 "status": "failed",
                 "error": str(e),
-                "pipeline_version": "2.4.0-expert-identity-first",
+                "pipeline_version": "2.4.1-expert-identity-lock",
             }, merge=True)
         except Exception:
             pass
@@ -2532,14 +2556,14 @@ def admin_test_generate():
 def health():
     return ok({
         "status":    "healthy",
-        "version":   "2.4.0-expert-identity-first",
+        "version":   "2.4.1-expert-identity-lock",
         "timestamp": datetime.utcnow().isoformat(),
         "lora_ready": bool(CFG["FAL_LORA_URL"]),
     })
 
 @app.route("/", methods=["GET"])
 def root():
-    return ok({"service": "Caricature API", "version": "2.4.0-expert-identity-first", "docs": "/health"})
+    return ok({"service": "Caricature API", "version": "2.4.1-expert-identity-lock", "docs": "/health"})
 
 
 if __name__ == "__main__":
