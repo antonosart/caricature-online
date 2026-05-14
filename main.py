@@ -535,6 +535,65 @@ def get_pricing():
 #   ROUTES — UPLOAD
 # ══════════════════════════════════════════════════════════════
 
+
+# ══════════════════════════════════════════════════════════════
+#   PHOTO QUALITY ASSESSMENT
+# ══════════════════════════════════════════════════════════════
+
+def assess_photo_quality(photo_url: str) -> dict:
+    """Claude Vision — is there a human face? Returns quality dict."""
+    import base64, json as _json
+    pessimistic = {
+        "score": 1, "face_size": "none", "lighting": "unknown",
+        "sharpness": "unknown", "usable": False,
+        "visible_features": [], "warnings": ["no_face"],
+        "recovery_strategy": "template_only"
+    }
+    no_face_resp = (
+        '{"score":1,"face_size":"none","lighting":"unknown","sharpness":"unknown",'
+        '"usable":false,"visible_features":[],"warnings":["no_face"],'
+        '"recovery_strategy":"template_only"}'
+    )
+    prompt = (
+        "CRITICAL: Does this image contain a clear human face?\n"
+        "If NOT a person photo (diagram, QR code, landscape, text, barcode, "
+        "screenshot, math graph, abstract image, object photo), return exactly:\n"
+        + no_face_resp + "\n\n"
+        "If this IS a person photo, assess quality for caricature generation.\n"
+        "Score 1-10. face_size: large|medium|small.\n"
+        "lighting: good|backlit|dark|harsh. sharpness: sharp|slightly_blurred|blurred.\n"
+        "usable: true only if human face clearly visible.\n"
+        "warnings: array from [face_too_small,backlit,blurred,multiple_faces,low_resolution,obstructed].\n"
+        "recovery_strategy: full_analysis if score>=6, partial_analysis if 3-5.\n"
+        "Return ONLY valid JSON, no other text."
+    )
+    try:
+        img_data = requests.get(photo_url, timeout=15).content
+        img_b64  = base64.b64encode(img_data).decode()
+        msg = claude_client.messages.create(
+            model="claude-opus-4-20250514",
+            max_tokens=300,
+            messages=[{"role": "user", "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}},
+                {"type": "text",  "text": prompt}
+            ]}]
+        )
+        raw = msg.content[0].text.strip()
+        if "{" in raw:
+            raw = raw[raw.index("{"):raw.rindex("}")+1]
+        result = {**pessimistic, **_json.loads(raw)}
+        # Safety net: face_size=none → always no_face
+        if result.get("face_size") == "none":
+            if "no_face" not in result.get("warnings", []):
+                result.setdefault("warnings", []).append("no_face")
+            result["usable"] = False
+        print(f"[Quality] score={result.get('score')} face={result.get('face_size')} warns={result.get('warnings')}")
+        return result
+    except Exception as e:
+        print(f"[Quality] Error: {e} — pessimistic defaults")
+        return pessimistic
+
+
 @app.route("/api/upload", methods=["POST"])
 def upload_photo():
     if "file" not in request.files:
@@ -555,15 +614,25 @@ def upload_photo():
 
     try:
         photo_url = upload_to_gcs(data, filename, file.content_type, folder="uploads")
+        quality   = assess_photo_quality(photo_url)
+        warns     = quality.get("warnings", ["no_face"])
+        score     = quality.get("score", 1)
         db.collection("uploads").document(upload_id).set({
-            "upload_id": upload_id,
-            "photo_url": photo_url,
+            "upload_id":  upload_id,
+            "photo_url":  photo_url,
+            "quality":    quality,
             "created_at": datetime.utcnow().isoformat(),
         })
-        return ok({"upload_id": upload_id, "photo_url": photo_url})
+        return ok({
+            "upload_id": upload_id,
+            "photo_url": photo_url,
+            "quality":   quality,
+            "score":     score,
+            "warnings":  warns,
+            "usable":    quality.get("usable", False),
+        })
     except Exception as e:
         return err(f"Upload failed: {str(e)}", 500)
-
 
 # ══════════════════════════════════════════════════════════════
 #   ROUTES — PAYMENT

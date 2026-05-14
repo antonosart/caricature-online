@@ -736,7 +736,10 @@ async function handleUpload(e, pi, qi) {
     var score = (data.quality && data.quality.score) || data.score || 5;
     var warns = (data.quality && data.quality.warnings) || data.warnings || [];
 
-    if (warns.indexOf('no_face') >= 0) {
+    var noFace = warns.indexOf('no_face') >= 0
+               || (data.quality && data.quality.face_size === 'none')
+               || (data.usable === false);
+    if (noFace) {
       zone.classList.add('bad');
       st.className = 'uz-st err';
       st.textContent = 'No face detected.';
