@@ -615,7 +615,7 @@ function buildPhotoSections() {
   var container = document.getElementById('personSecs');
 
   while (S.personUploads.length < n) {
-    S.personUploads.push({p: S.personUploads.length + 1, u: [null, null]});
+    S.personUploads.push({p: S.personUploads.length + 1, u: [null, null], sameOk: null});
   }
   S.personUploads = S.personUploads.slice(0, n);
 
@@ -739,30 +739,37 @@ async function handleUpload(e, pi, qi) {
     var score = (data.quality && data.quality.score) || data.score || 5;
     var warns = (data.quality && data.quality.warnings) || data.warnings || [];
 
-    var noFace     = warns.indexOf('no_face') >= 0
-                    || (data.quality && data.quality.face_size === 'none')
-                    || (data.usable === false);
+    var explicitNoFace = warns.indexOf('no_face') >= 0
+                        && (data.quality && data.quality.face_size === 'none')
+                        && (data.score < 3);
     var multiFace  = warns.indexOf('multiple_faces') >= 0
                     || (data.quality && data.quality.face_size === 'multiple');
-    if (noFace || multiFace) {
+    var uncertain  = (data.usable === false || warns.indexOf('no_face') >= 0)
+                    && !explicitNoFace && !multiFace;
+
+    if (explicitNoFace || multiFace) {
+      // ❌ Hard block: clearly not a face photo OR multiple faces
       zone.classList.add('bad');
       st.className = 'uz-st err';
-      // Keep upload data so user can override if it's a false negative
-      var uploadData = {upload_id: data.upload_id, photo_url: data.photo_url};
-      S.personUploads[pi].u[qi] = null; // block by default
+      S.personUploads[pi].u[qi] = null;
       prev.style.display = 'none';
       iconDiv.style.display = '';
       if (multiFace) {
         st.textContent = 'Multiple faces detected.';
         showQAWithOverride(pi, qi,
-          'This photo contains more than one person. Please upload a photo with only ONE person clearly visible.',
-          null); // no override for multi-face
+          'This photo shows more than one person. Please upload a photo with only ONE person clearly visible.', null);
       } else {
         st.textContent = 'No face detected.';
         showQAWithOverride(pi, qi,
-          'We could not detect a face clearly. Please upload a photo showing the face clearly — front-facing, not covered.',
-          uploadData); // allow override for possible false negative
+          'We could not detect a face in this photo. Please upload a clear photo of a person — front-facing, good lighting.', null);
       }
+    } else if (uncertain) {
+      // ⚠️ Uncertain — accept automatically, show gentle note
+      zone.classList.add('has');
+      showDelBtn(pi, qi);
+      st.className = 'uz-st warn';
+      st.textContent = 'Accepted — face detection uncertain.';
+      showQAGentle(pi, qi, 'Face detection was uncertain for this photo. The result may be less accurate. For best results, try a clearer front-facing photo.');
     } else if (score >= 7) {
       zone.classList.add('has');
       st.className = 'uz-st ok';
@@ -804,35 +811,63 @@ async function verifySamePerson(pi) {
   var url2 = pu.u[1] ? pu.u[1].photo_url : null;
   if (!url1 || !url2) return;
 
-  var checkEl = document.getElementById('same-check-' + pi);
-  if (!checkEl) {
-    checkEl = document.createElement('div');
-    checkEl.id = 'same-check-' + pi;
-    checkEl.style.cssText = 'border-radius:8px;padding:10px 14px;font-size:13px;margin-top:8px;line-height:1.6;';
+  var el = document.getElementById('same-check-' + pi);
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'same-check-' + pi;
     var sec = document.getElementById('personSecs').children[pi];
-    if (sec) sec.appendChild(checkEl);
+    if (sec) sec.appendChild(el);
   }
-  checkEl.style.cssText += 'background:#f0f9ff;border:1px solid #bae6fd;color:#0369a1;';
-  checkEl.textContent = 'Checking if both photos are of the same person...';
+  el.style.cssText = 'border-radius:8px;padding:10px 14px;font-size:13px;margin-top:8px;line-height:1.6;background:#f0f9ff;border:1px solid #bae6fd;color:#0369a1;';
+  el.textContent = 'Checking if both photos are of the same person...';
 
   try {
     var r = await fetch(API_URL + '/api/verify-same-person', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({photo_url1: url1, photo_url2: url2})
     });
     var d = await r.json();
+
     if (d.same_person) {
-      checkEl.style.cssText = 'border-radius:8px;padding:10px 14px;font-size:13px;margin-top:8px;line-height:1.6;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;';
-      checkEl.textContent = 'Both photos appear to be the same person.';
+      // ✅ Same person — allow continue
+      S.personUploads[pi].sameOk = true;
+      el.style.cssText = 'border-radius:8px;padding:10px 14px;font-size:13px;margin-top:8px;line-height:1.6;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;';
+      el.textContent = 'Both photos are of the same person.';
+
     } else {
-      checkEl.style.cssText = 'border-radius:8px;padding:10px 14px;font-size:13px;margin-top:8px;line-height:1.6;background:#fffbeb;border:1px solid #fde68a;color:#92400e;';
-      var personLabel = S.personUploads.length > 1 ? 'Person ' + (pi + 1) : 'this person';
-      checkEl.innerHTML = '<strong>⚠️ The two photos may be of different people.</strong><br>Please check that both photos are of ' + personLabel + ' and re-upload if needed.';
+      // ❌ Different people — BLOCK continue, show delete button
+      S.personUploads[pi].sameOk = false;
+      var pLabel = S.personUploads.length > 1 ? 'Person ' + (pi + 1) : 'Your Photo';
+      el.style.cssText = 'border-radius:8px;padding:12px 14px;font-size:13px;margin-top:8px;line-height:1.6;background:#fef2f2;border:2px solid #fecaca;color:#991b1b;';
+
+      // Build warning with delete button
+      var msg = document.createElement('div');
+      msg.innerHTML = '<strong>The two photos appear to be of different people.</strong><br>' +
+        'Please delete Photo 2 and re-upload a photo of the same person as Photo 1.';
+      el.innerHTML = '';
+      el.appendChild(msg);
+
+      var delBtn = document.createElement('button');
+      delBtn.textContent = 'Delete Photo 2';
+      delBtn.style.cssText = 'display:inline-block;margin-top:10px;padding:8px 18px;border-radius:6px;' +
+        'background:#991b1b;color:white;font-size:13px;font-weight:700;cursor:pointer;border:none;';
+      delBtn.addEventListener('click', (function(pii) {
+        return function() {
+          deletePhoto(pii, 1);       // delete photo 2 (index 1)
+          S.personUploads[pii].sameOk = null;  // reset block
+          var checkEl2 = document.getElementById('same-check-' + pii);
+          if (checkEl2) checkEl2.remove();
+          checkPhotosBtn();
+        };
+      })(pi));
+      el.appendChild(delBtn);
     }
+
   } catch(e) {
-    checkEl.remove();
+    S.personUploads[pi].sameOk = null;
+    el.remove();
   }
+  checkPhotosBtn();
 }
 
 
@@ -913,6 +948,17 @@ function getTip(warns) {
   return null;
 }
 
+function showQAGentle(pi, qi, msg) {
+  var oldEl = document.getElementById('qa-' + pi + '-' + qi);
+  if (oldEl) oldEl.remove();
+  var el = document.createElement('div');
+  el.id = 'qa-' + pi + '-' + qi;
+  el.style.cssText = 'border-radius:8px;padding:10px 14px;font-size:12px;margin-top:6px;line-height:1.5;background:#fffbeb;border:1px solid #fde68a;color:#92400e;';
+  el.textContent = msg;
+  var zone = document.getElementById('uz-' + pi + '-' + qi);
+  if (zone) zone.parentNode.insertBefore(el, zone.nextSibling);
+}
+
 function showQA(pi, qi, type, msg) {
   showQAWithOverride(pi, qi, msg, null);
 }
@@ -954,7 +1000,11 @@ function showQAWithOverride(pi, qi, msg, uploadData) {
 }
 
 function photosOk() {
-  return S.personUploads.every(function(pu) { return pu.u[0] !== null; });
+  return S.personUploads.every(function(pu) {
+    if (pu.u[0] === null) return false;      // no photo 1
+    if (pu.sameOk === false) return false;   // photo1 ≠ photo2 confirmed
+    return true;
+  });
 }
 
 function checkPhotosBtn() {

@@ -561,20 +561,26 @@ def assess_photo_quality(photo_url: str) -> dict:
     )
     prompt = (
         "You are assessing a photo for caricature art generation.\n\n"
-        "STEP 1: Is there a human face as the MAIN SUBJECT?\n"
-        "Count only CLEAR, IN-FOCUS faces in the foreground. "
-        "Ignore blurred background figures, reflections, small distant people.\n"
-        "Babies and children ARE valid subjects — assess them normally.\n\n"
-        "CASE A — No human face (QR codes, diagrams, text, objects, landscapes, "
-        "screenshots, abstract): return exactly:\n" + no_face_resp + "\n\n"
-        "CASE B — Two or more CLEAR in-focus faces in the foreground "
-        "(not blurred background): return exactly:\n" + multi_face_resp + "\n\n"
-        "CASE C — Exactly ONE clear face (any age including babies): assess quality.\n"
-        "Score 1-10. face_size: large|medium|small. "
+        "TASK: Determine if this photo contains a human face as the PRIMARY subject.\n\n"
+        "CASE A — Clearly NOT a person photo (QR codes, diagrams, charts, text, "
+        "screenshots, objects, landscapes with no people, abstract images).\n"
+        "Return: " + no_face_resp + "\n\n"
+        "CASE B — Multiple CLEAR, IN-FOCUS faces of similar prominence in the "
+        "FOREGROUND (e.g. a group selfie, two people posing together).\n"
+        "IMPORTANT: Blurred background figures, partially visible people at edges, "
+        "or small distant people do NOT count. Only flag if there are clearly TWO OR MORE "
+        "people who are ALL in-focus main subjects.\n"
+        "Return: " + multi_face_resp + "\n\n"
+        "CASE C — One human face is the main subject, OR the image is clearly a portrait "
+        "of one person even if slightly blurry or with background activity.\n"
+        "Babies, toddlers, children, and elderly people ARE valid subjects.\n"
+        "If you can see a human face at all, this is CASE C.\n"
+        "Assess quality: Score 1-10. face_size: large|medium|small.\n"
         "lighting: good|backlit|dark|harsh. sharpness: sharp|slightly_blurred|blurred.\n"
-        "usable: true if face is clearly the main subject.\n"
+        "usable: true if a face is visible (even if not perfect quality).\n"
         "warnings: array from [face_too_small,backlit,blurred,low_resolution,obstructed].\n"
         "recovery_strategy: full_analysis if score>=6, partial_analysis if 3-5.\n"
+        "IMPORTANT: When in doubt, choose CASE C. Only use CASE A/B when you are CERTAIN.\n"
         "Return ONLY valid JSON."
     )
     try:
@@ -1614,10 +1620,15 @@ def verify_same_person():
                 {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": imgs[0]}},
                 {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": imgs[1]}},
                 {"type": "text", "text": (
-                    "Are these two photos of the same person? "
-                    "Look at facial features: face shape, eye distance, nose shape, overall face structure. "
-                    "Reply with ONLY valid JSON: "
-                    '{"same_person": true or false, "confidence": "high" or "medium" or "low", "reason": "one sentence"}'
+                    "Are these two photos of THE EXACT SAME individual person?\n"
+                    "Compare carefully: face shape, eye colour and shape, nose, "
+                    "ears, hairline, skin tone, distinctive marks.\n"
+                    "IMPORTANT: Babies and children of similar age often look alike "
+                    "but are NOT the same person unless ALL specific features match.\n"
+                    "Only say same_person=true if you are HIGHLY CONFIDENT.\n"
+                    "When in doubt, say same_person=false.\n"
+                    "Reply ONLY with JSON: "
+                    '{"same_person": true or false, "confidence": "high" or "medium" or "low"}'
                 )}
             ]}]
         )
@@ -1630,7 +1641,7 @@ def verify_same_person():
         return ok(result)
     except Exception as e:
         print(f"[SamePerson] Error: {e}")
-        return ok({"same_person": True, "confidence": "low", "reason": "Could not verify"})
+        return ok({"same_person": False, "confidence": "low"})
 
 
 @app.route("/health", methods=["GET"])
