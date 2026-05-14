@@ -1,6 +1,6 @@
 # ══════════════════════════════════════════════════════════════
-#   CARICATURE.ONLINE — Backend v2.3.2 EXPERT LEVEL +9.5
-#   4K AI Caricature Pipeline · Identity-aware · Stripe-safe · Admin Test Endpoint
+#   CARICATURE.ONLINE — Backend v2.4.0 EXPERT LEVEL +9.5
+#   Identity-First 4K AI Caricature Engine · Stripe-safe · Admin Debug
 #   Stack: Flask · Firestore · GCS · fal.ai LoRA · Stripe · Resend
 # ══════════════════════════════════════════════════════════════
 
@@ -38,6 +38,14 @@ CFG = {
     "BASE_URL":            os.environ.get("BASE_URL",                 "https://caricature.online").strip(),
     "AI_OUTPUT_MODE":      os.environ.get("AI_OUTPUT_MODE",           "4k").strip().lower(),
     "FAL_UPSCALE_MODEL":   os.environ.get("FAL_UPSCALE_MODEL",        "fal-ai/esrgan").strip(),
+    # v2.4.0 identity-first engine: transforms the customer photo directly before any face-swap fallback.
+    # Defaults use fal.ai FLUX LoRA image-to-image; override safely from Cloud Run env vars if needed.
+    "FAL_IDENTITY_I2I_MODEL": os.environ.get("FAL_IDENTITY_I2I_MODEL", "fal-ai/flux-lora/image-to-image").strip(),
+    "FAL_SECONDARY_I2I_MODEL": os.environ.get("FAL_SECONDARY_I2I_MODEL", "fal-ai/flux-general/image-to-image").strip(),
+    "IDENTITY_FIRST_ENABLED": os.environ.get("IDENTITY_FIRST_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"},
+    "IDENTITY_STRENGTH_1": float(os.environ.get("IDENTITY_STRENGTH_1", "0.56")),
+    "IDENTITY_STRENGTH_2": float(os.environ.get("IDENTITY_STRENGTH_2", "0.64")),
+    "IDENTITY_STRENGTH_3": float(os.environ.get("IDENTITY_STRENGTH_3", "0.72")),
     "MAX_GENERATION_RETRIES": int(os.environ.get("MAX_GENERATION_RETRIES", "2")),
 }
 
@@ -561,6 +569,145 @@ def _extract_fal_image_url(result: dict) -> str | None:
     return None
 
 
+
+def _identity_strength_for_attempt(attempt: int) -> float:
+    """Return img2img strength for attempt.
+
+    Lower strength preserves face/pose more; higher strength allows stronger caricature/theme.
+    v2.4 starts conservative because likeness is the product, not decoration.
+    """
+    if attempt <= 1:
+        return max(0.25, min(0.95, float(CFG.get("IDENTITY_STRENGTH_1", 0.56))))
+    if attempt == 2:
+        return max(0.25, min(0.95, float(CFG.get("IDENTITY_STRENGTH_2", 0.64))))
+    return max(0.25, min(0.95, float(CFG.get("IDENTITY_STRENGTH_3", 0.72))))
+
+
+def build_identity_first_prompt(prompt: str, attempt: int = 1) -> str:
+    """Strengthen prompt for reference-image transformation instead of random T2I.
+
+    The prompt must tell the image-to-image model to transform the uploaded person,
+    not invent a new actor matching the text description.
+    """
+    identity_rules = (
+        "Transform the person in the reference photo into the requested caricature scene. "
+        "Keep the SAME person: same facial identity, same approximate age, same face shape, same eyes, same nose, "
+        "same mouth/smile, same hairline and natural hair colour, same skin tone and distinctive features. "
+        "Use caricature exaggeration but do not replace the person with a generic adult, celebrity, model, or different character. "
+        "Preserve recognisable likeness first; style second; theme third. "
+    )
+    exaggeration = (
+        "Tasteful professional caricature: larger head, expressive eyes, clean bold ink contours, warm editorial colour, "
+        "premium gift illustration, family-friendly, polished, not photorealistic, not grotesque. "
+    )
+    if attempt >= 2:
+        identity_rules += "Increase facial likeness and reduce invented beauty/age changes. "
+    if attempt >= 3:
+        identity_rules += "Very conservative identity preservation; only lightly transform facial structure. "
+    return f"{identity_rules}{exaggeration}{prompt}"
+
+
+def _i2i_arguments(prompt: str, reference_url: str, attempt: int = 1, model: str | None = None) -> dict:
+    """Build fal image-to-image arguments compatible with FLUX LoRA img2img endpoints."""
+    strength = _identity_strength_for_attempt(attempt)
+    steps = 30 if attempt == 1 else 34 if attempt == 2 else 38
+    guidance = 4.2 if attempt == 1 else 4.8 if attempt == 2 else 5.2
+    args = {
+        "prompt": build_identity_first_prompt(prompt, attempt),
+        "image_url": reference_url,
+        "strength": strength,
+        "image_size": "portrait_4_3",
+        "num_images": 1,
+        "num_inference_steps": steps,
+        "guidance_scale": guidance,
+        "enable_safety_checker": True,
+        "output_format": "jpeg",
+    }
+    if CFG.get("FAL_LORA_URL"):
+        args["loras"] = [{"path": CFG["FAL_LORA_URL"], "scale": 0.85 if attempt == 1 else 0.95}]
+    return args
+
+
+def generate_identity_first_art(prompt: str, photo_urls: list, attempt: int = 1) -> tuple[str | None, dict]:
+    """Generate by transforming the customer reference photo directly.
+
+    This is the v2.4.0 core upgrade. It uses FLUX LoRA image-to-image so the
+    original face/pose/age acts as the starting canvas. If the endpoint is not
+    available or returns no image, it fails safely and lets the pipeline try the
+    legacy base+face-reference fallback.
+    """
+    meta = {
+        "engine": "identity_first_img2img",
+        "attempted": False,
+        "success": False,
+        "model": None,
+        "reference_url": photo_urls[0] if photo_urls else None,
+        "strength": _identity_strength_for_attempt(attempt),
+        "error": None,
+    }
+    if not CFG.get("IDENTITY_FIRST_ENABLED", True):
+        meta["error"] = "identity_first_disabled"
+        return None, meta
+    if not photo_urls:
+        meta["error"] = "missing_reference_photo"
+        return None, meta
+
+    reference_url = photo_urls[0]
+    # Primary endpoint is official FLUX LoRA image-to-image. Secondary is optional fallback.
+    models = []
+    for m in [CFG.get("FAL_IDENTITY_I2I_MODEL"), CFG.get("FAL_SECONDARY_I2I_MODEL")]:
+        if m and m not in models:
+            models.append(m)
+
+    for model in models:
+        try:
+            args = _i2i_arguments(prompt, reference_url, attempt=attempt, model=model)
+            print(f"[AI v2.4] Identity-first img2img via {model} attempt={attempt} strength={args.get('strength')}")
+            meta.update({"attempted": True, "model": model, "arguments_preview": {k: args[k] for k in args if k not in {'prompt'}}})
+            result = _fal_run(model, args)
+            url = _extract_fal_image_url(result)
+            if url:
+                meta.update({"success": True, "result_url": url, "raw_result_keys": list(result.keys()) if isinstance(result, dict) else []})
+                return url, meta
+            meta["error"] = f"no_image_url_in_response:{str(result)[:500]}"
+            print(f"[AI v2.4] Identity-first no image URL via {model}: {str(result)[:500]}")
+        except Exception as e:
+            meta["error"] = str(e)[:1000]
+            print(f"[AI v2.4] Identity-first failed via {model}: {e}")
+
+    return None, meta
+
+
+def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, strict: bool = True) -> tuple[str | None, dict]:
+    """Generate one candidate with v2.4 identity-first, then legacy fallback.
+
+    Returns (candidate_url, meta). meta contains enough information for admin debug,
+    QA history, and production troubleshooting.
+    """
+    meta = {"pipeline": "v2.4_identity_first", "attempt": attempt, "stages": []}
+
+    i2i_url, i2i_meta = generate_identity_first_art(prompt, photo_urls, attempt=attempt)
+    meta["stages"].append({"stage": "identity_first_img2img", **i2i_meta})
+    if i2i_url:
+        return i2i_url, meta
+
+    # Legacy fallback: generate scene/style, then apply face-reference. Kept for resilience.
+    base_url = generate_base_art(prompt, photo_urls, attempt=attempt)
+    meta["base_url"] = base_url
+    if not base_url:
+        meta["error"] = "base_generation_failed_after_identity_first"
+        return None, meta
+
+    candidate_url, identity_meta = apply_identity_reference(base_url, photo_urls, strict=strict)
+    meta["stages"].append({"stage": "legacy_face_reference", **identity_meta})
+    meta["identity_meta"] = identity_meta
+    if candidate_url:
+        return candidate_url, meta
+
+    meta["error"] = "legacy_identity_reference_failed"
+    return None, meta
+
+
 def apply_identity_reference(base_url: str, photo_urls: list, strict: bool = False) -> tuple[str | None, dict]:
     """Apply face reference after scene generation.
 
@@ -701,7 +848,7 @@ def run_generation_pipeline(order_id: str):
         if not order:
             raise Exception("Order not found")
 
-        update_order_status(order_id, "generating", {"pipeline_version": "2.3.3-expert-admin-debug"})
+        update_order_status(order_id, "generating", {"pipeline_version": "2.4.0-expert-identity-first"})
         print(f"[Pipeline] Starting generation for {order_id}")
 
         template_id    = order["template_id"]
@@ -725,27 +872,26 @@ def run_generation_pipeline(order_id: str):
         )
         print(f"[Pipeline] Prompt: {prompt[:180]}...")
 
-        # 2. Generate + identity reference + QA retries
+        # 2. v2.4 identity-first generation + QA retries
         final_ai_url = None
         qa = {}
+        generation_debug = []
         attempts = max(1, min(3, int(CFG.get("MAX_GENERATION_RETRIES", 2))))
         for attempt in range(1, attempts + 1):
-            print(f"[Pipeline] Generation attempt {attempt}/{attempts}")
-            base_url = generate_base_art(prompt, photo_urls, attempt=attempt)
-            if not base_url:
-                continue
-            candidate_url, identity_meta = apply_identity_reference(base_url, photo_urls, strict=True)
+            print(f"[Pipeline v2.4] Identity-first generation attempt {attempt}/{attempts}")
+            candidate_url, generation_meta = generate_candidate_art(prompt, photo_urls, attempt=attempt, strict=True)
+            generation_debug.append({"attempt": attempt, "candidate_url": candidate_url, "generation_meta": generation_meta})
             if not candidate_url:
-                qa = {"deliverable": False, "quality_score": 1, "identity_score": 1, "reason": "identity_reference_failed", "identity_meta": identity_meta}
-                print(f"[Pipeline] Identity failed attempt={attempt}: {identity_meta}")
+                qa = {"deliverable": False, "quality_score": 1, "identity_score": 1, "reason": "generation_candidate_failed", "generation_meta": generation_meta}
+                print(f"[Pipeline v2.4] Candidate failed attempt={attempt}: {generation_meta}")
                 continue
             qa = assess_generated_result(prompt, candidate_url, photo_urls[0] if photo_urls else None)
-            qa["identity_meta"] = identity_meta
-            print(f"[Pipeline] QA attempt={attempt}: {qa}")
-            if qa.get("deliverable", True) and qa.get("quality_score", 7) >= 5 and qa.get("identity_score", 7) >= 5:
+            qa["generation_meta"] = generation_meta
+            print(f"[Pipeline v2.4] QA attempt={attempt}: {json.dumps(qa, ensure_ascii=False)[:1200]}")
+            if qa.get("deliverable", True) and qa.get("quality_score", 7) >= 6 and qa.get("identity_score", 7) >= 6:
                 final_ai_url = candidate_url
                 break
-            prompt += ", improve facial likeness, clear human face, clean finished premium caricature, no artifacts"
+            prompt += ", preserve exact uploaded identity, same age and face structure, avoid generic beauty portrait, stronger likeness"
 
         if not final_ai_url:
             raise Exception("AI generation did not produce a deliverable image")
@@ -769,13 +915,14 @@ def run_generation_pipeline(order_id: str):
             "generation_prompt": prompt[:1500],
             "generation_qa": qa,
             "upscale_meta": upscale_meta,
+            "generation_debug": generation_debug[-3:] if 'generation_debug' in locals() else [],
         })
         notify_admin(f"✅ Order {order_id} completed | {template_name} | {email}")
 
     except Exception as e:
         print(f"[Pipeline] ERROR for {order_id}: {e}")
         try:
-            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "2.3.3-expert-admin-debug"})
+            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "2.4.0-expert-identity-first"})
         except Exception:
             pass
         notify_admin(f"❌ Order {order_id} FAILED: {e}")
@@ -1188,7 +1335,7 @@ def create_payment_intent():
                 "template_id": template_id,
                 "plan_id": plan_id,
                 "persons": str(persons),
-                "pipeline": "v2.3.3-expert-admin-debug",
+                "pipeline": "v2.4.0-expert-identity-first",
             },
             description=f"Caricature — {template['name']} ({plan_id})"
         )
@@ -1214,7 +1361,7 @@ def create_payment_intent():
         "email": email,
         "name": name,
         "status": "pending",
-        "pipeline_version": "2.3.3-expert-admin-debug",
+        "pipeline_version": "2.4.0-expert-identity-first",
         "moderation": moderation,
         "created_at": datetime.utcnow().isoformat(),
     })
@@ -2162,7 +2309,7 @@ def admin_test_generate():
       - plan_id=premium                         optional
       - save_test=true                          optional Firestore log toggle
 
-    This endpoint intentionally bypasses Stripe, order logging, and email delivery.
+    This endpoint intentionally bypasses Stripe, order logging, and email delivery. v2.4 uses identity-first img2img before legacy face-swap fallback.
     It is protected by X-Admin-Secret and should never be exposed in frontend code.
     """
     started_at = datetime.utcnow()
@@ -2262,7 +2409,7 @@ def admin_test_generate():
             person_photos=[{"person_index": 1, "photo_urls": photo_urls, "qualities": qualities}],
         )
 
-        # ── 4. Generate, apply identity reference, QA, upscale ──────────
+        # ── 4. v2.4 Identity-first generation, QA, upscale ────────────
         final_ai_url = None
         qa = {}
         candidate_debug = []
@@ -2270,30 +2417,30 @@ def admin_test_generate():
         working_prompt = prompt
 
         for attempt in range(1, attempts + 1):
-            print(f"[AdminTest] {test_id} generation attempt {attempt}/{attempts} strict={strict_mode}")
-            base_url = generate_base_art(working_prompt, photo_urls, attempt=attempt)
-            if not base_url:
-                candidate_debug.append({"attempt": attempt, "stage": "base_generation", "ok": False, "error": "no_base_url"})
-                continue
-
-            # In admin debug mode, allow inspection even when the identity step or QA is imperfect.
-            candidate_url, identity_meta = apply_identity_reference(base_url, photo_urls, strict=strict_mode)
+            print(f"[AdminTest v2.4] {test_id} identity-first attempt {attempt}/{attempts} strict={strict_mode}")
+            candidate_url, generation_meta = generate_candidate_art(working_prompt, photo_urls, attempt=attempt, strict=strict_mode)
             if not candidate_url:
-                qa = {"deliverable": False, "quality_score": 1, "identity_score": 1, "reason": "identity_reference_failed", "identity_meta": identity_meta}
-                candidate_debug.append({"attempt": attempt, "base_url": base_url, "candidate_url": None, "identity_meta": identity_meta, "qa": qa})
-                print(f"[AdminTest] {test_id} identity failed attempt {attempt}: {identity_meta}")
+                qa = {"deliverable": False, "quality_score": 1, "identity_score": 1, "reason": "candidate_generation_failed", "generation_meta": generation_meta}
+                candidate_debug.append({"attempt": attempt, "candidate_url": None, "generation_meta": generation_meta, "qa": qa})
+                print(f"[AdminTest v2.4] {test_id} candidate failed attempt {attempt}: {json.dumps(generation_meta, ensure_ascii=False)[:1200]}")
                 continue
 
             qa = assess_generated_result(working_prompt, candidate_url, photo_urls[0] if photo_urls else None)
-            qa["identity_meta"] = identity_meta
-            candidate_debug.append({"attempt": attempt, "base_url": base_url, "candidate_url": candidate_url, "identity_meta": identity_meta, "qa": qa})
-            print(f"[AdminTest] {test_id} QA attempt {attempt}: {json.dumps(qa, ensure_ascii=False)[:1200]}")
+            qa["generation_meta"] = generation_meta
+            candidate_debug.append({
+                "attempt": attempt,
+                "candidate_url": candidate_url,
+                "base_url": generation_meta.get("base_url"),
+                "generation_meta": generation_meta,
+                "qa": qa
+            })
+            print(f"[AdminTest v2.4] {test_id} QA attempt {attempt}: {json.dumps(qa, ensure_ascii=False)[:1200]}")
 
-            passes_strict = qa.get("deliverable", True) and qa.get("quality_score", 7) >= 5 and qa.get("identity_score", 7) >= 5
+            passes_strict = qa.get("deliverable", True) and qa.get("quality_score", 7) >= 6 and qa.get("identity_score", 7) >= 6
             if passes_strict or not strict_mode:
                 final_ai_url = candidate_url
                 break
-            working_prompt += ", stronger likeness to uploaded face, clear finished caricature, no artifacts"
+            working_prompt += ", preserve exact uploaded identity, same age and facial structure, avoid generic adult beauty portrait, stronger likeness"
 
         if not final_ai_url:
             return ok({
@@ -2335,7 +2482,7 @@ def admin_test_generate():
             "generation_prompt": working_prompt[:1800],
             "generation_qa": qa,
             "upscale_meta": upscale_meta,
-            "pipeline_version": "2.3.3-expert-admin-debug",
+            "pipeline_version": "2.4.0-expert-identity-first",
             "strict_mode": strict_mode,
             "debug_mode": debug_mode,
             "debug_candidate_urls": candidate_debug if debug_mode else [],
@@ -2374,7 +2521,7 @@ def admin_test_generate():
                 "created_at": started_at.isoformat(),
                 "status": "failed",
                 "error": str(e),
-                "pipeline_version": "2.3.3-expert-admin-debug",
+                "pipeline_version": "2.4.0-expert-identity-first",
             }, merge=True)
         except Exception:
             pass
@@ -2385,14 +2532,14 @@ def admin_test_generate():
 def health():
     return ok({
         "status":    "healthy",
-        "version":   "2.3.3-expert-admin-debug",
+        "version":   "2.4.0-expert-identity-first",
         "timestamp": datetime.utcnow().isoformat(),
         "lora_ready": bool(CFG["FAL_LORA_URL"]),
     })
 
 @app.route("/", methods=["GET"])
 def root():
-    return ok({"service": "Caricature API", "version": "2.3.3-expert-admin-debug", "docs": "/health"})
+    return ok({"service": "Caricature API", "version": "2.4.0-expert-identity-first", "docs": "/health"})
 
 
 if __name__ == "__main__":
