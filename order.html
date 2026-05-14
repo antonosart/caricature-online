@@ -2,134 +2,144 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Order Your Caricature — Caricature.online</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Order — Caricature.online</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://js.stripe.com/v3/"></script>
 <style>
-:root{--obsidian:#0f0d0a;--charcoal:#1c1814;--ink:#2a2420;--parchment:#f8f0e3;--cream:#fdf9f4;--gold:#c8792a;--gold-l:#e8932e;--gold-pale:#f5e6d0;--muted:#8a7968;--border:#e8ddd0;--success:#2d7a4f;--warning:#b45309;--error:#c0392b;--display:"Cormorant Garamond",Georgia,serif;--body:"Outfit",sans-serif;--r:12px;}
+:root{--obsidian:#0f0d0a;--ink:#2a2420;--cream:#fdf9f4;--gold:#c8792a;--gold-l:#e8932e;--gold-pale:#f5e6d0;--muted:#8a7968;--border:#e8ddd0;--success:#2d7a4f;--warning:#b45309;--error:#c0392b;--display:"Cormorant Garamond",Georgia,serif;--body:"Outfit",sans-serif;--r:12px;}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-html{scroll-behavior:smooth;}
-body{font-family:var(--body);background:var(--cream);color:var(--ink);min-height:100vh;font-size:16px;}
+body{font-family:var(--body);background:var(--cream);color:var(--ink);min-height:100vh;}
 a{color:inherit;text-decoration:none;}
 button{font-family:var(--body);cursor:pointer;border:none;outline:none;}
-input,textarea,select{font-family:var(--body);outline:none;font-size:15px;}
+input,textarea{font-family:var(--body);font-size:15px;outline:none;}
 .nav{position:fixed;top:0;left:0;right:0;z-index:100;background:var(--obsidian);height:60px;display:flex;align-items:center;padding:0 24px;justify-content:space-between;}
-.nav-logo{font-family:var(--display);font-size:22px;font-weight:700;color:var(--parchment);}
+.nav-logo{font-family:var(--display);font-size:22px;font-weight:700;color:#f8f0e3;}
 .nav-logo span{color:var(--gold);}
-.nav-back{font-size:14px;color:rgba(255,255,255,.5);transition:color .2s;}
+.nav-back{font-size:14px;color:rgba(255,255,255,.5);}
 .nav-back:hover{color:var(--gold);}
 .page{padding-top:60px;min-height:100vh;}
 .container{max-width:780px;margin:0 auto;padding:40px 20px;}
-.progress{display:flex;align-items:center;margin-bottom:48px;gap:0;background:white;border:1px solid var(--border);border-radius:99px;padding:5px;overflow:hidden;}
-.prog-step{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 6px;border-radius:99px;font-size:12px;font-weight:600;color:var(--muted);transition:all .3s;white-space:nowrap;}
-.prog-step.active{background:var(--obsidian);color:white;}
-.prog-step.done{color:var(--gold);}
-.prog-step .pn{width:20px;height:20px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;}
-.prog-step.active .pn{background:var(--gold);color:white;}
-.prog-step.done .pn{background:var(--gold-pale);color:var(--gold);}
-@media(max-width:600px){.prog-step span:not(.pn){display:none;}.prog-step{flex:0 0 auto;padding:9px;}}
-.screen{display:none;animation:fadeIn .3s ease;}
+.progress{display:flex;align-items:center;margin-bottom:48px;background:white;border:1px solid var(--border);border-radius:99px;padding:5px;overflow:hidden;}
+.ps{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 6px;border-radius:99px;font-size:12px;font-weight:600;color:var(--muted);transition:all .3s;white-space:nowrap;}
+.ps.active{background:var(--obsidian);color:white;}
+.ps.done{color:var(--gold);}
+.pn{width:20px;height:20px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;}
+.ps.active .pn{background:var(--gold);color:white;}
+.ps.done .pn{background:var(--gold-pale);color:var(--gold);}
+@media(max-width:600px){.ps span:not(.pn){display:none;}.ps{flex:0 0 auto;padding:9px;}}
+.screen{display:none;animation:fi .3s ease;}
 .screen.active{display:block;}
-@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .card{background:white;border:1px solid var(--border);border-radius:var(--r);padding:32px;}
-.card-title{font-family:var(--display);font-size:34px;font-weight:600;line-height:1.1;margin-bottom:8px;}
-.card-title em{color:var(--gold);font-style:italic;}
-.card-sub{font-size:15px;color:var(--muted);margin-bottom:28px;line-height:1.6;}
-.label-tag{font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:18px;display:block;}
-.path-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:8px;}
+.ct{font-family:var(--display);font-size:34px;font-weight:600;line-height:1.1;margin-bottom:8px;}
+.ct em{color:var(--gold);font-style:italic;}
+.cs{font-size:15px;color:var(--muted);margin-bottom:28px;line-height:1.6;}
+.lt{font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:18px;display:block;}
+/* PATH */
+.path-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
 @media(max-width:500px){.path-grid{grid-template-columns:1fr;}}
-.path-card{border:2px solid var(--border);border-radius:var(--r);padding:28px 24px;text-align:center;cursor:pointer;transition:all .25s;background:var(--cream);position:relative;overflow:hidden;}
-.path-card:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:0 8px 24px rgba(200,121,42,.12);}
-.path-card.selected{border-color:var(--gold);background:var(--gold-pale);}
-.path-icon{font-size:44px;margin-bottom:12px;}
-.path-name{font-family:var(--display);font-size:22px;font-weight:700;margin-bottom:6px;}
-.path-desc{font-size:13px;color:var(--muted);line-height:1.6;}
-.path-badge{position:absolute;top:12px;right:12px;background:var(--gold);color:white;font-size:10px;font-weight:700;padding:3px 10px;border-radius:99px;letter-spacing:.5px;}
-.occasion-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
-@media(min-width:500px){.occasion-grid{grid-template-columns:repeat(3,1fr);}}
-.occasion-card{border:2px solid var(--border);border-radius:var(--r);padding:20px 14px;text-align:center;cursor:pointer;transition:all .2s;background:var(--cream);}
-.occasion-card:hover,.occasion-card.selected{border-color:var(--gold);background:var(--gold-pale);}
-.occasion-emoji{font-size:34px;margin-bottom:8px;}
-.occasion-name{font-size:15px;font-weight:700;}
-.occasion-desc{font-size:12px;color:var(--muted);margin-top:2px;}
-.template-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-height:500px;overflow-y:auto;padding-right:4px;margin-bottom:8px;}
-@media(min-width:500px){.template-grid{grid-template-columns:repeat(4,1fr);}}
-.template-card{border:2px solid var(--border);border-radius:10px;text-align:center;cursor:pointer;transition:all .2s;background:var(--cream);aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px;overflow:hidden;position:relative;}
-.template-card:hover{border-color:var(--gold);transform:scale(1.03);}
-.template-card.selected{border-color:var(--gold);box-shadow:0 0 0 3px rgba(200,121,42,.3);}
-.template-card img{width:100%;height:100%;object-fit:cover;border-radius:7px;position:absolute;top:0;left:0;}
-.template-card-overlay{position:absolute;inset:0;border-radius:7px;background:linear-gradient(to top,rgba(0,0,0,.75) 0%,transparent 55%);opacity:0;transition:opacity .2s;}
-.template-card:hover .template-card-overlay,.template-card.selected .template-card-overlay{opacity:1;}
-.template-card-info{position:absolute;bottom:0;left:0;right:0;padding:8px;z-index:2;}
-.template-name-card{font-size:11px;font-weight:600;line-height:1.2;color:white;text-shadow:0 1px 3px rgba(0,0,0,.5);}
-.template-persons-badge{position:absolute;top:5px;right:5px;z-index:3;background:rgba(200,121,42,.9);color:white;font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;}
-.template-emoji-fb{font-size:26px;margin-bottom:4px;}
-.template-name-fb{font-size:11px;font-weight:600;color:var(--ink);}
-.form-group{margin-bottom:20px;}
-.form-group label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;letter-spacing:.5px;text-transform:uppercase;}
-.form-input{width:100%;padding:13px 14px;background:var(--cream);border:1px solid var(--border);border-radius:8px;color:var(--ink);font-size:15px;transition:border-color .2s;}
-.form-input:focus{border-color:var(--gold);background:white;}
-.form-input::placeholder{color:var(--muted);}
-textarea.form-input{resize:vertical;min-height:100px;}
-.persons-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
-@media(max-width:560px){.persons-grid{grid-template-columns:repeat(3,1fr);}}
-.person-btn{border:2px solid var(--border);border-radius:10px;padding:16px 8px;text-align:center;cursor:pointer;transition:all .2s;background:var(--cream);}
-.person-btn:hover,.person-btn.selected{border-color:var(--gold);background:var(--gold-pale);}
-.person-btn-count{font-family:var(--display);font-size:26px;font-weight:700;color:var(--gold);}
-.person-btn-label{font-size:12px;color:var(--muted);margin-top:2px;}
-.person-section{background:var(--cream);border:1px solid var(--border);border-radius:var(--r);padding:22px;margin-bottom:20px;}
-.person-section-title{font-family:var(--display);font-size:20px;font-weight:700;color:var(--gold);margin-bottom:16px;}
-.photos-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-.upload-zone{border:2px dashed var(--border);border-radius:var(--r);padding:22px 14px;text-align:center;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;min-height:140px;}
-.upload-zone:hover{border-color:var(--gold);background:var(--gold-pale);}
-.upload-zone.has-file{border-color:var(--gold);border-style:solid;background:var(--gold-pale);}
-.upload-zone.uploading{opacity:.7;pointer-events:none;}
-.upload-zone.upload-error{border-color:var(--error);background:#fff5f5;}
-.upload-icon-d{font-size:28px;margin-bottom:6px;}
-.upload-label-d{font-size:13px;font-weight:600;margin-bottom:3px;}
-.upload-hint-d{font-size:11px;color:var(--muted);}
-.upload-preview{width:100%;max-height:120px;object-fit:cover;border-radius:8px;margin-bottom:6px;display:none;}
-.upload-status{font-size:12px;font-weight:700;margin-top:4px;min-height:18px;}
-.upload-status.ok{color:var(--success);}
-.upload-status.warn{color:var(--warning);}
-.upload-status.err{color:var(--error);}
-input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;}
+.path-card{border:2px solid var(--border);border-radius:var(--r);padding:28px 24px;text-align:center;cursor:pointer;transition:all .25s;background:var(--cream);position:relative;}
+.path-card:hover{border-color:var(--gold);transform:translateY(-2px);}
+.path-card.sel{border-color:var(--gold);background:var(--gold-pale);}
+.pi{font-size:44px;margin-bottom:12px;}
+.pname{font-family:var(--display);font-size:22px;font-weight:700;margin-bottom:6px;}
+.pdesc{font-size:13px;color:var(--muted);line-height:1.6;}
+.pbadge{position:absolute;top:12px;right:12px;background:var(--gold);color:white;font-size:10px;font-weight:700;padding:3px 10px;border-radius:99px;}
+/* OCCASION */
+.occ-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
+@media(min-width:500px){.occ-grid{grid-template-columns:repeat(3,1fr);}}
+.occ{border:2px solid var(--border);border-radius:var(--r);padding:20px 14px;text-align:center;cursor:pointer;transition:all .2s;background:var(--cream);}
+.occ:hover,.occ.sel{border-color:var(--gold);background:var(--gold-pale);}
+.oe{font-size:34px;margin-bottom:8px;}
+.on{font-size:15px;font-weight:700;}
+.od{font-size:12px;color:var(--muted);margin-top:2px;}
+/* PERSONS */
+.per-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
+@media(max-width:560px){.per-grid{grid-template-columns:repeat(3,1fr);}}
+.per-btn{border:2px solid var(--border);border-radius:10px;padding:16px 8px;text-align:center;cursor:pointer;transition:all .2s;background:var(--cream);}
+.per-btn:hover,.per-btn.sel{border-color:var(--gold);background:var(--gold-pale);}
+.per-n{font-family:var(--display);font-size:26px;font-weight:700;color:var(--gold);}
+.per-l{font-size:11px;color:var(--muted);margin-top:2px;}
+/* TEMPLATE */
+.tmpl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-height:500px;overflow-y:auto;margin-bottom:8px;}
+@media(min-width:500px){.tmpl-grid{grid-template-columns:repeat(4,1fr);}}
+.tc{border:2px solid var(--border);border-radius:10px;cursor:pointer;transition:all .2s;aspect-ratio:1;overflow:hidden;position:relative;background:var(--cream);}
+.tc:hover{border-color:var(--gold);transform:scale(1.03);}
+.tc.sel{border-color:var(--gold);box-shadow:0 0 0 3px rgba(200,121,42,.3);}
+.tc img{width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;}
+.tc-ov{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.75) 0%,transparent 55%);opacity:0;transition:opacity .2s;}
+.tc:hover .tc-ov,.tc.sel .tc-ov{opacity:1;}
+.tc-info{position:absolute;bottom:0;left:0;right:0;padding:8px;z-index:2;}
+.tc-name{font-size:11px;font-weight:600;color:white;text-shadow:0 1px 3px rgba(0,0,0,.5);}
+.tc-badge{position:absolute;top:5px;right:5px;z-index:3;background:rgba(200,121,42,.9);color:white;font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;}
+.tc-em{font-size:26px;margin-bottom:4px;text-align:center;padding-top:24px;}
+/* FORM */
+.fg{margin-bottom:20px;}
+.fg label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;letter-spacing:.5px;text-transform:uppercase;}
+.fi{width:100%;padding:13px 14px;background:var(--cream);border:1px solid var(--border);border-radius:8px;color:var(--ink);font-size:15px;transition:border-color .2s;}
+.fi:focus{border-color:var(--gold);background:white;}
+.fi::placeholder{color:var(--muted);}
+textarea.fi{resize:vertical;min-height:100px;}
+/* PHOTOS */
+.person-sec{background:var(--cream);border:1px solid var(--border);border-radius:var(--r);padding:22px;margin-bottom:20px;}
+.person-sec-title{font-family:var(--display);font-size:20px;font-weight:700;color:var(--gold);margin-bottom:16px;}
+.photo-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.uz{border:2px dashed var(--border);border-radius:var(--r);padding:22px 14px;text-align:center;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;min-height:140px;}
+.uz:hover{border-color:var(--gold);background:var(--gold-pale);}
+.uz.has{border-color:var(--gold);border-style:solid;background:var(--gold-pale);}
+.uz.busy{opacity:.7;pointer-events:none;}
+.uz.bad{border-color:var(--error);background:#fff5f5;}
+.uz-icon{font-size:28px;margin-bottom:6px;}
+.uz-label{font-size:13px;font-weight:600;margin-bottom:3px;}
+.uz-hint{font-size:11px;color:var(--muted);}
+.uz-prev{width:100%;max-height:120px;object-fit:cover;border-radius:8px;margin-bottom:6px;display:none;}
+.uz-st{font-size:12px;font-weight:700;margin-top:4px;min-height:18px;}
+.uz-st.ok{color:var(--success);}
+.uz-st.warn{color:var(--warning);}
+.uz-st.err{color:var(--error);}
+input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
 .photo-tip{font-size:12px;color:var(--muted);background:var(--gold-pale);border:1px solid var(--gold);border-radius:8px;padding:10px 14px;margin-bottom:16px;line-height:1.6;}
+.qa{border-radius:8px;padding:12px 14px;font-size:13px;margin-top:8px;line-height:1.6;}
+.qa.warn{background:#fffbeb;border:1px solid #fde68a;color:#92400e;}
+.qa.err{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;}
+/* PLANS */
 .plan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;}
 @media(max-width:500px){.plan-grid{grid-template-columns:1fr;}}
-.plan-card{border:2px solid var(--border);border-radius:var(--r);padding:24px 16px;cursor:pointer;transition:all .2s;background:var(--cream);position:relative;}
-.plan-card:hover,.plan-card.selected{border-color:var(--gold);background:var(--gold-pale);}
-.plan-badge{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:var(--gold);color:white;font-size:10px;font-weight:700;padding:3px 12px;border-radius:99px;letter-spacing:1px;white-space:nowrap;}
+.plan-c{border:2px solid var(--border);border-radius:var(--r);padding:24px 16px;cursor:pointer;transition:all .2s;background:var(--cream);position:relative;}
+.plan-c:hover,.plan-c.sel{border-color:var(--gold);background:var(--gold-pale);}
+.plan-badge{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:var(--gold);color:white;font-size:10px;font-weight:700;padding:3px 12px;border-radius:99px;white-space:nowrap;}
 .plan-name{font-size:15px;font-weight:700;margin-bottom:4px;}
 .plan-price{font-family:var(--display);font-size:30px;font-weight:700;color:var(--gold);}
 .plan-desc{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5;}
-.order-summary{background:var(--cream);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:24px;}
-.sum-row{display:flex;justify-content:space-between;font-size:14px;color:var(--muted);padding:7px 0;border-bottom:1px solid var(--border);}
-.sum-row:last-child{border-bottom:none;color:var(--ink);font-weight:700;font-size:16px;}
-.sum-val{color:var(--ink);font-weight:600;}
-#card-element{background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:14px;transition:border-color .2s;}
+/* SUMMARY */
+.summary{background:var(--cream);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:24px;}
+.sr{display:flex;justify-content:space-between;font-size:14px;color:var(--muted);padding:7px 0;border-bottom:1px solid var(--border);}
+.sr:last-child{border-bottom:none;color:var(--ink);font-weight:700;font-size:16px;}
+.sv{color:var(--ink);font-weight:600;}
+#card-element{background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:14px;}
 #card-element.StripeElement--focus{border-color:var(--gold);}
-#card-error{color:var(--error);font-size:14px;margin-top:8px;min-height:20px;}
-.pay-btn{width:100%;padding:18px;border-radius:8px;background:var(--gold);color:white;font-size:17px;font-weight:700;margin-top:20px;transition:all .2s;letter-spacing:.3px;}
+#cerr{color:var(--error);font-size:14px;margin-top:8px;min-height:20px;}
+.pay-btn{width:100%;padding:18px;border-radius:8px;background:var(--gold);color:white;font-size:17px;font-weight:700;margin-top:20px;transition:background .2s;letter-spacing:.3px;}
 .pay-btn:hover:not(:disabled){background:var(--gold-l);}
 .pay-btn:disabled{opacity:.6;cursor:not-allowed;}
-.pay-notice{font-size:12px;color:var(--muted);text-align:center;margin-top:12px;line-height:1.6;}
+.pay-notice{font-size:12px;color:var(--muted);text-align:center;margin-top:12px;}
+/* BUTTONS */
 .btn-row{display:flex;gap:12px;margin-top:28px;}
 .btn-back{flex:0 0 auto;padding:14px 24px;border-radius:8px;border:1px solid var(--border);background:white;font-size:15px;font-weight:600;color:var(--muted);transition:all .2s;}
 .btn-back:hover{border-color:var(--gold);color:var(--gold);}
-.btn-next{flex:1;padding:15px 28px;border-radius:8px;background:var(--obsidian);color:white;font-size:16px;font-weight:700;transition:all .2s;}
-.btn-next:hover:not(:disabled){background:var(--charcoal);}
+.btn-next{flex:1;padding:15px 28px;border-radius:8px;background:var(--obsidian);color:white;font-size:16px;font-weight:700;transition:background .2s;}
+.btn-next:hover:not(:disabled){background:#1c1814;}
 .btn-next:disabled{opacity:.5;cursor:not-allowed;}
-.alert-info{border-radius:8px;padding:14px 16px;font-size:13px;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;margin-bottom:16px;line-height:1.6;}
-.spinner{display:inline-block;width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:8px;}
-@keyframes spin{to{transform:rotate(360deg)}}
+.alert-tip{border-radius:8px;padding:14px 16px;font-size:13px;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;margin-bottom:16px;line-height:1.6;}
+.spin{display:inline-block;width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:white;border-radius:50%;animation:sp .7s linear infinite;vertical-align:middle;margin-right:8px;}
+@keyframes sp{to{transform:rotate(360deg)}}
 .success-page{text-align:center;padding:60px 20px;}
 .success-icon{font-size:72px;margin-bottom:24px;animation:pop .5s ease;}
 @keyframes pop{0%{transform:scale(0)}80%{transform:scale(1.1)}100%{transform:scale(1)}}
 .success-title{font-family:var(--display);font-size:42px;font-weight:700;margin-bottom:12px;}
 .success-title em{color:var(--gold);}
-.success-sub{font-size:16px;color:var(--muted);line-height:1.7;max-width:480px;margin:0 auto 32px;}
+.success-sub{font-size:16px;color:var(--muted);line-height:1.7;max-width:480px;margin:0 auto;}
 </style>
 </head>
 <body>
@@ -139,596 +149,756 @@ input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;}
 </nav>
 <div class="page"><div class="container">
 
-<div class="progress" id="progressBar">
-  <div class="prog-step active" id="ps1"><span class="pn">1</span><span>Style</span></div>
-  <div class="prog-step" id="ps2"><span class="pn">2</span><span>Occasion</span></div>
-  <div class="prog-step" id="ps3"><span class="pn">3</span><span>Persons</span></div>
-  <div class="prog-step" id="ps4"><span class="pn">4</span><span>Design</span></div>
-  <div class="prog-step" id="ps5"><span class="pn">5</span><span>Photos</span></div>
-  <div class="prog-step" id="ps6"><span class="pn">6</span><span>Pay</span></div>
+<div class="progress" id="prog">
+  <div class="ps active" id="ps1"><span class="pn">1</span><span>Style</span></div>
+  <div class="ps" id="ps2"><span class="pn">2</span><span>Occasion</span></div>
+  <div class="ps" id="ps3"><span class="pn">3</span><span>Persons</span></div>
+  <div class="ps" id="ps4"><span class="pn">4</span><span>Design</span></div>
+  <div class="ps" id="ps5"><span class="pn">5</span><span>Photos</span></div>
+  <div class="ps" id="ps6"><span class="pn">6</span><span>Pay</span></div>
 </div>
 
-<!-- STEP 1: PATH -->
-<div class="screen active" id="screen1">
+<!-- S1: PATH -->
+<div class="screen active" id="s1">
 <div class="card">
-  <div class="card-title">Create Your <em>Caricature</em></div>
-  <div class="card-sub">Choose how to personalise your art.</div>
-  <span class="label-tag">Select your path</span>
+  <div class="ct">Create Your <em>Caricature</em></div>
+  <div class="cs">Choose how to personalise your art.</div>
+  <span class="lt">Select your path</span>
   <div class="path-grid">
-    <div class="path-card" id="path-template" onclick="selectPath('template')">
-      <div class="path-icon">🎨</div>
-      <div class="path-name">Pick a Template</div>
-      <div class="path-desc">Choose from 60+ professional scenes. The template background is used as the base — we place your face on it.</div>
+    <div class="path-card" id="pt-template">
+      <div class="pi">🎨</div>
+      <div class="pname">Pick a Template</div>
+      <div class="pdesc">Choose from 60+ professional scenes. Your face is placed on the template background.</div>
     </div>
-    <div class="path-card" id="path-free" onclick="selectPath('free')">
-      <div class="path-badge">CREATIVE</div>
-      <div class="path-icon">✏️</div>
-      <div class="path-name">Describe Your Own</div>
-      <div class="path-desc">Describe any scene you can imagine. Full creative freedom — any background, theme, or setting.</div>
+    <div class="path-card" id="pt-free">
+      <div class="pbadge">CREATIVE</div>
+      <div class="pi">✏️</div>
+      <div class="pname">Describe Your Own</div>
+      <div class="pdesc">Describe any scene you imagine. Full creative freedom — any background or theme.</div>
     </div>
   </div>
-  <div class="btn-row"><button class="btn-next" id="btn1" onclick="goTo(2)" disabled>Continue →</button></div>
+  <div class="btn-row"><button class="btn-next" id="btn1" disabled>Continue →</button></div>
 </div>
 </div>
 
-<!-- STEP 2: OCCASION -->
-<div class="screen" id="screen2">
+<!-- S2: OCCASION -->
+<div class="screen" id="s2">
 <div class="card">
-  <div class="card-title">What's the <em>Occasion?</em></div>
-  <div class="card-sub">This filters the right templates and style.</div>
-  <span class="label-tag">Select occasion</span>
-  <div class="occasion-grid" id="occasionGrid"></div>
+  <div class="ct">What's the <em>Occasion?</em></div>
+  <div class="cs">This helps us find the right style.</div>
+  <span class="lt">Select occasion</span>
+  <div class="occ-grid" id="occGrid"></div>
   <div class="btn-row">
-    <button class="btn-back" onclick="goTo(1)">Back</button>
-    <button class="btn-next" id="btn2" onclick="goTo(S.flow==='template'?4:3)" disabled>Continue →</button>
+    <button class="btn-back" id="s2back">Back</button>
+    <button class="btn-next" id="btn2" disabled>Continue →</button>
   </div>
 </div>
 </div>
 
-<!-- STEP 3: PERSONS -->
-<div class="screen" id="screen3">
+<!-- S3: PERSONS (Flow A only) -->
+<div class="screen" id="s3">
 <div class="card">
-  <div class="card-title">How Many <em>People?</em></div>
-  <div class="card-sub">We ask for 2 photos per person for better likeness.</div>
-  <span class="label-tag">Number of persons</span>
-  <div class="persons-grid">
-    <div class="person-btn" id="pb1" onclick="selectPersons(this,'1')"><div class="person-btn-count">1</div><div class="person-btn-label">person</div></div>
-    <div class="person-btn" id="pb2" onclick="selectPersons(this,'2')"><div class="person-btn-count">2</div><div class="person-btn-label">people +€5</div></div>
-    <div class="person-btn" id="pb3" onclick="selectPersons(this,'3')"><div class="person-btn-count">3</div><div class="person-btn-label">people +€10</div></div>
-    <div class="person-btn" id="pb4" onclick="selectPersons(this,'4')"><div class="person-btn-count">4</div><div class="person-btn-label">people +€15</div></div>
-    <div class="person-btn" id="pb5" onclick="selectPersons(this,'5')"><div class="person-btn-count">5</div><div class="person-btn-label">people +€20</div></div>
-  </div>
+  <div class="ct">How Many <em>People?</em></div>
+  <div class="cs">We ask for 2 photos per person for the best result.</div>
+  <span class="lt">Number of persons</span>
+  <div class="per-grid" id="perGrid"></div>
   <div class="btn-row">
     <button class="btn-back" onclick="goTo(2)">Back</button>
-    <button class="btn-next" id="btn3" onclick="goTo(4)" disabled>Continue →</button>
+    <button class="btn-next" id="btn3" disabled>Continue →</button>
   </div>
 </div>
 </div>
 
-<!-- STEP 4T: TEMPLATE -->
-<div class="screen" id="screen4template">
+<!-- S4T: TEMPLATE -->
+<div class="screen" id="s4t">
 <div class="card">
-  <div class="card-title">Choose Your <em>Template</em></div>
-  <div class="card-sub">Your face will be placed on the selected scene using AI image-to-image generation.</div>
-  <span class="label-tag">Templates for <span id="occasionLabel">—</span></span>
-  <div class="template-grid" id="templateGrid"></div>
+  <div class="ct">Choose Your <em>Template</em></div>
+  <div class="cs">Your face will be placed on this scene using AI image-to-image generation.</div>
+  <span class="lt">Templates for <span id="occLabel">—</span></span>
+  <div class="tmpl-grid" id="tmplGrid"></div>
   <div class="btn-row">
-    <button class="btn-back" onclick="goTo(prevStep(4))">Back</button>
-    <button class="btn-next" id="btn4t" onclick="goTo(5)" disabled>Continue →</button>
+    <button class="btn-back" onclick="goTo(2)">Back</button>
+    <button class="btn-next" id="btn4t" disabled>Continue →</button>
   </div>
 </div>
 </div>
 
-<!-- STEP 4F: FREE -->
-<div class="screen" id="screen4free">
+<!-- S4F: FREE DESCRIPTION -->
+<div class="screen" id="s4f">
 <div class="card">
-  <div class="card-title">Describe Your <em>Scene</em></div>
-  <div class="card-sub">The more detail you give, the better the result.</div>
-  <div class="alert-info">
-    💡 <strong>Example:</strong> "Santa Claus carrying a big red bag of gifts, snowy blue night sky with stars and snowflakes, bright festive colours, the person is smiling and carrying the bag over the shoulder"
-  </div>
-  <div class="form-group">
+  <div class="ct">Describe Your <em>Scene</em></div>
+  <div class="cs">The more detail you give, the better the result.</div>
+  <div class="alert-tip">💡 <strong>Example:</strong> "Santa Claus carrying a big red bag of gifts, snowy blue night sky, bright festive colours, cheerful mood"</div>
+  <div class="fg">
     <label>Scene description *</label>
-    <textarea class="form-input" id="sceneDescription" rows="5"
-      placeholder="Describe the scene, background, what the person is doing, props, clothing, mood..."
-      oninput="checkDesc()"></textarea>
-    <div id="descCount" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>
+    <textarea class="fi" id="descTxt" rows="5" placeholder="Describe the scene, background, what the person is doing, props, clothing, mood..."></textarea>
+    <div id="descHint" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>
   </div>
-  <div class="form-group">
+  <div class="fg">
     <label>Extra notes (optional)</label>
-    <input type="text" class="form-input" id="extraNotes" placeholder="Any special requests, personalisation...">
+    <input type="text" class="fi" id="notesTxt" placeholder="Any special requests, personalisation...">
   </div>
   <div class="btn-row">
     <button class="btn-back" onclick="goTo(3)">Back</button>
-    <button class="btn-next" id="btn4f" onclick="goTo(5)" disabled>Continue →</button>
+    <button class="btn-next" id="btn4f" disabled>Continue →</button>
   </div>
 </div>
 </div>
 
-<!-- STEP 5: PHOTOS -->
-<div class="screen" id="screen5">
+<!-- S5: PHOTOS -->
+<div class="screen" id="s5">
 <div class="card">
-  <div class="card-title">Upload <em>Photos</em></div>
-  <div class="card-sub">2 photos per person gives us the best facial reference for your caricature.</div>
-  <div class="photo-tip">
-    📸 <strong>Best results:</strong> Clear face, good lighting, front or slight angle.<br>
-    Upload 2 different shots (eg. smiling + neutral) for better likeness.<br>
-    <strong>Avoid:</strong> Sunglasses, very small face, dark or backlit photos.
-  </div>
-  <div id="personSections"></div>
+  <div class="ct">Upload <em>Photos</em></div>
+  <div class="cs">2 photos per person gives us the best facial reference.</div>
+  <div class="photo-tip">📸 <strong>Best results:</strong> Clear face, good lighting, front or slight angle.<br>
+  <strong>Avoid:</strong> Sunglasses, very small face, dark or backlit photos.</div>
+  <div id="personSecs"></div>
   <div class="btn-row">
-    <button class="btn-back" id="btn5back">Back</button>
-    <button class="btn-next" id="btn5" onclick="goTo(6)" disabled>Continue →</button>
+    <button class="btn-back" id="s5back">Back</button>
+    <button class="btn-next" id="btn5" disabled>Continue →</button>
   </div>
 </div>
 </div>
 
-<!-- STEP 6: PAY -->
-<div class="screen" id="screen6">
+<!-- S6: PAY -->
+<div class="screen" id="s6">
 <div class="card">
-  <div class="card-title">Almost <em>Done!</em></div>
-  <div class="card-sub">Choose your plan and complete your order.</div>
-  <span class="label-tag">Plan</span>
+  <div class="ct">Almost <em>Done!</em></div>
+  <div class="cs">Choose your plan and complete your order.</div>
+  <span class="lt">Plan</span>
   <div class="plan-grid" id="planGrid"></div>
-  <div class="order-summary" id="orderSummary"></div>
-  <span class="label-tag">Your details</span>
-  <div class="form-group">
-    <label>Full name</label>
-    <input type="text" class="form-input" id="nameInput" placeholder="Your name" oninput="checkPay()">
-  </div>
-  <div class="form-group">
-    <label>Email address</label>
-    <input type="email" class="form-input" id="emailInput" placeholder="your@email.com" oninput="checkPay()">
-  </div>
-  <span class="label-tag" style="margin-top:20px;">Payment</span>
+  <div class="summary" id="summaryEl"></div>
+  <span class="lt">Your details</span>
+  <div class="fg"><label>Full name</label><input type="text" class="fi" id="nameIn" placeholder="Your name"></div>
+  <div class="fg"><label>Email</label><input type="email" class="fi" id="emailIn" placeholder="your@email.com"></div>
+  <span class="lt" style="margin-top:20px;">Payment</span>
   <div id="card-element"></div>
-  <div id="card-error"></div>
+  <div id="cerr"></div>
   <button class="pay-btn" id="payBtn" disabled>🎨 Complete Order</button>
-  <p class="pay-notice">Secured by Stripe · Results emailed in 60–90 seconds</p>
+  <p class="pay-notice">🔒 Secured by Stripe · Results emailed in 60–90 seconds</p>
   <div class="btn-row" style="margin-top:16px;"><button class="btn-back" onclick="goTo(5)">Back</button></div>
 </div>
 </div>
 
 <!-- SUCCESS -->
-<div class="screen" id="screenSuccess">
+<div class="screen" id="sSuccess">
 <div class="success-page">
   <div class="success-icon">🎨</div>
   <div class="success-title">Your Caricature is <em>Being Created!</em></div>
-  <div class="success-sub">We are generating your Antonos-style caricature right now. Check your email in 60–90 seconds.</div>
-  <div id="successOrderId" style="font-size:13px;color:var(--muted);margin-top:8px;"></div>
+  <div class="success-sub">We're generating your Antonos-style caricature right now. Check your email in 60–90 seconds.</div>
+  <div id="orderId" style="font-size:13px;color:var(--muted);margin-top:12px;"></div>
 </div>
 </div>
 
-</div></div><!-- /container /page -->
+</div></div>
 
 <script>
-const API_URL = 'https://caricature-api-52458434183.us-central1.run.app';
-const OCCASIONS = [
-  {id:'wedding',  emoji:'💒', name:'Wedding',   desc:'For the happy couple'},
-  {id:'birthday', emoji:'🎂', name:'Birthday',  desc:'Celebrate in style'},
-  {id:'business', emoji:'💼', name:'Business',  desc:'Professional & fun'},
-  {id:'kids',     emoji:'🧸', name:'Kids',      desc:'For little ones'},
-  {id:'superhero',emoji:'🦸', name:'Superhero', desc:'Mighty caricatures'},
-  {id:'family',   emoji:'👨‍👩‍👧‍👦',name:'Family',   desc:'For everyone'},
-  {id:'sports',   emoji:'⚽', name:'Sports',    desc:'Active & energetic'},
-  {id:'other',    emoji:'✨', name:'Other',     desc:'Custom occasion'},
+// ═══════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════
+var API_URL = 'https://caricature-api-52458434183.us-central1.run.app';
+
+var OCCASIONS = [
+  {id:'wedding',   emoji:'💒', name:'Wedding',   desc:'For the happy couple'},
+  {id:'birthday',  emoji:'🎂', name:'Birthday',  desc:'Celebrate in style'},
+  {id:'business',  emoji:'💼', name:'Business',  desc:'Professional & fun'},
+  {id:'kids',      emoji:'🧸', name:'Kids',      desc:'For little ones'},
+  {id:'superhero', emoji:'🦸', name:'Superhero', desc:'Mighty caricatures'},
+  {id:'family',    emoji:'👨‍👩‍👧‍👦', name:'Family',   desc:'For everyone'},
+  {id:'sports',    emoji:'⚽', name:'Sports',    desc:'Active & energetic'},
+  {id:'other',     emoji:'✨', name:'Other',     desc:'Custom occasion'}
 ];
-const PERSON_EXTRA = {'1':0,'2':5,'3':10,'4':15,'5':20};
-const PLANS_DEF = {
-  standard:{name:'Standard',  base:14.99, desc:'Digital art · Email delivery'},
-  premium: {name:'Premium',   base:24.99, desc:'Free revision · Priority queue'},
-  gift:    {name:'Gift Pack', base:49.99, desc:'3 prints · 4K resolution'},
-};
-const S = {
-  flow:null, occasion:null, persons:null,
-  templateId:null, templateName:null,
-  description:'', notes:'',
-  plan:'standard', personUploads:[], step:1,
+
+var PERSONS_LIST = [
+  {val:'1', label:'1',   sub:'person'},
+  {val:'2', label:'2',   sub:'people +€5'},
+  {val:'3', label:'3',   sub:'people +€10'},
+  {val:'4', label:'4',   sub:'people +€15'},
+  {val:'5', label:'5',   sub:'people +€20'}
+];
+
+var PERSON_EXTRA = {1:0, 2:5, 3:10, 4:15, 5:20};
+
+var PLANS = [
+  {id:'standard', name:'Standard',  price:14.99, desc:'Digital art · Email delivery', popular:false},
+  {id:'premium',  name:'Premium',   price:24.99, desc:'Free revision · Priority queue', popular:true},
+  {id:'gift',     name:'Gift Pack', price:49.99, desc:'3 prints · 4K resolution', popular:false}
+];
+
+var QUALITY_TIPS = {
+  no_face:       'Upload a photo showing the face clearly — front-facing, not covered.',
+  backlit:       'Take the photo facing a light source. Avoid bright backgrounds behind the person.',
+  blurred:       'Use a sharp, in-focus photo. Try portrait mode on your phone.',
+  dark:          'Take the photo in good natural light or a well-lit room.',
+  face_too_small:'Use a closer shot where the face fills at least 1/3 of the image.',
+  multiple_faces:'Upload a photo with only the one person for this caricature.',
+  obstructed:    'Remove sunglasses, hats or anything covering the face.',
+  low_resolution:'Use a higher resolution photo — avoid compressed screenshots.'
 };
 
-// ── INIT ─────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', ()=>{
-  renderOccasions();
-  renderPlans();
+// ═══════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════
+var S = {
+  flow: null,
+  occasion: null,
+  persons: null,
+  templateId: null,
+  templateName: null,
+  description: '',
+  notes: '',
+  plan: 'standard',
+  personUploads: [],
+  step: 1
+};
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', function() {
+  buildOccasions();
+  buildPersons();
+  buildPlans();
   initStripe();
-  document.getElementById('btn5back').onclick = ()=> goTo(prevStep(5));
+
+  document.getElementById('pt-template').addEventListener('click', function() { selectPath('template'); });
+  document.getElementById('pt-free').addEventListener('click', function() { selectPath('free'); });
+  document.getElementById('btn1').addEventListener('click', function() { goTo(2); });
+  document.getElementById('btn2').addEventListener('click', function() {
+    goTo(S.flow === 'template' ? 4 : 3);
+  });
+  document.getElementById('s2back').addEventListener('click', function() { goTo(1); });
+  document.getElementById('btn3').addEventListener('click', function() { goTo(4); });
+  document.getElementById('btn4t').addEventListener('click', function() { goTo(5); });
+  document.getElementById('btn4f').addEventListener('click', function() { goTo(5); });
+  document.getElementById('s5back').addEventListener('click', function() {
+    goTo(S.flow === 'template' ? 4 : 3);
+  });
+  document.getElementById('descTxt').addEventListener('input', onDescInput);
+  document.getElementById('nameIn').addEventListener('input', checkPay);
+  document.getElementById('emailIn').addEventListener('input', checkPay);
+  document.getElementById('payBtn').addEventListener('click', handlePay);
 });
 
-async function initStripe(){
-  try{
-    const r = await fetch(`${API_URL}/api/pricing`);
-    const d = await r.json();
-    const stripe = Stripe(d.publishable_key || 'pk_test_REPLACE_ME');
-    const els = stripe.elements();
+async function initStripe() {
+  try {
+    var r = await fetch(API_URL + '/api/pricing');
+    var d = await r.json();
+    var stripe = Stripe(d.publishable_key || 'pk_test_REPLACE');
+    var els = stripe.elements();
     window._stripe = stripe;
-    const card = els.create('card',{style:{base:{fontFamily:"'Outfit',sans-serif",fontSize:'16px',color:'#2a2420'}}});
+    var card = els.create('card', {
+      style: { base: { fontFamily: "'Outfit',sans-serif", fontSize: '16px', color: '#2a2420' } }
+    });
     card.mount('#card-element');
-    card.on('change', e=>{
-      document.getElementById('card-error').textContent = e.error?e.error.message:'';
+    card.on('change', function(e) {
+      document.getElementById('cerr').textContent = e.error ? e.error.message : '';
       window._cardOk = e.complete;
       checkPay();
     });
     window._card = card;
-  }catch(e){console.warn('Stripe init:',e);}
+  } catch(e) { console.warn('Stripe init:', e); }
 }
 
-// ── NAVIGATION ───────────────────────────────────────────
-// Flow B skips Persons step — template defines person count
-// Flow A: 1→2→3→4→5→6  (Style→Occasion→Persons→Desc→Photos→Pay)
-// Flow B: 1→2→4→5→6     (Style→Occasion→Template→Photos→Pay)
-
-function nextStep(from){
-  if(S.flow==='template'){
-    const map = {1:2, 2:4, 4:5, 5:6};
-    return map[from] || from+1;
-  }
-  return from+1;
-}
-function prevStep(from){
-  if(S.flow==='template'){
-    const map = {2:1, 4:2, 5:4, 6:5};
-    return map[from] || from-1;
-  }
-  return from-1;
-}
-
-function goTo(step){
-  if(step > S.step){
-    if(step===2 && !S.flow) return;
-    if(step===3 && !S.occasion) return;
-    if(step===4){
-      // Flow A needs persons, Flow B needs occasion only
-      if(S.flow==='free' && !S.persons) return;
-      if(!S.occasion) return;
-    }
-    if(step===5){
-      if(S.flow==='template' && !S.templateId) return;
-      if(S.flow==='free' && S.description.trim().length < 20) return;
-    }
-    if(step===6 && !photosOk()) return;
-  }
-  const oldId = screenId(S.step);
-  document.getElementById(oldId)?.classList.remove('active');
+// ═══════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════
+function goTo(step) {
+  var old = screenId(S.step);
+  document.getElementById(old).classList.remove('active');
   S.step = step;
-  const newId = screenId(step);
-  document.getElementById(newId)?.classList.add('active');
+  var nw = screenId(step);
+  document.getElementById(nw).classList.add('active');
   updateProgress(step);
-  if(step===4) renderStep4();
-  if(step===5) renderPhotos();
-  if(step===6) renderPay();
-  window.scrollTo({top:0,behavior:'smooth'});
+  if (step === 4) onStep4();
+  if (step === 5) buildPhotoSections();
+  if (step === 6) onStep6();
+  window.scrollTo({top: 0, behavior: 'smooth'});
 }
 
-function updateProgress(step){
-  if(S.flow==='template'){
-    // Flow B: 5 steps — hide step 3 (Persons)
-    document.getElementById('ps3').style.display='none';
-    // Map real steps to visual positions
-    const active = {1:1, 2:2, 4:3, 5:4, 6:5}[step] || step;
-    const total  = [1,2,4,5,6];
-    total.forEach((realStep, idx) => {
-      const ps = document.getElementById(`ps${realStep}`);
-      if(!ps) return;
-      ps.classList.remove('active','done');
-      if(realStep===step) ps.classList.add('active');
-      else if(total.indexOf(realStep) < total.indexOf(step)) ps.classList.add('done');
-    });
-  } else {
-    document.getElementById('ps3').style.display='';
-    for(let i=1;i<=6;i++){
-      const p=document.getElementById(`ps${i}`);
-      if(!p) continue;
-      p.classList.remove('active','done');
-      if(i===step) p.classList.add('active');
-      else if(i<step) p.classList.add('done');
-    }
+function screenId(s) {
+  if (s === 4) return S.flow === 'template' ? 's4t' : 's4f';
+  if (s === 7) return 'sSuccess';
+  return 's' + s;
+}
+
+function updateProgress(step) {
+  var flowB = S.flow === 'template';
+  var ps3 = document.getElementById('ps3');
+  if (ps3) ps3.style.display = flowB ? 'none' : '';
+
+  var steps = flowB ? [1,2,4,5,6] : [1,2,3,4,5,6];
+  for (var i = 1; i <= 6; i++) {
+    var el = document.getElementById('ps' + i);
+    if (!el) continue;
+    el.classList.remove('active', 'done');
+    if (i === step) el.classList.add('active');
+    else if (steps.indexOf(i) < steps.indexOf(step) && steps.indexOf(i) >= 0) el.classList.add('done');
   }
 }
 
-function screenId(s){
-  if(s===4) return S.flow==='template'?'screen4template':'screen4free';
-  return `screen${s}`;
+// ═══════════════════════════════════════════════════════
+// STEP 1: PATH
+// ═══════════════════════════════════════════════════════
+function selectPath(p) {
+  S.flow = p;
+  document.getElementById('pt-template').classList.toggle('sel', p === 'template');
+  document.getElementById('pt-free').classList.toggle('sel', p === 'free');
+  document.getElementById('btn1').disabled = false;
 }
 
-// ── STEP 1 ────────────────────────────────────────────────
-function selectPath(p){
-  S.flow=p;
-  document.getElementById('path-template').classList.toggle('selected',p==='template');
-  document.getElementById('path-free').classList.toggle('selected',p==='free');
-  document.getElementById('btn1').disabled=false;
-  // Flow B: Step 1 Continue goes straight to Occasion (step 2)
+// ═══════════════════════════════════════════════════════
+// STEP 2: OCCASION
+// ═══════════════════════════════════════════════════════
+function buildOccasions() {
+  var grid = document.getElementById('occGrid');
+  OCCASIONS.forEach(function(o) {
+    var div = document.createElement('div');
+    div.className = 'occ';
+    div.id = 'occ-' + o.id;
+    div.innerHTML = '<div class="oe">' + o.emoji + '</div>' +
+                    '<div class="on">' + o.name + '</div>' +
+                    '<div class="od">' + o.desc + '</div>';
+    div.addEventListener('click', function() { pickOcc(o.id); });
+    grid.appendChild(div);
+  });
 }
 
-// ── STEP 2 ────────────────────────────────────────────────
-function renderOccasions(){
-  document.getElementById('occasionGrid').innerHTML =
-    OCCASIONS.map(o=>`<div class="occasion-card" id="occ-${o.id}" onclick="pickOcc('${o.id}','${o.name}')">
-      <div class="occasion-emoji">${o.emoji}</div>
-      <div class="occasion-name">${o.name}</div>
-      <div class="occasion-desc">${o.desc}</div>
-    </div>`).join('');
-}
-function pickOcc(id){
-  S.occasion=id;
-  document.querySelectorAll('.occasion-card').forEach(c=>c.classList.remove('selected'));
-  document.getElementById(`occ-${id}`)?.classList.add('selected');
-  document.getElementById('btn2').disabled=false;
+function pickOcc(id) {
+  S.occasion = id;
+  document.querySelectorAll('.occ').forEach(function(c) { c.classList.remove('sel'); });
+  var el = document.getElementById('occ-' + id);
+  if (el) el.classList.add('sel');
+  document.getElementById('btn2').disabled = false;
 }
 
-// ── STEP 3 ────────────────────────────────────────────────
-function selectPersons(el, val){
-  S.persons=val;
-  document.querySelectorAll('.person-btn').forEach(b=>b.classList.remove('selected'));
-  el.classList.add('selected');
-  document.getElementById('btn3').disabled=false;
+// ═══════════════════════════════════════════════════════
+// STEP 3: PERSONS (Flow A only)
+// ═══════════════════════════════════════════════════════
+function buildPersons() {
+  var grid = document.getElementById('perGrid');
+  PERSONS_LIST.forEach(function(p) {
+    var div = document.createElement('div');
+    div.className = 'per-btn';
+    div.id = 'per-' + p.val;
+    div.innerHTML = '<div class="per-n">' + p.label + '</div><div class="per-l">' + p.sub + '</div>';
+    div.addEventListener('click', (function(val) {
+      return function() { pickPersons(val); };
+    })(p.val));
+    grid.appendChild(div);
+  });
 }
 
-// ── STEP 4 ────────────────────────────────────────────────
-async function renderStep4(){
-  if(S.flow==='template'){
-    document.getElementById('occasionLabel').textContent = S.occasion;
-    await loadTemplates();
+function pickPersons(val) {
+  S.persons = val;
+  document.querySelectorAll('.per-btn').forEach(function(b) { b.classList.remove('sel'); });
+  var el = document.getElementById('per-' + val);
+  if (el) el.classList.add('sel');
+  document.getElementById('btn3').disabled = false;
+}
+
+// ═══════════════════════════════════════════════════════
+// STEP 4: TEMPLATE or FREE
+// ═══════════════════════════════════════════════════════
+function onStep4() {
+  if (S.flow === 'template') {
+    var lbl = document.getElementById('occLabel');
+    if (lbl) lbl.textContent = S.occasion || '—';
+    loadTemplates();
   }
 }
 
-async function loadTemplates(){
-  const grid = document.getElementById('templateGrid');
-  grid.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--muted)">Loading templates…</div>';
-  try{
-    const [tr, gr] = await Promise.all([
-      fetch(`${API_URL}/api/templates?occasion=${S.occasion}&persons=${S.persons}`),
-      fetch(`${API_URL}/api/gallery`)
-    ]);
-    const td = await tr.json();
-    const gd = await gr.json();
-    const tmpl = Object.entries(td.templates||{});
-    const gal  = gd.gallery||{};
-    if(!tmpl.length){
-      grid.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--muted)">No templates for this occasion. Try another occasion or use Describe Your Own.</div>';
+async function loadTemplates() {
+  var grid = document.getElementById('tmplGrid');
+  grid.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--muted)">Loading templates...</div>';
+  try {
+    var persons = S.persons || '1';
+    var r1 = await fetch(API_URL + '/api/templates?occasion=' + S.occasion + '&persons=' + persons);
+    var r2 = await fetch(API_URL + '/api/gallery');
+    var td = await r1.json();
+    var gd = await r2.json();
+    var entries = Object.entries(td.templates || {});
+    var gal = gd.gallery || {};
+
+    if (!entries.length) {
+      grid.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--muted)">No templates found. Try another occasion or use Describe Your Own.</div>';
       return;
     }
-    grid.innerHTML = tmpl.map(([id,t])=>{
-      const imgUrl = gal[S.occasion]?.image_url || null;
-      return `<div class="template-card" id="tmpl-${id}" onclick="pickTemplate('${id}','${t.name.replace(/'/g,"\\'")}',${ t.persons||1})">
-        ${imgUrl?`<img src="${imgUrl}" alt="${t.name}" loading="lazy">`:''}
-        <div class="template-card-overlay"></div>
-        <div class="template-card-info">
-          ${!imgUrl?`<div class="template-emoji-fb">${t.emoji||'🎨'}</div>`:''}
-          <div class="template-name-card">${t.name}</div>
-        </div>
-        <div class="template-persons-badge">${t.persons}👤</div>
-      </div>`;
-    }).join('');
-  }catch(e){
+
+    grid.innerHTML = '';
+    entries.forEach(function(entry) {
+      var id = entry[0], t = entry[1];
+      var imgUrl = gal[S.occasion] ? gal[S.occasion].image_url : null;
+
+      var div = document.createElement('div');
+      div.className = 'tc';
+      div.id = 'tc-' + id;
+
+      div.addEventListener('click', (function(tid, tname, tp) {
+        return function() { pickTemplate(tid, tname, tp); };
+      })(id, t.name, t.persons || 1));
+
+      if (imgUrl) {
+        var img = document.createElement('img');
+        img.src = imgUrl;
+        img.alt = t.name;
+        img.loading = 'lazy';
+        div.appendChild(img);
+      }
+
+      var ov = document.createElement('div');
+      ov.className = 'tc-ov';
+      div.appendChild(ov);
+
+      var info = document.createElement('div');
+      info.className = 'tc-info';
+
+      if (!imgUrl) {
+        var em = document.createElement('div');
+        em.className = 'tc-em';
+        em.textContent = t.emoji || '';
+        info.appendChild(em);
+      }
+
+      var nm = document.createElement('div');
+      nm.className = 'tc-name';
+      nm.textContent = t.name;
+      info.appendChild(nm);
+      div.appendChild(info);
+
+      var badge = document.createElement('div');
+      badge.className = 'tc-badge';
+      badge.textContent = (t.persons || 1) + 'p';
+      div.appendChild(badge);
+
+      grid.appendChild(div);
+    });
+  } catch(e) {
+    console.error('loadTemplates:', e);
     grid.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--error)">Failed to load. Please refresh.</div>';
   }
 }
 
-function pickTemplate(id, name, personsCount){
-  S.templateId=id; S.templateName=name;
-  // Auto-set persons from template definition
-  S.persons = String(personsCount || 1);
-  document.querySelectorAll('.template-card').forEach(c=>c.classList.remove('selected'));
-  document.getElementById(`tmpl-${id}`)?.classList.add('selected');
-  document.getElementById('btn4t').disabled=false;
+function pickTemplate(id, name, persons) {
+  S.templateId = id;
+  S.templateName = name;
+  S.persons = String(persons || 1);
+  document.querySelectorAll('.tc').forEach(function(c) { c.classList.remove('sel'); });
+  var el = document.getElementById('tc-' + id);
+  if (el) el.classList.add('sel');
+  document.getElementById('btn4t').disabled = false;
 }
 
-function checkDesc(){
-  const v = document.getElementById('sceneDescription').value.trim();
-  S.description = v;
-  const count = document.getElementById('descCount');
-  count.textContent = v.length < 20 ? `${20-v.length} more characters needed` : `${v.length} characters ✓`;
-  document.getElementById('btn4f').disabled = v.length < 20;
+function onDescInput() {
+  var val = document.getElementById('descTxt').value.trim();
+  S.description = val;
+  var hint = document.getElementById('descHint');
+  if (val.length < 20) {
+    hint.textContent = (20 - val.length) + ' more characters needed';
+    hint.style.color = 'var(--muted)';
+  } else {
+    hint.textContent = val.length + ' characters ✓';
+    hint.style.color = 'var(--success)';
+  }
+  document.getElementById('btn4f').disabled = val.length < 20;
 }
 
-// ── STEP 5: PHOTOS ────────────────────────────────────────
-function renderPhotos(){
-  const container = document.getElementById('personSections');
-  const n = Math.min(parseInt(S.persons)||1, 5);
-  while(S.personUploads.length < n) S.personUploads.push({p:S.personUploads.length+1, u:[null,null]});
-  S.personUploads = S.personUploads.slice(0,n);
-  container.innerHTML = S.personUploads.map((pu,pi)=>`
-    <div class="person-section">
-      <div class="person-section-title">👤 Person ${pi+1}</div>
-      <div class="photos-row">
-        ${[0,1].map(qi=>`
-          <div class="upload-zone" id="z-${pi}-${qi}">
-            <img class="upload-preview" id="prev-${pi}-${qi}">
-            <div id="icon-${pi}-${qi}">
-              <div class="upload-icon-d">${qi===0?'📸':'🤳'}</div>
-              <div class="upload-label-d">${qi===0?'Photo 1 (required)':'Photo 2 (optional)'}</div>
-              <div class="upload-hint-d">Click · JPG/PNG · max 15MB</div>
-            </div>
-            <div class="upload-status" id="st-${pi}-${qi}"></div>
-            <input type="file" accept="image/*" onchange="onFile(event,${pi},${qi})">
-          </div>`).join('')}
-      </div>
-    </div>`).join('');
+// ═══════════════════════════════════════════════════════
+// STEP 5: PHOTOS
+// ═══════════════════════════════════════════════════════
+function buildPhotoSections() {
+  var n = Math.min(parseInt(S.persons) || 1, 5);
+  var container = document.getElementById('personSecs');
+
+  while (S.personUploads.length < n) {
+    S.personUploads.push({p: S.personUploads.length + 1, u: [null, null]});
+  }
+  S.personUploads = S.personUploads.slice(0, n);
+
+  container.innerHTML = '';
+  S.personUploads.forEach(function(pu, pi) {
+    var sec = document.createElement('div');
+    sec.className = 'person-sec';
+
+    var title = document.createElement('div');
+    title.className = 'person-sec-title';
+    title.textContent = n > 1 ? 'Person ' + (pi + 1) : 'Your Photo';
+    sec.appendChild(title);
+
+    var row = document.createElement('div');
+    row.className = 'photo-row';
+
+    [0, 1].forEach(function(qi) {
+      var zone = document.createElement('div');
+      zone.className = 'uz';
+      zone.id = 'uz-' + pi + '-' + qi;
+
+      var prev = document.createElement('img');
+      prev.className = 'uz-prev';
+      prev.id = 'up-' + pi + '-' + qi;
+      zone.appendChild(prev);
+
+      var iconDiv = document.createElement('div');
+      iconDiv.id = 'ui-' + pi + '-' + qi;
+
+      var icon = document.createElement('div');
+      icon.className = 'uz-icon';
+      icon.textContent = qi === 0 ? '📸' : '🤳';
+      iconDiv.appendChild(icon);
+
+      var lbl = document.createElement('div');
+      lbl.className = 'uz-label';
+      lbl.textContent = qi === 0 ? 'Photo 1 (required)' : 'Photo 2 (optional)';
+      iconDiv.appendChild(lbl);
+
+      var hint = document.createElement('div');
+      hint.className = 'uz-hint';
+      hint.textContent = 'Click · JPG/PNG · max 15MB';
+      iconDiv.appendChild(hint);
+
+      zone.appendChild(iconDiv);
+
+      var st = document.createElement('div');
+      st.className = 'uz-st';
+      st.id = 'st-' + pi + '-' + qi;
+      zone.appendChild(st);
+
+      var inp = document.createElement('input');
+      inp.type = 'file';
+      inp.accept = 'image/*';
+      inp.addEventListener('change', (function(pii, qii) {
+        return function(e) { handleUpload(e, pii, qii); };
+      })(pi, qi));
+      zone.appendChild(inp);
+
+      row.appendChild(zone);
+    });
+
+    sec.appendChild(row);
+    container.appendChild(sec);
+  });
+
   checkPhotosBtn();
 }
 
-async function onFile(e, pi, qi){
-  const file = e.target.files[0];
-  if(!file) return;
-  const z  = document.getElementById(`z-${pi}-${qi}`);
-  const st = document.getElementById(`st-${pi}-${qi}`);
-  const ic = document.getElementById(`icon-${pi}-${qi}`);
-  const pv = document.getElementById(`prev-${pi}-${qi}`);
+async function handleUpload(e, pi, qi) {
+  var file = e.target.files[0];
+  if (!file) return;
 
-  z.classList.add('uploading');
-  z.classList.remove('upload-error');
-  st.className='upload-status';
-  st.textContent='⏳ Uploading & checking face…';
+  var zone = document.getElementById('uz-' + pi + '-' + qi);
+  var prev = document.getElementById('up-' + pi + '-' + qi);
+  var iconDiv = document.getElementById('ui-' + pi + '-' + qi);
+  var st = document.getElementById('st-' + pi + '-' + qi);
+
+  zone.classList.add('busy');
+  zone.classList.remove('bad');
+  st.className = 'uz-st';
+  st.textContent = 'Uploading & checking face...';
 
   // Local preview
-  const reader = new FileReader();
-  reader.onload = ev => { pv.src=ev.target.result; pv.style.display='block'; ic.style.display='none'; };
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    prev.src = ev.target.result;
+    prev.style.display = 'block';
+    iconDiv.style.display = 'none';
+  };
   reader.readAsDataURL(file);
 
-  try{
-    const fd = new FormData();
+  // Remove old quality alert
+  var oldQa = document.getElementById('qa-' + pi + '-' + qi);
+  if (oldQa) oldQa.remove();
+
+  try {
+    var fd = new FormData();
     fd.append('file', file);
-    const res  = await fetch(`${API_URL}/api/upload?quality=true`, {method:'POST', body:fd});
-    const data = await res.json();
-    if(!data.success) throw new Error(data.error||'Upload failed');
+    var res = await fetch(API_URL + '/api/upload?quality=true', {method: 'POST', body: fd});
+    var data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Upload failed');
 
-    S.personUploads[pi].u[qi] = {upload_id:data.upload_id, photo_url:data.photo_url, quality:data.quality||{}};
-    z.classList.remove('uploading');
-    z.classList.add('has-file');
+    S.personUploads[pi].u[qi] = {upload_id: data.upload_id, photo_url: data.photo_url};
 
-    const score = data.score || data.quality?.score || 5;
-    const warns = data.warnings || data.quality?.warnings || [];
-    const strategy = data.quality?.recovery_strategy || 'full_analysis';
+    zone.classList.remove('busy');
+    var score = (data.quality && data.quality.score) || data.score || 5;
+    var warns = (data.quality && data.quality.warnings) || data.warnings || [];
 
-    if(warns.includes('no_face')){
-      // Hard reject
-      z.classList.remove('has-file'); z.classList.add('upload-error');
-      st.className='upload-status err';
-      st.innerHTML='❌ <strong>No face detected.</strong> Please upload a photo showing the person's face clearly.';
-      S.personUploads[pi].u[qi]=null;
-      pv.style.display='none'; ic.style.display='';
-      showQualityAlert(pi, qi, 'no_face', warns);
-    } else if(score>=7){
-      st.className='upload-status ok';
-      st.textContent='✅ Excellent — great photo!';
-      clearQualityAlert(pi, qi);
-    } else if(score>=5){
-      st.className='upload-status warn';
-      const msg = buildQualityMsg(warns);
-      st.innerHTML='⚠️ ' + msg.short;
-      if(msg.tip) showQualityAlert(pi, qi, 'warn', warns, msg.tip);
+    if (warns.indexOf('no_face') >= 0) {
+      zone.classList.add('bad');
+      st.className = 'uz-st err';
+      st.textContent = 'No face detected.';
+      S.personUploads[pi].u[qi] = null;
+      prev.style.display = 'none';
+      iconDiv.style.display = '';
+      showQA(pi, qi, 'err', 'No face detected — ' + QUALITY_TIPS.no_face);
+    } else if (score >= 7) {
+      zone.classList.add('has');
+      st.className = 'uz-st ok';
+      st.textContent = 'Excellent quality!';
+    } else if (score >= 4) {
+      zone.classList.add('has');
+      st.className = 'uz-st warn';
+      st.textContent = 'Good photo.';
+      var tip = getTip(warns);
+      if (tip) showQA(pi, qi, 'warn', tip);
     } else {
-      // Low quality — show prominent warning but don't reject
-      z.classList.add('upload-error');
-      st.className='upload-status err';
-      const msg = buildQualityMsg(warns);
-      st.innerHTML='⚠️ <strong>Low quality.</strong> ' + msg.short;
-      showQualityAlert(pi, qi, 'low', warns, msg.tip);
+      zone.classList.add('has', 'bad');
+      st.className = 'uz-st err';
+      st.textContent = 'Low quality photo.';
+      showQA(pi, qi, 'warn', getTip(warns) || 'A clearer photo gives better results. You can still proceed.');
     }
-  }catch(err){
-    z.classList.remove('uploading'); z.classList.add('upload-error');
-    st.className='upload-status err'; st.textContent=err.message;
-    S.personUploads[pi].u[qi]=null;
-    pv.style.display='none'; ic.style.display='';
+  } catch(err) {
+    zone.classList.remove('busy');
+    zone.classList.add('bad');
+    st.className = 'uz-st err';
+    st.textContent = err.message;
+    S.personUploads[pi].u[qi] = null;
+    prev.style.display = 'none';
+    iconDiv.style.display = '';
   }
+
   checkPhotosBtn();
 }
 
-function photosOk(){ return S.personUploads.every(pu=>pu.u[0]!==null); }
-
-const QUALITY_TIPS = {
-  no_face:    {short:'No face detected.', tip:'Use a photo where the face is clearly visible, front-facing, not covered by hands or objects.'},
-  backlit:    {short:'Photo is backlit.', tip:'Try a photo taken facing a light source (window or lamp in front of you), not behind you.'},
-  blurred:    {short:'Photo is blurry.',  tip:'Make sure the photo is sharp and in focus. Hold the camera steady or use portrait mode.'},
-  dark:       {short:'Photo is too dark.', tip:'Take the photo in good natural light or a well-lit room.'},
-  face_too_small:{short:'Face is too small in the frame.', tip:'Use a closer photo where the face takes up at least 1/3 of the image.'},
-  multiple_faces:{short:'Multiple faces detected.', tip:'Upload a photo with only the one person you want in the caricature.'},
-  obstructed: {short:'Face is partially covered.', tip:'Remove sunglasses, hats, or anything covering the face.'},
-  low_resolution:{short:'Low resolution photo.', tip:'Use a higher resolution photo — avoid heavily compressed or screenshot images.'},
-};
-
-function buildQualityMsg(warns){
-  // Find the most important warning
-  const priority = ['no_face','backlit','blurred','dark','face_too_small','obstructed','low_resolution','multiple_faces'];
-  for(const w of priority){
-    if(warns.includes(w)) return QUALITY_TIPS[w] || {short:'Quality could be better.', tip:'Try a clearer, well-lit photo.'};
+function getTip(warns) {
+  var order = ['no_face','backlit','blurred','dark','face_too_small','obstructed','low_resolution','multiple_faces'];
+  for (var i = 0; i < order.length; i++) {
+    if (warns.indexOf(order[i]) >= 0 && QUALITY_TIPS[order[i]]) return QUALITY_TIPS[order[i]];
   }
-  return {short:'Could be clearer.', tip:'A sharper, well-lit front-facing photo gives the best caricature result.'};
+  return null;
 }
 
-function showQualityAlert(pi, qi, type, warns, tip){
-  const alertId = `qa-${pi}-${qi}`;
-  let el = document.getElementById(alertId);
-  if(!el){
-    el = document.createElement('div');
-    el.id = alertId;
-    el.style.cssText = 'border-radius:8px;padding:12px 14px;font-size:13px;margin-top:8px;line-height:1.6;';
-    const zone = document.getElementById(`z-${pi}-${qi}`);
-    zone.parentNode.insertBefore(el, zone.nextSibling);
-  }
-  if(type==='no_face'){
-    el.style.cssText += 'background:#fef2f2;border:1px solid #fecaca;color:#991b1b;';
-    el.innerHTML = `<strong>❌ No face detected</strong><br>${QUALITY_TIPS.no_face.tip}`;
-  } else if(type==='low'){
-    el.style.cssText += 'background:#fffbeb;border:1px solid #fde68a;color:#92400e;';
-    el.innerHTML = `<strong>⚠️ Low quality photo</strong><br>${tip || 'Try a clearer, well-lit photo.'}<br><em style="font-size:12px;opacity:.8">You can still proceed, but the result may be less accurate.</em>`;
-  } else {
-    el.style.cssText += 'background:#fffbeb;border:1px solid #fde68a;color:#92400e;';
-    el.innerHTML = `<strong>💡 Tip</strong> ${tip || 'A clearer photo gives better results.'}`;
-  }
+function showQA(pi, qi, type, msg) {
+  var id = 'qa-' + pi + '-' + qi;
+  var el = document.createElement('div');
+  el.id = id;
+  el.className = 'qa ' + (type === 'err' ? 'err' : 'warn');
+  el.textContent = msg;
+  var zone = document.getElementById('uz-' + pi + '-' + qi);
+  zone.parentNode.insertBefore(el, zone.nextSibling);
 }
 
-function clearQualityAlert(pi, qi){
-  const el = document.getElementById(`qa-${pi}-${qi}`);
-  if(el) el.remove();
-}
-function checkPhotosBtn(){ document.getElementById('btn5').disabled=!photosOk(); }
-
-// ── STEP 6: PAY ───────────────────────────────────────────
-function renderPlans(){
-  document.getElementById('planGrid').innerHTML =
-    Object.entries(PLANS_DEF).map(([id,p])=>`
-      <div class="plan-card ${id==='standard'?'selected':''}" id="plan-${id}" onclick="pickPlan('${id}')">
-        ${id==='premium'?'<div class="plan-badge">POPULAR</div>':''}
-        <div class="plan-name">${p.name}</div>
-        <div class="plan-price">€${p.base.toFixed(2)}</div>
-        <div class="plan-desc">${p.desc}</div>
-      </div>`).join('');
-}
-function pickPlan(id){
-  S.plan=id;
-  document.querySelectorAll('.plan-card').forEach(c=>c.classList.remove('selected'));
-  document.getElementById(`plan-${id}`)?.classList.add('selected');
-  updateSummary(); checkPay();
-}
-function renderPay(){ updateSummary(); checkPay(); }
-function updateSummary(){
-  const p = PLANS_DEF[S.plan]||PLANS_DEF.standard;
-  const ex = PERSON_EXTRA[S.persons]||0;
-  const total = p.base+ex;
-  const sel = S.flow==='template' ? (S.templateName||'Custom') : 'Custom scene';
-  document.getElementById('orderSummary').innerHTML = `
-    <div class="sum-row"><span>Style</span><span class="sum-val">${sel}</span></div>
-    <div class="sum-row"><span>Persons</span><span class="sum-val">${S.persons}</span></div>
-    <div class="sum-row"><span>Plan</span><span class="sum-val">${p.name}</span></div>
-    ${ex>0?`<div class="sum-row"><span>Extra persons</span><span class="sum-val">+€${ex.toFixed(2)}</span></div>`:''}
-    <div class="sum-row"><span>Total</span><span class="sum-val">€${total.toFixed(2)}</span></div>`;
-}
-function checkPay(){
-  const em = document.getElementById('emailInput')?.value.trim();
-  const nm = document.getElementById('nameInput')?.value.trim();
-  document.getElementById('payBtn').disabled = !(em&&em.includes('@')&&nm&&window._cardOk);
+function photosOk() {
+  return S.personUploads.every(function(pu) { return pu.u[0] !== null; });
 }
 
-// ── PAYMENT ───────────────────────────────────────────────
-document.getElementById('payBtn').addEventListener('click', async ()=>{
-  const btn = document.getElementById('payBtn');
-  const em  = document.getElementById('emailInput').value.trim();
-  const nm  = document.getElementById('nameInput').value.trim();
-  const err = document.getElementById('card-error');
-  btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Creating order…'; err.textContent='';
-  try{
-    const pph = S.personUploads.map(pu=>({person:pu.p, upload_ids:pu.u.filter(Boolean).map(u=>u.upload_id)}));
-    const desc = S.flow==='free'
-      ? [document.getElementById('sceneDescription').value.trim(), document.getElementById('extraNotes').value.trim()].filter(Boolean).join('. ')
+function checkPhotosBtn() {
+  document.getElementById('btn5').disabled = !photosOk();
+}
+
+// ═══════════════════════════════════════════════════════
+// STEP 6: PLAN & PAY
+// ═══════════════════════════════════════════════════════
+function buildPlans() {
+  var grid = document.getElementById('planGrid');
+  PLANS.forEach(function(p) {
+    var div = document.createElement('div');
+    div.className = 'plan-c' + (p.id === 'standard' ? ' sel' : '');
+    div.id = 'plan-' + p.id;
+    div.innerHTML = (p.popular ? '<div class="plan-badge">POPULAR</div>' : '') +
+      '<div class="plan-name">' + p.name + '</div>' +
+      '<div class="plan-price">€' + p.price.toFixed(2) + '</div>' +
+      '<div class="plan-desc">' + p.desc + '</div>';
+    div.addEventListener('click', (function(pid) {
+      return function() { pickPlan(pid); };
+    })(p.id));
+    grid.appendChild(div);
+  });
+}
+
+function pickPlan(id) {
+  S.plan = id;
+  document.querySelectorAll('.plan-c').forEach(function(c) { c.classList.remove('sel'); });
+  var el = document.getElementById('plan-' + id);
+  if (el) el.classList.add('sel');
+  updateSummary();
+  checkPay();
+}
+
+function onStep6() { updateSummary(); checkPay(); }
+
+function updateSummary() {
+  var plan = PLANS.filter(function(p) { return p.id === S.plan; })[0] || PLANS[0];
+  var n = parseInt(S.persons) || 1;
+  var extra = PERSON_EXTRA[n] || 0;
+  var total = plan.price + extra;
+  var sel = S.flow === 'template' ? (S.templateName || 'Custom') : 'Custom scene';
+  var el = document.getElementById('summaryEl');
+  el.innerHTML = '<div class="sr"><span>Style</span><span class="sv">' + sel + '</span></div>' +
+    '<div class="sr"><span>Persons</span><span class="sv">' + n + '</span></div>' +
+    '<div class="sr"><span>Plan</span><span class="sv">' + plan.name + '</span></div>' +
+    (extra > 0 ? '<div class="sr"><span>Extra persons</span><span class="sv">+€' + extra.toFixed(2) + '</span></div>' : '') +
+    '<div class="sr"><span>Total</span><span class="sv">€' + total.toFixed(2) + '</span></div>';
+}
+
+function checkPay() {
+  var email = (document.getElementById('emailIn').value || '').trim();
+  var name = (document.getElementById('nameIn').value || '').trim();
+  document.getElementById('payBtn').disabled = !(email && email.indexOf('@') > 0 && name && window._cardOk);
+}
+
+// ═══════════════════════════════════════════════════════
+// PAYMENT
+// ═══════════════════════════════════════════════════════
+async function handlePay() {
+  var btn = document.getElementById('payBtn');
+  var cerr = document.getElementById('cerr');
+  var email = document.getElementById('emailIn').value.trim();
+  var name = document.getElementById('nameIn').value.trim();
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>Creating order...';
+  cerr.textContent = '';
+
+  try {
+    var pph = S.personUploads.map(function(pu) {
+      return {
+        person: pu.p,
+        upload_ids: pu.u.filter(function(u) { return u !== null; }).map(function(u) { return u.upload_id; })
+      };
+    });
+
+    var desc = S.flow === 'free'
+      ? [document.getElementById('descTxt').value.trim(), document.getElementById('notesTxt').value.trim()].filter(Boolean).join('. ')
       : '';
-    const payload = {flow:S.flow, template_id:S.templateId, description:desc, occasion:S.occasion,
-                     persons:S.persons, plan:S.plan, person_photos:pph, email:em, name:nm};
-    const r = await fetch(`${API_URL}/api/create-payment-intent`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    const d = await r.json();
-    if(!d.success) throw new Error(d.error||'Order creation failed');
-    btn.innerHTML='<span class="spinner"></span>Processing payment…';
-    const result = await window._stripe.confirmCardPayment(d.clientSecret,{payment_method:{card:window._card,billing_details:{name:nm,email:em}}});
-    if(result.error) throw new Error(result.error.message);
-    document.getElementById('screen6').classList.remove('active');
-    document.getElementById('screenSuccess').classList.add('active');
-    document.getElementById('successOrderId').textContent=`Order ID: ${d.order_id}`;
-    document.getElementById('progressBar').style.display='none';
-    window.scrollTo({top:0,behavior:'smooth'});
-  }catch(e){
-    err.textContent=e.message; btn.disabled=false; btn.innerHTML='🎨 Complete Order';
+
+    var payload = {
+      flow: S.flow,
+      template_id: S.templateId,
+      description: desc,
+      occasion: S.occasion,
+      persons: S.persons,
+      plan: S.plan,
+      person_photos: pph,
+      email: email,
+      name: name
+    };
+
+    var r = await fetch(API_URL + '/api/create-payment-intent', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    var d = await r.json();
+    if (!d.success) throw new Error(d.error || 'Order creation failed');
+
+    btn.innerHTML = '<span class="spin"></span>Processing payment...';
+
+    var result = await window._stripe.confirmCardPayment(d.clientSecret, {
+      payment_method: {card: window._card, billing_details: {name: name, email: email}}
+    });
+    if (result.error) throw new Error(result.error.message);
+
+    document.getElementById('s6').classList.remove('active');
+    document.getElementById('sSuccess').classList.add('active');
+    document.getElementById('orderId').textContent = 'Order ID: ' + d.order_id;
+    document.getElementById('prog').style.display = 'none';
+    window.scrollTo({top: 0, behavior: 'smooth'});
+
+  } catch(err) {
+    cerr.textContent = err.message;
+    btn.disabled = false;
+    btn.innerHTML = '🎨 Complete Order';
   }
-});
+}
 </script>
 </body>
 </html>
