@@ -736,17 +736,24 @@ async function handleUpload(e, pi, qi) {
     var score = (data.quality && data.quality.score) || data.score || 5;
     var warns = (data.quality && data.quality.warnings) || data.warnings || [];
 
-    var noFace = warns.indexOf('no_face') >= 0
-               || (data.quality && data.quality.face_size === 'none')
-               || (data.usable === false);
-    if (noFace) {
+    var noFace     = warns.indexOf('no_face') >= 0
+                    || (data.quality && data.quality.face_size === 'none')
+                    || (data.usable === false);
+    var multiFace  = warns.indexOf('multiple_faces') >= 0
+                    || (data.quality && data.quality.face_size === 'multiple');
+    if (noFace || multiFace) {
       zone.classList.add('bad');
       st.className = 'uz-st err';
-      st.textContent = 'No face detected.';
       S.personUploads[pi].u[qi] = null;
       prev.style.display = 'none';
       iconDiv.style.display = '';
-      showQA(pi, qi, 'err', 'We could not detect a face clearly. For best results: Please upload a photo showing the face clearly — front-facing, not covered.');
+      if (multiFace) {
+        st.textContent = 'Multiple faces detected.';
+        showQA(pi, qi, 'err', 'This photo contains more than one person. Please upload a photo showing only ONE person with a clear face — front-facing, good lighting.');
+      } else {
+        st.textContent = 'No face detected.';
+        showQA(pi, qi, 'err', 'We could not detect a face clearly. Please upload a photo showing the face clearly — front-facing, not covered.');
+      }
     } else if (score >= 7) {
       zone.classList.add('has');
       st.className = 'uz-st ok';

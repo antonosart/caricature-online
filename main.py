@@ -554,18 +554,22 @@ def assess_photo_quality(photo_url: str) -> dict:
         '"usable":false,"visible_features":[],"warnings":["no_face"],'
         '"recovery_strategy":"template_only"}'
     )
+    multi_face_resp = (
+        '{"score":1,"face_size":"multiple","lighting":"unknown","sharpness":"unknown",'
+        '"usable":false,"visible_features":[],"warnings":["multiple_faces"],'
+        '"recovery_strategy":"template_only"}'
+    )
     prompt = (
-        "CRITICAL: Does this image contain a clear human face?\n"
-        "If NOT a person photo (diagram, QR code, landscape, text, barcode, "
-        "screenshot, math graph, abstract image, object photo), return exactly:\n"
-        + no_face_resp + "\n\n"
-        "If this IS a person photo, assess quality for caricature generation.\n"
-        "Score 1-10. face_size: large|medium|small.\n"
-        "lighting: good|backlit|dark|harsh. sharpness: sharp|slightly_blurred|blurred.\n"
-        "usable: true only if human face clearly visible.\n"
-        "warnings: array from [face_too_small,backlit,blurred,multiple_faces,low_resolution,obstructed].\n"
+        "CRITICAL assessment for caricature generation:\n"
+        "RULE 1: If NOT a person photo (diagram, QR code, landscape, text, barcode, "
+        "screenshot, math, object), return exactly:\n" + no_face_resp + "\n"
+        "RULE 2: If MORE THAN ONE person or face appears, return exactly:\n" + multi_face_resp + "\n"
+        "RULE 3: If EXACTLY ONE person with visible face, assess quality.\n"
+        "Score 1-10. face_size: large|medium|small. lighting: good|backlit|dark|harsh.\n"
+        "sharpness: sharp|slightly_blurred|blurred. usable: true only if one face clearly visible.\n"
+        "warnings: array from [face_too_small,backlit,blurred,low_resolution,obstructed].\n"
         "recovery_strategy: full_analysis if score>=6, partial_analysis if 3-5.\n"
-        "Return ONLY valid JSON, no other text."
+        "Return ONLY valid JSON."
     )
     try:
         img_data = requests.get(photo_url, timeout=15).content
@@ -583,9 +587,11 @@ def assess_photo_quality(photo_url: str) -> dict:
             raw = raw[raw.index("{"):raw.rindex("}")+1]
         result = {**pessimistic, **_json.loads(raw)}
         # Safety net: face_size=none → always no_face
-        if result.get("face_size") == "none":
-            if "no_face" not in result.get("warnings", []):
+        if result.get("face_size") in ("none", "multiple"):
+            if result.get("face_size") == "none" and "no_face" not in result.get("warnings", []):
                 result.setdefault("warnings", []).append("no_face")
+            if result.get("face_size") == "multiple" and "multiple_faces" not in result.get("warnings", []):
+                result.setdefault("warnings", []).append("multiple_faces")
             result["usable"] = False
         print(f"[Quality] score={result.get('score')} face={result.get('face_size')} warns={result.get('warnings')}")
         return result
