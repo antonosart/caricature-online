@@ -1,6 +1,6 @@
 # ══════════════════════════════════════════════════════════════
-#   CARICATURE.ONLINE — Backend v2.3 EXPERT LEVEL +9.5
-#   4K AI Caricature Pipeline · Identity-aware · Stripe-safe
+#   CARICATURE.ONLINE — Backend v2.3.1 EXPERT LEVEL +9.5
+#   4K AI Caricature Pipeline · Identity-aware · Stripe-safe · Admin Test Endpoint
 #   Stack: Flask · Firestore · GCS · fal.ai LoRA · Stripe · Resend
 # ══════════════════════════════════════════════════════════════
 
@@ -2007,18 +2007,219 @@ def verify_same_person():
         return ok({"same_person": False, "confidence": "low"})
 
 
+# ══════════════════════════════════════════════════════════════
+#   ADMIN — DIRECT TEST GENERATION
+#   Use this to test likeness/4K without Stripe, checkout, email, or order flow.
+# ══════════════════════════════════════════════════════════════
+
+@app.route("/api/admin/test-generate", methods=["POST"])
+@require_admin
+def admin_test_generate():
+    """Generate a test caricature directly from uploaded photo(s).
+
+    Multipart form fields:
+      - file=@photo.jpg                         required primary reference
+      - files=@photo2.jpg                       optional additional refs; repeatable
+      - template_id=hero_spartan                optional, defaults to custom_free
+      - notes="Test likeness"                  optional prompt guidance
+      - persons=1                               optional
+      - plan_id=premium                         optional
+      - save_test=true                          optional Firestore log toggle
+
+    This endpoint intentionally bypasses Stripe, order logging, and email delivery.
+    It is protected by X-Admin-Secret and should never be exposed in frontend code.
+    """
+    started_at = datetime.utcnow()
+    test_id = f"test_{str(uuid.uuid4()).replace('-', '')[:16]}"
+
+    try:
+        # ── 1. Read and validate multipart inputs ───────────────────────
+        primary = request.files.get("file")
+        extra_files = request.files.getlist("files") or []
+        all_files = []
+        if primary:
+            all_files.append(primary)
+        for f in extra_files:
+            if f and f.filename:
+                all_files.append(f)
+
+        if not all_files:
+            return err("No file provided. Use -F \"file=@C:\\path\\photo.jpg\"", 400)
+
+        allowed = {"image/jpeg", "image/png", "image/webp"}
+        if len(all_files) > 6:
+            return err("Too many reference photos. Max 6 for admin test.", 400)
+
+        template_id = (request.form.get("template_id") or "custom_free").strip()
+        if template_id not in TEMPLATES:
+            return err(f"Invalid template_id: {template_id}", 400)
+
+        template = TEMPLATES.get(template_id, TEMPLATES["custom_free"])
+        persons = (request.form.get("persons") or str(template.get("persons", 1)) or "1").strip()
+        plan_id = (request.form.get("plan_id") or request.form.get("plan") or "premium").strip()
+        if plan_id not in PLANS and plan_id != "free":
+            plan_id = "premium"
+
+        notes = (request.form.get("notes") or request.form.get("description") or "Admin direct generation test").strip()
+        moderation = moderate_text(notes)
+        if not moderation.get("allowed"):
+            return err("This test request violates content guidelines.", 400)
+
+        # ── 2. Upload references + quality check ────────────────────────
+        photo_urls = []
+        upload_refs = []
+        qualities = []
+
+        for idx, f in enumerate(all_files, start=1):
+            if f.content_type not in allowed:
+                return err(f"Invalid file type for reference {idx}. Use JPG, PNG or WEBP.", 400)
+            data = f.read()
+            if len(data) > 10 * 1024 * 1024:
+                return err(f"Reference {idx} is too large. Max 10MB.", 400)
+            if not data:
+                return err(f"Reference {idx} is empty.", 400)
+
+            ext = (f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else "jpg")
+            if ext not in {"jpg", "jpeg", "png", "webp"}:
+                ext = "jpg"
+            filename = f"{test_id}_ref{idx}.{ext}"
+
+            quality = assess_photo_quality_bytes(data, f.content_type)
+            photo_url = upload_to_gcs(data, filename, f.content_type, folder="admin_tests/uploads")
+            photo_urls.append(photo_url)
+            qualities.append(quality)
+            upload_refs.append({
+                "index": idx,
+                "filename": f.filename,
+                "content_type": f.content_type,
+                "photo_url": photo_url,
+                "quality": quality,
+            })
+
+        # Hard block only if the primary image is confidently unusable.
+        primary_quality = qualities[0] if qualities else {}
+        if primary_quality.get("hard_block") and not primary_quality.get("usable"):
+            return ok({
+                "test_id": test_id,
+                "blocked": True,
+                "reason": "primary_photo_unusable",
+                "quality": primary_quality,
+                "photo_urls": photo_urls,
+                "message": "Primary photo was rejected by quality check. Try a clearer face photo.",
+            }, 422)
+
+        # ── 3. Build identity-aware prompt ──────────────────────────────
+        answers = {
+            "occasion": template.get("occasion", "other"),
+            "template_id": template_id,
+            "template_name": template.get("name", template_id),
+            "notes": notes,
+            "description": notes,
+        }
+        prompt = analyze_photo_with_claude(
+            photo_urls=photo_urls,
+            persons=persons,
+            template_name=template.get("name", template_id),
+            answers=answers,
+            person_photos=[{"person_index": 1, "photo_urls": photo_urls, "qualities": qualities}],
+        )
+
+        # ── 4. Generate, apply identity reference, QA, upscale ──────────
+        final_ai_url = None
+        qa = {}
+        attempts = max(1, min(3, int(CFG.get("MAX_GENERATION_RETRIES", 2))))
+        working_prompt = prompt
+
+        for attempt in range(1, attempts + 1):
+            print(f"[AdminTest] {test_id} generation attempt {attempt}/{attempts}")
+            base_url = generate_base_art(working_prompt, photo_urls, attempt=attempt)
+            if not base_url:
+                continue
+            candidate_url = apply_identity_reference(base_url, photo_urls)
+            qa = assess_generated_result(working_prompt, candidate_url, photo_urls[0] if photo_urls else None)
+            if qa.get("deliverable", True) and qa.get("quality_score", 7) >= 5:
+                final_ai_url = candidate_url
+                break
+            working_prompt += ", stronger likeness to uploaded face, clear finished caricature, no artifacts"
+
+        if not final_ai_url:
+            return err("Admin test generation failed: no deliverable image returned", 500)
+
+        img_bytes, upscale_meta = upscale_to_4k(final_ai_url, test_id)
+        result_filename = f"{test_id}_result_4k.jpg" if upscale_meta.get("upscaled") else f"{test_id}_result.jpg"
+        result_url = upload_to_gcs(img_bytes, result_filename, "image/jpeg", folder="admin_tests/results")
+
+        # ── 5. Optional log for QA history ──────────────────────────────
+        duration_seconds = round((datetime.utcnow() - started_at).total_seconds(), 2)
+        save_test = (request.form.get("save_test", "true").lower() not in {"0", "false", "no"})
+        log_payload = {
+            "test_id": test_id,
+            "created_at": started_at.isoformat(),
+            "duration_seconds": duration_seconds,
+            "template_id": template_id,
+            "template_name": template.get("name", template_id),
+            "persons": persons,
+            "plan_id": plan_id,
+            "notes": notes,
+            "photo_urls": photo_urls,
+            "upload_refs": upload_refs,
+            "raw_ai_url": final_ai_url,
+            "result_url": result_url,
+            "generation_prompt": working_prompt[:1800],
+            "generation_qa": qa,
+            "upscale_meta": upscale_meta,
+            "pipeline_version": "2.3.1-expert-4k-test",
+        }
+        if save_test:
+            try:
+                db.collection("admin_generation_tests").document(test_id).set(log_payload)
+            except Exception as e:
+                print(f"[AdminTest] Firestore log failed: {e}")
+
+        return ok({
+            "test_id": test_id,
+            "template_id": template_id,
+            "template_name": template.get("name", template_id),
+            "photo_url": photo_urls[0] if photo_urls else None,
+            "photo_urls": photo_urls,
+            "result_url": result_url,
+            "raw_ai_url": final_ai_url,
+            "quality": primary_quality,
+            "all_quality": qualities,
+            "qa": qa,
+            "upscale_meta": upscale_meta,
+            "prompt": working_prompt[:1800],
+            "duration_seconds": duration_seconds,
+            "message": "Admin test generated successfully. Open result_url to inspect likeness and 4K output.",
+        })
+
+    except Exception as e:
+        print(f"[AdminTest] ERROR {test_id}: {e}")
+        try:
+            db.collection("admin_generation_tests").document(test_id).set({
+                "test_id": test_id,
+                "created_at": started_at.isoformat(),
+                "status": "failed",
+                "error": str(e),
+                "pipeline_version": "2.3.1-expert-4k-test",
+            }, merge=True)
+        except Exception:
+            pass
+        return err(f"Admin test generation failed: {str(e)}", 500)
+
+
 @app.route("/health", methods=["GET"])
 def health():
     return ok({
         "status":    "healthy",
-        "version":   "2.3.0-expert-4k",
+        "version":   "2.3.1-expert-4k-test",
         "timestamp": datetime.utcnow().isoformat(),
         "lora_ready": bool(CFG["FAL_LORA_URL"]),
     })
 
 @app.route("/", methods=["GET"])
 def root():
-    return ok({"service": "Caricature API", "version": "2.3.0-expert-4k", "docs": "/health"})
+    return ok({"service": "Caricature API", "version": "2.3.1-expert-4k-test", "docs": "/health"})
 
 
 if __name__ == "__main__":
