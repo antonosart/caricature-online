@@ -1,10 +1,10 @@
 # ══════════════════════════════════════════════════════════════
-#   CARICATURE.ONLINE — Backend v2.2
-#   AI Caricature in the style of Antonos (caricature.photo)
+#   CARICATURE.ONLINE — Backend v2.3 EXPERT LEVEL +9.5
+#   4K AI Caricature Pipeline · Identity-aware · Stripe-safe
 #   Stack: Flask · Firestore · GCS · fal.ai LoRA · Stripe · Resend
 # ══════════════════════════════════════════════════════════════
 
-import os, uuid, threading, time, requests
+import os, uuid, threading, time, requests, re, json, base64
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
@@ -36,6 +36,9 @@ CFG = {
     "ADMIN_SECRET":        os.environ.get("ADMIN_SECRET",             "change-me").strip(),
     "GCS_BUCKET":          os.environ.get("GCS_BUCKET",               "caricature-files").strip(),
     "BASE_URL":            os.environ.get("BASE_URL",                 "https://caricature.online").strip(),
+    "AI_OUTPUT_MODE":      os.environ.get("AI_OUTPUT_MODE",           "4k").strip().lower(),
+    "FAL_UPSCALE_MODEL":   os.environ.get("FAL_UPSCALE_MODEL",        "fal-ai/esrgan").strip(),
+    "MAX_GENERATION_RETRIES": int(os.environ.get("MAX_GENERATION_RETRIES", "2")),
 }
 
 stripe.api_key     = CFG["STRIPE_SECRET"]
@@ -243,179 +246,409 @@ def notify_admin(msg: str):
         pass
 
 
+
+# ══════════════════════════════════════════════════════════════
+#   CONTENT SAFETY — text/order moderation
+# ══════════════════════════════════════════════════════════════
+
+FORBIDDEN_KEYWORDS = {
+    "sexual": ["nude", "naked", "porn", "sex", "erotic", "fetish", "onlyfans", "stripper"],
+    "minors": ["child nude", "kid nude", "baby nude", "teen nude", "sexual child", "sexual kid"],
+    "hate": ["nazi", "kkk", "white power", "ethnic cleansing"],
+    "violence": ["gore", "bloodbath", "decapitated", "torture", "mutilated"],
+    "fraud": ["fake passport", "fake id", "bank fraud", "scam", "phishing"],
+}
+
+FORBIDDEN_PATTERNS = [
+    re.compile(r"\b(?:nude|naked|sexual|erotic)\b.*\b(?:child|kid|baby|minor|teen)\b", re.I),
+    re.compile(r"\b(?:child|kid|baby|minor|teen)\b.*\b(?:nude|naked|sexual|erotic)\b", re.I),
+]
+
+def moderate_text(text: str) -> dict:
+    """Fast local moderation for customer free-text. Designed to block obvious abuse before Stripe."""
+    t = (text or "").lower()
+    hits = []
+    for cat, words in FORBIDDEN_KEYWORDS.items():
+        for w in words:
+            if w in t:
+                hits.append({"category": cat, "term": w})
+    for pat in FORBIDDEN_PATTERNS:
+        if pat.search(text or ""):
+            hits.append({"category": "minors", "term": "minor-sexual-pattern"})
+    return {"allowed": len(hits) == 0, "hits": hits}
+
+def moderate_order_request(body: dict) -> dict:
+    joined = " ".join([
+        str(body.get("description", "")),
+        str(body.get("notes", "")),
+        json.dumps(body.get("answers", {}), ensure_ascii=False),
+        str(body.get("template_id", "")),
+    ])
+    result = moderate_text(joined)
+    if not result["allowed"]:
+        return {"allowed": False, "reason": "content_policy", "hits": result["hits"]}
+    return {"allowed": True, "reason": "ok", "hits": []}
+
+
+def build_person_photos_from_payload(body: dict, upload_ids: list) -> list:
+    """Accepts both current order.html flat upload_ids and new structured person_photos."""
+    structured = body.get("person_photos")
+    if isinstance(structured, list) and structured:
+        out = []
+        for idx, person in enumerate(structured, start=1):
+            ids = person.get("upload_ids", []) if isinstance(person, dict) else []
+            ids = [str(x) for x in ids if x]
+            if ids:
+                out.append({
+                    "person_index": person.get("person_index", idx) if isinstance(person, dict) else idx,
+                    "upload_ids": ids[:3],
+                    "primary_upload_id": person.get("primary_upload_id", ids[0]) if isinstance(person, dict) else ids[0],
+                })
+        if out:
+            return out
+    # fallback: group current flat upload list as 2 photos per person
+    persons = int(str(body.get("persons", "1") or "1")) if str(body.get("persons", "1")).isdigit() else 1
+    out = []
+    cursor = 0
+    for i in range(1, persons + 1):
+        ids = upload_ids[cursor:cursor + 2]
+        cursor += 2
+        if ids:
+            out.append({"person_index": i, "upload_ids": ids, "primary_upload_id": ids[0]})
+    if not out and upload_ids:
+        out.append({"person_index": 1, "upload_ids": upload_ids[:2], "primary_upload_id": upload_ids[0]})
+    return out
+
+
+def resolve_uploads(upload_ids: list, person_photos: list) -> tuple[list, list]:
+    """Resolve Firestore upload docs while preserving person grouping."""
+    docs_by_id = {}
+    flat_urls = []
+    flat_unique = []
+    for uid in upload_ids:
+        if uid and uid not in flat_unique:
+            flat_unique.append(uid)
+    for person in person_photos:
+        for uid in person.get("upload_ids", []):
+            if uid and uid not in flat_unique:
+                flat_unique.append(uid)
+    for uid in flat_unique[:15]:
+        doc = db.collection("uploads").document(uid).get()
+        if doc.exists:
+            d = doc.to_dict()
+            docs_by_id[uid] = d
+            if d.get("photo_url"):
+                flat_urls.append(d["photo_url"])
+    resolved_people = []
+    for person in person_photos:
+        urls = []
+        qualities = []
+        for uid in person.get("upload_ids", []):
+            d = docs_by_id.get(uid)
+            if d and d.get("photo_url"):
+                urls.append(d["photo_url"])
+                qualities.append(d.get("quality", {}))
+        if urls:
+            resolved_people.append({
+                "person_index": person.get("person_index", len(resolved_people) + 1),
+                "primary_upload_id": person.get("primary_upload_id") or person.get("upload_ids", [None])[0],
+                "photo_urls": urls,
+                "qualities": qualities,
+            })
+    return flat_urls, resolved_people
+
 # ══════════════════════════════════════════════════════════════
 #   AI PIPELINE — LoRA Generation
 # ══════════════════════════════════════════════════════════════
 
-def analyze_photo_with_claude(photo_url: str, persons: str, template_name: str, answers: dict) -> str:
-    """Use Claude Vision to create a detailed prompt for the LoRA model."""
+def analyze_photo_with_claude(photo_urls: list, persons: str, template_name: str, answers: dict, person_photos: list | None = None) -> str:
+    """Use Claude Vision to create an identity-aware generation prompt from all available references."""
     try:
-        # Download the photo
-        img_data = requests.get(photo_url, timeout=15).content
-        import base64
-        img_b64 = base64.b64encode(img_data).decode()
+        content = []
+        refs = []
+        for i, url in enumerate((photo_urls or [])[:6], start=1):
+            img_data = requests.get(url, timeout=15).content
+            img_b64 = base64.b64encode(img_data).decode()
+            content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}})
+            refs.append(f"Reference photo {i}")
 
         occasion_desc = answers.get("occasion", "")
-        notes = answers.get("notes", "")
+        notes = answers.get("notes", "") or answers.get("description", "")
+        people_count = str(persons or "1")
 
+        content.append({"type": "text", "text": f"""
+You are preparing a production prompt for an AI caricature order.
+
+GOAL:
+Create a recognisable, family-friendly, high-quality caricature in the Antonos/caricature.photo visual direction.
+Preserve identity from the uploaded reference photos: face shape, hairstyle, hairline, eyes, nose, mouth, skin tone, glasses, beard, distinctive features, and approximate age.
+
+ORDER:
+Template/theme: {template_name}
+People count: {people_count}
+Occasion: {occasion_desc}
+Customer notes: {notes}
+
+RULES:
+- Do not invent a different person.
+- Keep the person recognisable even with caricature exaggeration.
+- Use tasteful exaggeration: larger head, expressive face, clean bold outlines, warm editorial colour.
+- Avoid photorealism. Avoid grotesque distortion. Avoid unsafe content.
+- For multiple people, describe each person separately as Person 1, Person 2, etc.
+
+Return only one line starting with PROMPT: and make it detailed but concise.
+"""})
         msg = claude_client.messages.create(
             model="claude-opus-4-20250514",
-            max_tokens=400,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}
-                    },
-                    {
-                        "type": "text",
-                        "text": f"""Analyze this photo and write a caricature generation prompt.
-Template: {template_name}
-Occasion: {occasion_desc}
-Notes: {notes}
-
-Describe the person's key features (face shape, hair, distinctive features) in 2-3 sentences.
-Then write a final prompt in this format:
-PROMPT: ANTONOS caricature style, [person description], {template_name} theme, exaggerated features, bold lines, colorful, professional caricature art, caricature.photo style
-
-Write only the PROMPT line, nothing else."""
-                    }
-                ]
-            }]
+            max_tokens=700,
+            messages=[{"role": "user", "content": content}]
         )
         text = msg.content[0].text.strip()
         if "PROMPT:" in text:
-            return text.split("PROMPT:")[-1].strip()
-        return text
+            text = text.split("PROMPT:")[-1].strip()
+        return (
+            "ANTONOS caricature style, identity-preserving caricature, "
+            + text
+            + ", clean bold ink outlines, expressive but recognisable face, vivid warm colours, premium gift illustration, ultra detailed, 4K composition"
+        )
     except Exception as e:
         print(f"[Claude] Error: {e}")
         template = TEMPLATES.get(answers.get("template_id", ""), {})
-        return f"ANTONOS caricature style, {template.get('desc','portrait')}, {template_name} theme, exaggerated features, bold lines, colorful, professional caricature art"
+        return (
+            f"ANTONOS caricature style, identity-preserving portrait caricature, "
+            f"{template.get('desc','portrait')}, {template_name} theme, exaggerated but recognisable features, "
+            f"bold lines, colorful, professional premium caricature art, 4K composition"
+        )
 
 
-def generate_with_lora(prompt: str, photo_urls: list) -> str | None:
-    """Generate caricature using fal.ai LoRA or face-swap."""
+def _fal_run(model: str, arguments: dict):
     import fal_client
+    os.environ["FAL_KEY"] = CFG["FAL_KEY"]
     fal_client.api_key = CFG["FAL_KEY"]
+    return fal_client.run(model, arguments=arguments)
 
-    # Method 1: LoRA trained on Antonos style
+
+def generate_base_art(prompt: str, photo_urls: list, attempt: int = 1) -> str | None:
+    """Generate the caricature scene. LoRA is used for Antonos style; identity is reinforced later."""
+    guidance = 7.5 + (attempt - 1) * 0.5
+    steps = 32 if attempt == 1 else 36
+
     if CFG["FAL_LORA_URL"]:
         try:
-            print(f"[AI] Generating with LoRA: {CFG['FAL_LORA_URL'][:50]}...")
-            result = fal_client.run(
-                "fal-ai/flux-lora",
-                arguments={
-                    "prompt": prompt,
-                    "loras": [{"path": CFG["FAL_LORA_URL"], "scale": 1.0}],
-                    "image_size": "portrait_4_3",
-                    "num_images": 1,
-                    "num_inference_steps": 28,
-                    "guidance_scale": 7.5,
-                }
-            )
+            print(f"[AI] LoRA base generation attempt={attempt}")
+            result = _fal_run("fal-ai/flux-lora", {
+                "prompt": prompt,
+                "loras": [{"path": CFG["FAL_LORA_URL"], "scale": 1.0}],
+                "image_size": "portrait_4_3",
+                "num_images": 1,
+                "num_inference_steps": steps,
+                "guidance_scale": guidance,
+            })
             if result and result.get("images"):
                 return result["images"][0]["url"]
         except Exception as e:
-            print(f"[AI] LoRA failed: {e}")
+            print(f"[AI] LoRA base failed: {e}")
 
-    # Method 2: Face swap (if we have reference photo + LoRA)
-    if photo_urls and CFG["FAL_LORA_URL"]:
-        try:
-            print(f"[AI] Trying face swap...")
-            result = fal_client.run(
-                "fal-ai/face-swap",
-                arguments={
-                    "base_image_url": photo_urls[0],
-                    "face_image_url": photo_urls[0],
-                    "prompt": prompt,
-                }
-            )
-            if result and result.get("image"):
-                return result["image"]["url"]
-        except Exception as e:
-            print(f"[AI] Face swap failed: {e}")
-
-    # Method 3: Standard FLUX without LoRA
     try:
-        print(f"[AI] Falling back to standard FLUX...")
-        result = fal_client.run(
-            "fal-ai/flux/schnell",
-            arguments={
-                "prompt": prompt,
-                "image_size": "portrait_4_3",
-                "num_images": 1,
-                "num_inference_steps": 8,
-            }
-        )
+        print(f"[AI] FLUX fallback attempt={attempt}")
+        result = _fal_run("fal-ai/flux/schnell", {
+            "prompt": prompt,
+            "image_size": "portrait_4_3",
+            "num_images": 1,
+            "num_inference_steps": 8,
+        })
         if result and result.get("images"):
             return result["images"][0]["url"]
     except Exception as e:
         print(f"[AI] FLUX fallback failed: {e}")
-
     return None
 
 
+def apply_identity_reference(base_url: str, photo_urls: list) -> str:
+    """Apply face reference after scene generation. For now, safest for first/primary face."""
+    if not base_url or not photo_urls:
+        return base_url
+    try:
+        print("[AI] Applying identity face reference...")
+        result = _fal_run("fal-ai/face-swap", {
+            "base_image_url": base_url,
+            "face_image_url": photo_urls[0],
+        })
+        if result and result.get("image") and result["image"].get("url"):
+            return result["image"]["url"]
+    except Exception as e:
+        print(f"[AI] Face reference step failed: {e}")
+    return base_url
+
+
+def upscale_to_4k(image_url: str, order_id: str) -> tuple[bytes, dict]:
+    """Return high-resolution bytes. Tries AI upscale first, then Pillow local upscale, then original."""
+    meta = {"target": "4k", "method": "original", "width": None, "height": None, "upscaled": False}
+
+    # 1) Try fal upscaler models. Model names vary by fal account availability, so fail safely.
+    for model in [CFG.get("FAL_UPSCALE_MODEL"), "fal-ai/esrgan", "fal-ai/aura-sr"]:
+        if not model:
+            continue
+        try:
+            print(f"[4K] Trying upscaler: {model}")
+            result = _fal_run(model, {"image_url": image_url, "scale": 4})
+            up_url = None
+            if isinstance(result, dict):
+                if result.get("image") and isinstance(result["image"], dict):
+                    up_url = result["image"].get("url")
+                elif result.get("images"):
+                    up_url = result["images"][0].get("url")
+                elif result.get("url"):
+                    up_url = result.get("url")
+            if up_url:
+                b = requests.get(up_url, timeout=45).content
+                meta.update({"method": model, "upscaled": True})
+                return b, meta
+        except Exception as e:
+            print(f"[4K] Upscaler {model} failed: {e}")
+
+    # 2) Local upscale if Pillow exists in the environment.
+    try:
+        from PIL import Image
+        from io import BytesIO
+        raw = requests.get(image_url, timeout=45).content
+        im = Image.open(BytesIO(raw)).convert("RGB")
+        w, h = im.size
+        scale = max(1, int(max(3840 / max(w, 1), 2160 / max(h, 1))))
+        scale = min(max(scale, 2), 4)
+        new_size = (w * scale, h * scale)
+        im = im.resize(new_size, Image.Resampling.LANCZOS)
+        out = BytesIO()
+        im.save(out, format="JPEG", quality=95, optimize=True)
+        meta.update({"method": "pillow_lanczos", "width": new_size[0], "height": new_size[1], "upscaled": True})
+        return out.getvalue(), meta
+    except Exception as e:
+        print(f"[4K] Local upscale unavailable/failed: {e}")
+
+    # 3) Last safe fallback.
+    raw = requests.get(image_url, timeout=45).content
+    return raw, meta
+
+
+def assess_generated_result(prompt: str, result_url: str, reference_url: str | None = None) -> dict:
+    """Lightweight post-generation QA. Does not block delivery unless generation obviously failed."""
+    try:
+        content = []
+        result_bytes = requests.get(result_url, timeout=20).content
+        content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.b64encode(result_bytes).decode()}})
+        if reference_url:
+            ref_bytes = requests.get(reference_url, timeout=20).content
+            content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.b64encode(ref_bytes).decode()}})
+        content.append({"type": "text", "text": (
+            "Assess this generated caricature for customer delivery. "
+            "Return ONLY JSON: {\"deliverable\":true/false,\"quality_score\":1-10,\"identity_score\":1-10,\"reason\":\"...\"}. "
+            "Be practical: caricature exaggeration is allowed, but blank, corrupted, wrong subject, or no face should fail."
+        )})
+        msg = claude_client.messages.create(model="claude-opus-4-20250514", max_tokens=180, messages=[{"role": "user", "content": content}])
+        raw = msg.content[0].text.strip()
+        if "{" in raw and "}" in raw:
+            raw = raw[raw.index("{"):raw.rindex("}")+1]
+        data = json.loads(raw)
+        data["quality_score"] = int(data.get("quality_score", 7))
+        data["identity_score"] = int(data.get("identity_score", 7))
+        data["deliverable"] = bool(data.get("deliverable", True))
+        return data
+    except Exception as e:
+        print(f"[QA] Result QA failed open: {e}")
+        return {"deliverable": True, "quality_score": 7, "identity_score": 7, "reason": "qa_failed_open"}
+
+
+def generate_with_lora(prompt: str, photo_urls: list) -> str | None:
+    """Backward-compatible wrapper used by older routes/tests."""
+    base = generate_base_art(prompt, photo_urls, attempt=1)
+    return apply_identity_reference(base, photo_urls) if base else None
+
+
 def run_generation_pipeline(order_id: str):
-    """Main AI pipeline — runs in background thread after payment."""
+    """Main AI pipeline — Stripe-safe, identity-aware, 4K-oriented."""
+    order = None
     try:
         order = get_order(order_id)
         if not order:
             raise Exception("Order not found")
 
-        update_order_status(order_id, "generating")
+        update_order_status(order_id, "generating", {"pipeline_version": "2.3-expert-4k"})
         print(f"[Pipeline] Starting generation for {order_id}")
 
-        template_id   = order["template_id"]
-        template      = TEMPLATES.get(template_id, {})
-        photo_urls    = order.get("photo_urls", [])
-        answers       = order.get("answers", {})
-        email         = order["email"]
-        name          = order["name"]
-        plan_id       = order["plan_id"]
+        template_id    = order["template_id"]
+        template       = TEMPLATES.get(template_id, TEMPLATES["custom_free"])
+        photo_urls     = order.get("photo_urls", [])
+        person_photos  = order.get("person_photos", [])
+        answers        = order.get("answers", {}) or {}
+        email          = order["email"]
+        name           = order["name"]
+        plan_id        = order["plan_id"]
+        template_name  = order.get("template_name") or template.get("name", template_id)
 
-        # 1. Claude Vision analysis
-        print(f"[Pipeline] Claude analyzing photo...")
+        # 1. Claude Vision identity-aware prompt
+        print("[Pipeline] Claude building identity-aware prompt...")
         prompt = analyze_photo_with_claude(
-            photo_urls[0] if photo_urls else "",
-            order.get("persons", "1"),
-            order.get("template_name") or template.get("name", template_id),
-            {**answers, "template_id": template_id, "notes": order.get("notes", answers.get("notes", ""))}
+            photo_urls=photo_urls,
+            persons=order.get("persons", "1"),
+            template_name=template_name,
+            answers={**answers, "template_id": template_id, "notes": order.get("notes", answers.get("notes", ""))},
+            person_photos=person_photos,
         )
-        print(f"[Pipeline] Prompt: {prompt[:100]}...")
+        print(f"[Pipeline] Prompt: {prompt[:180]}...")
 
-        # 2. Generate with LoRA
-        print(f"[Pipeline] Generating caricature...")
-        raw_url = generate_with_lora(prompt, photo_urls)
+        # 2. Generate + identity reference + QA retries
+        final_ai_url = None
+        qa = {}
+        attempts = max(1, min(3, int(CFG.get("MAX_GENERATION_RETRIES", 2))))
+        for attempt in range(1, attempts + 1):
+            print(f"[Pipeline] Generation attempt {attempt}/{attempts}")
+            base_url = generate_base_art(prompt, photo_urls, attempt=attempt)
+            if not base_url:
+                continue
+            candidate_url = apply_identity_reference(base_url, photo_urls)
+            qa = assess_generated_result(prompt, candidate_url, photo_urls[0] if photo_urls else None)
+            print(f"[Pipeline] QA attempt={attempt}: {qa}")
+            if qa.get("deliverable", True) and qa.get("quality_score", 7) >= 5:
+                final_ai_url = candidate_url
+                break
+            prompt += ", improve facial likeness, clear human face, clean finished premium caricature, no artifacts"
 
-        if not raw_url:
-            raise Exception("All AI generation methods failed")
+        if not final_ai_url:
+            raise Exception("AI generation did not produce a deliverable image")
 
-        # 3. Save to GCS
-        img_bytes = requests.get(raw_url, timeout=30).content
-        filename  = f"result_{order_id}.jpg"
+        # 3. 4K/upscale output packaging
+        print("[Pipeline] Preparing 4K/high-resolution delivery...")
+        img_bytes, upscale_meta = upscale_to_4k(final_ai_url, order_id)
+        filename = f"result_{order_id}_4k.jpg" if upscale_meta.get("upscaled") else f"result_{order_id}.jpg"
         result_url = upload_to_gcs(img_bytes, filename, "image/jpeg", folder="results")
-        print(f"[Pipeline] Saved to GCS: {result_url}")
+        print(f"[Pipeline] Saved to GCS: {result_url} | upscale={upscale_meta}")
 
         # 4. Send email
-        send_result_email(email, name, [result_url], order_id, template.get("name", ""), plan_id)
+        send_result_email(email, name, [result_url], order_id, template_name, plan_id)
 
         # 5. Complete
         update_order_status(order_id, "completed", {
             "result_urls": [result_url],
+            "raw_ai_url": final_ai_url,
             "completed_at": datetime.utcnow().isoformat(),
             "review_email_sent": False,
+            "generation_prompt": prompt[:1500],
+            "generation_qa": qa,
+            "upscale_meta": upscale_meta,
         })
-        notify_admin(f"✅ Order {order_id} completed | {template.get('name','')} | {email}")
+        notify_admin(f"✅ Order {order_id} completed | {template_name} | {email}")
 
     except Exception as e:
         print(f"[Pipeline] ERROR for {order_id}: {e}")
-        update_order_status(order_id, "failed", {"error": str(e)})
-        notify_admin(f"❌ Order {order_id} FAILED: {e}")
-        # Offer manual caricature.photo as fallback
         try:
-            send_fallback_email(order.get("email",""), order.get("name",""), order_id)
-        except:
+            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "2.3-expert-4k"})
+        except Exception:
+            pass
+        notify_admin(f"❌ Order {order_id} FAILED: {e}")
+        try:
+            if order:
+                send_fallback_email(order.get("email", ""), order.get("name", ""), order_id)
+        except Exception:
             pass
 
 
@@ -751,27 +984,47 @@ def upload_photo():
 
 @app.route("/api/create-payment-intent", methods=["POST"])
 def create_payment_intent():
-    body        = request.get_json()
-    template_id = body.get("template_id") or "custom_free"
-    upload_ids  = body.get("upload_ids", [])
-    # Backward compatibility with older order.html payload: person_photos -> flat upload_ids
-    if not upload_ids and isinstance(body.get("person_photos"), list):
-        upload_ids = []
-        for person in body.get("person_photos", []):
-            upload_ids.extend(person.get("upload_ids", []))
-    persons     = body.get("persons", "1")
-    plan_id     = body.get("plan", "standard")
-    answers     = body.get("answers", {}) or {}
-    notes       = body.get("notes", "") or body.get("description", "") or answers.get("notes", "")
-    email       = body.get("email", "").strip().lower()
-    name        = body.get("name", "").strip()
+    body = request.get_json(silent=True) or {}
 
-    if not template_id or template_id not in TEMPLATES:
-        template_id = "custom_free" if body.get("flow") == "free" or body.get("description") else template_id
+    moderation = moderate_order_request(body)
+    if not moderation.get("allowed"):
+        try:
+            db.collection("moderation_logs").add({
+                "created_at": datetime.utcnow().isoformat(),
+                "stage": "create_payment_intent",
+                "reason": moderation.get("reason"),
+                "hits": moderation.get("hits", []),
+                "template_id": body.get("template_id"),
+                "email": (body.get("email", "") or "").strip().lower(),
+            })
+        except Exception as e:
+            print(f"[Moderation] log failed: {e}")
+        return err("This request cannot be processed because it violates our content guidelines.", 400)
+
+    template_id = body.get("template_id") or "custom_free"
     if not template_id or template_id not in TEMPLATES:
         template_id = "custom_free" if body.get("flow") == "free" or body.get("description") else template_id
     if not template_id or template_id not in TEMPLATES:
         return err("Invalid template")
+
+    upload_ids = [str(x) for x in (body.get("upload_ids", []) or []) if x]
+    # Backward compatibility with older/newer order.html payload: person_photos -> flat upload_ids
+    if isinstance(body.get("person_photos"), list):
+        for person in body.get("person_photos", []):
+            if isinstance(person, dict):
+                for uid in person.get("upload_ids", []) or []:
+                    if uid and uid not in upload_ids:
+                        upload_ids.append(str(uid))
+
+    persons = str(body.get("persons", "1") or "1")
+    plan_id = body.get("plan", "standard")
+    answers = body.get("answers", {}) or {}
+    notes = body.get("notes", "") or body.get("description", "") or answers.get("notes", "")
+    email = (body.get("email", "") or "").strip().lower()
+    name = (body.get("name", "") or "").strip()
+    flow = body.get("flow", "template")
+    description = body.get("description", "") or answers.get("description", "")
+
     if not upload_ids:
         return err("Please upload at least one photo")
     if not email or "@" not in email:
@@ -779,18 +1032,14 @@ def create_payment_intent():
     if plan_id not in PLANS:
         plan_id = "standard"
 
-    # Get photo URLs
-    photo_urls = []
-    for uid in upload_ids[:5]:
-        doc = db.collection("uploads").document(uid).get()
-        if doc.exists:
-            photo_urls.append(doc.to_dict()["photo_url"])
+    person_photos_payload = build_person_photos_from_payload(body, upload_ids)
+    photo_urls, resolved_person_photos = resolve_uploads(upload_ids, person_photos_payload)
     if not photo_urls:
         return err("Photos not found. Please re-upload.")
 
     amount_cents = calc_price(persons, plan_id)
-    order_id     = f"ord_{str(uuid.uuid4()).replace('-','')[:16]}"
-    template     = TEMPLATES.get(template_id, TEMPLATES["custom_free"])
+    order_id = f"ord_{str(uuid.uuid4()).replace('-', '')[:16]}"
+    template = TEMPLATES.get(template_id, TEMPLATES["custom_free"])
 
     try:
         intent = stripe.PaymentIntent.create(
@@ -799,41 +1048,47 @@ def create_payment_intent():
             automatic_payment_methods={"enabled": True},
             receipt_email=email,
             metadata={
-                "order_id":   order_id,
+                "order_id": order_id,
                 "template_id": template_id,
-                "plan_id":    plan_id,
-                "persons":    str(persons),
+                "plan_id": plan_id,
+                "persons": str(persons),
+                "pipeline": "v2.3-expert-4k",
             },
             description=f"Caricature — {template['name']} ({plan_id})"
         )
     except stripe.error.StripeError as e:
-        return err(f"Payment setup failed: {e.user_message}", 402)
+        return err(f"Payment setup failed: {getattr(e, 'user_message', str(e))}", 402)
 
     log_order(order_id, {
-        "order_id":       order_id,
-        "stripe_intent":  intent.id,
-        "template_id":    template_id,
-        "template_name":  template["name"],
-        "occasion":       template["occasion"],
-        "persons":        persons,
-        "plan_id":        plan_id,
-        "amount_cents":   amount_cents,
-        "photo_urls":     photo_urls,
-        "upload_ids":     upload_ids,
-        "answers":        answers,
-        "notes":          notes,
-        "email":          email,
-        "name":           name,
-        "status":         "pending",
-        "created_at":     datetime.utcnow().isoformat(),
+        "order_id": order_id,
+        "stripe_intent": intent.id,
+        "template_id": template_id,
+        "template_name": template["name"],
+        "occasion": template["occasion"],
+        "persons": persons,
+        "plan_id": plan_id,
+        "amount_cents": amount_cents,
+        "photo_urls": photo_urls,
+        "upload_ids": upload_ids,
+        "person_photos": resolved_person_photos,
+        "answers": answers,
+        "notes": notes,
+        "description": description,
+        "flow": flow,
+        "email": email,
+        "name": name,
+        "status": "pending",
+        "pipeline_version": "2.3-expert-4k",
+        "moderation": moderation,
+        "created_at": datetime.utcnow().isoformat(),
     })
 
     return ok({
-        "clientSecret":    intent.client_secret,
-        "order_id":        order_id,
+        "clientSecret": intent.client_secret,
+        "order_id": order_id,
         "publishable_key": CFG["STRIPE_PUB"],
-        "amount_cents":    amount_cents,
-        "amount_display":  f"€{amount_cents/100:.2f}",
+        "amount_cents": amount_cents,
+        "amount_display": f"€{amount_cents/100:.2f}",
     })
 
 
@@ -1756,14 +2011,14 @@ def verify_same_person():
 def health():
     return ok({
         "status":    "healthy",
-        "version":   "2.0.0",
+        "version":   "2.3.0-expert-4k",
         "timestamp": datetime.utcnow().isoformat(),
         "lora_ready": bool(CFG["FAL_LORA_URL"]),
     })
 
 @app.route("/", methods=["GET"])
 def root():
-    return ok({"service": "Caricature API", "version": "2.0.0", "docs": "/health"})
+    return ok({"service": "Caricature API", "version": "2.3.0-expert-4k", "docs": "/health"})
 
 
 if __name__ == "__main__":

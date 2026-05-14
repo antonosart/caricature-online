@@ -1031,8 +1031,8 @@
         <div class="card">
           <div class="ct">Upload <em>Photos</em></div>
           <div class="cs">2 photos per person gives us the best facial reference.</div>
-          <div class="photo-tip">📸 <strong>Best results:</strong> Clear face, good lighting, front or slight angle.<br>
-            <strong>Avoid:</strong> Sunglasses, very small face, dark or backlit photos.
+          <div class="photo-tip">📸 <strong>Best 4K likeness:</strong> use one clear primary face photo per person — front-facing, sharp, well lit.<br>
+            <strong>Optional second photo:</strong> same person, different angle. Avoid sunglasses, tiny faces, screenshots, dark/backlit photos.
           </div>
           <div id="personSecs"></div>
           <div class="btn-row">
@@ -1080,8 +1080,8 @@
 
   <script>
     // ═══════════════════════════════════════════════════════
-    // CONFIG — Caricature.online order flow v2.2
-    // Face-check UX aligned with backend v2.2
+    // CONFIG — Caricature.online order flow v2.3 EXPERT +9.5
+    // Identity-aware payload aligned with backend v2.3 4K pipeline
     // ═══════════════════════════════════════════════════════
     var API_URL = 'https://caricature-api-52458434183.us-central1.run.app';
 
@@ -1175,6 +1175,29 @@
     };
 
     // ═══════════════════════════════════════════════════════
+    // LIGHT CLIENT-SIDE SAFETY CHECKS — backend remains source of truth
+    // ═══════════════════════════════════════════════════════
+    var FORBIDDEN_TEXT_PATTERNS = [
+      /\b(nude|naked|porn|sex|sexual|erotic|fetish|xxx)\b/i,
+      /\b(child|kid|minor|baby|toddler)\b.*\b(nude|naked|sexy|sexual|erotic)\b/i,
+      /\b(hate|nazi|terrorist|kill|blood|gore|torture)\b/i,
+      /\b(fake\s+id|passport|driving\s+licen[cs]e|impersonat(e|ion))\b/i
+    ];
+
+    function moderateLocalText() {
+      var descEl = document.getElementById('descTxt');
+      var notesEl = document.getElementById('notesTxt');
+      var hint = document.getElementById('descHint');
+      var text = ((descEl && descEl.value) || '') + ' ' + ((notesEl && notesEl.value) || '');
+      var blocked = FORBIDDEN_TEXT_PATTERNS.some(function (re) { return re.test(text); });
+      if (blocked && hint) {
+        hint.textContent = 'This request cannot be processed because it violates our content guidelines.';
+        hint.style.color = 'var(--error)';
+      }
+      return { blocked: blocked, text: text.trim() };
+    }
+
+    // ═══════════════════════════════════════════════════════
     // STATE
     // ═══════════════════════════════════════════════════════
     var S = {
@@ -1214,6 +1237,7 @@
         goTo(S.flow === 'template' ? 4 : 3);
       });
       document.getElementById('descTxt').addEventListener('input', onDescInput);
+      document.getElementById('notesTxt').addEventListener('input', onDescInput);
       document.getElementById('nameIn').addEventListener('input', checkPay);
       document.getElementById('emailIn').addEventListener('input', checkPay);
       document.getElementById('payBtn').addEventListener('click', handlePay);
@@ -1449,12 +1473,20 @@
     function onDescInput() {
       var val = document.getElementById('descTxt').value.trim();
       S.description = val;
+      S.notes = (document.getElementById('notesTxt').value || '').trim();
       var hint = document.getElementById('descHint');
+      var mod = moderateLocalText();
+
+      if (mod.blocked) {
+        document.getElementById('btn4f').disabled = true;
+        return;
+      }
+
       if (val.length < 5) {
         hint.textContent = (5 - val.length) + ' more characters needed';
         hint.style.color = 'var(--muted)';
       } else {
-        hint.textContent = val.length + ' characters ✓';
+        hint.textContent = val.length + ' characters ✓ · content safety checked before payment';
         hint.style.color = 'var(--success)';
       }
       document.getElementById('btn4f').disabled = val.length < 5;
@@ -1505,12 +1537,12 @@
 
           var lbl = document.createElement('div');
           lbl.className = 'uz-label';
-          lbl.textContent = qi === 0 ? 'Photo 1 (required)' : 'Photo 2 (optional)';
+          lbl.textContent = qi === 0 ? 'Primary face photo (required)' : 'Second reference (optional)';
           iconDiv.appendChild(lbl);
 
           var hint = document.createElement('div');
           hint.className = 'uz-hint';
-          hint.textContent = 'Click · JPG/PNG · max 15MB';
+          hint.textContent = qi === 0 ? 'Clear front face · JPG/PNG/WEBP · max 10MB' : 'Same person · different angle · max 10MB';
           iconDiv.appendChild(hint);
 
           zone.appendChild(iconDiv);
@@ -1561,6 +1593,20 @@
       var iconDiv = document.getElementById('ui-' + pi + '-' + qi);
       var st = document.getElementById('st-' + pi + '-' + qi);
 
+      var allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      if (allowedTypes.indexOf(file.type) < 0) {
+        st.className = 'uz-st err';
+        st.textContent = 'Use JPG, PNG or WEBP.';
+        e.target.value = '';
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        st.className = 'uz-st err';
+        st.textContent = 'File too large. Max 10MB.';
+        e.target.value = '';
+        return;
+      }
+
       zone.classList.add('busy');
       zone.classList.remove('bad');
       st.className = 'uz-st';
@@ -1586,7 +1632,14 @@
         var data = await res.json();
         if (!data.success) throw new Error(data.error || 'Upload failed');
 
-        S.personUploads[pi].u[qi] = { upload_id: data.upload_id, photo_url: data.photo_url };
+        S.personUploads[pi].u[qi] = {
+          upload_id: data.upload_id,
+          photo_url: data.photo_url,
+          role: qi === 0 ? 'primary' : 'secondary',
+          quality: data.quality || null,
+          score: (data.quality && data.quality.score) || data.score || null,
+          warnings: (data.quality && data.quality.warnings) || data.warnings || []
+        };
 
         zone.classList.remove('busy');
         var score = (data.quality && data.quality.score) || data.score || 5;
@@ -1659,6 +1712,9 @@
         prev.style.display = 'none';
         iconDiv.style.display = '';
       }
+
+      // If primary photo uploaded for any person, softly warn about duplicate people across slots
+      if (qi === 0) { verifyCrossPersons(pi); }
 
       // If both photos uploaded for this person, verify they're the same person
       if (qi === 1 && S.personUploads[pi].u[0] !== null && S.personUploads[pi].u[1] !== null) {
@@ -1988,10 +2044,26 @@
       cerr.textContent = '';
 
       try {
-        var pph = S.personUploads.map(function (pu) {
+        if (!photosOk()) {
+          throw new Error('Please upload one clear primary face photo for each person.');
+        }
+
+        var pph = S.personUploads.map(function (pu, idx) {
+          var uploads = pu.u.filter(function (u) { return u !== null; });
+          var primary = uploads.filter(function (u) { return u.role === 'primary'; })[0] || uploads[0] || null;
           return {
-            person: pu.p,
-            upload_ids: pu.u.filter(function (u) { return u !== null; }).map(function (u) { return u.upload_id; })
+            person: pu.p || (idx + 1),
+            person_index: idx + 1,
+            primary_upload_id: primary ? primary.upload_id : null,
+            upload_ids: uploads.map(function (u) { return u.upload_id; }),
+            uploads: uploads.map(function (u) {
+              return {
+                upload_id: u.upload_id,
+                role: u.role || 'reference',
+                quality_score: u.score || (u.quality && u.quality.score) || null,
+                warnings: u.warnings || (u.quality && u.quality.warnings) || []
+              };
+            })
           };
         });
 
@@ -2006,6 +2078,10 @@
         var notes = S.flow === 'free'
           ? document.getElementById('notesTxt').value.trim()
           : '';
+        var localSafety = moderateLocalText();
+        if (S.flow === 'free' && localSafety.blocked) {
+          throw new Error('This request cannot be processed because it violates our content guidelines.');
+        }
         var finalTemplateId = S.flow === 'free' ? 'custom_free' : S.templateId;
 
         var payload = {
@@ -2015,6 +2091,8 @@
           occasion: S.occasion,
           persons: S.persons || '1',
           plan: S.plan,
+          quality_target: '4k',
+          identity_mode: 'primary_face_reference',
           upload_ids: flatUploadIds,
           person_photos: pph,
           answers: {
@@ -2022,7 +2100,9 @@
             template_id: finalTemplateId,
             template_name: S.templateName || (S.flow === 'free' ? 'Custom Scene' : ''),
             description: desc,
-            notes: notes
+            notes: notes,
+            quality_target: '4k',
+            identity_mode: 'primary_face_reference'
           },
           notes: notes || desc,
           email: email,
