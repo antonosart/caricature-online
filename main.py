@@ -1,6 +1,6 @@
 # ══════════════════════════════════════════════════════════════
-#   CARICATURE.ONLINE — Backend v2.6.0 TEMPLATE-ANCHORED PIPELINE
-#   Real Antonos Template → Face-Swap → Style Unification
+#   CARICATURE.ONLINE — Backend v2.7.0 TEMPLATE IMG2IMG PIPELINE
+#   Antonos Template → img2img face replace (no face-swap needed)
 #   Stack: Flask · Firestore · GCS · fal.ai LoRA · Stripe · Resend
 # ══════════════════════════════════════════════════════════════
 
@@ -525,6 +525,113 @@ Return only one line starting with PROMPT: and make it detailed but concise.
         )
 
 
+
+def extract_face_description(photo_urls: list) -> str:
+    """Claude Vision extracts a compact, precise face description for template img2img.
+
+    v2.7.0: Face-swap cannot work on drawn/cartoon faces (Antonos templates).
+    Instead we pass a detailed face description to img2img so FLUX can draw
+    the customer's face directly in the caricature, replacing the template face.
+    """
+    try:
+        content = []
+        for url in (photo_urls or [])[:2]:
+            resp = requests.get(url, timeout=15)
+            resp.raise_for_status()
+            media_type = resp.headers.get("Content-Type", "image/jpeg").split(";")[0]
+            img_data, media_type, _ = prepare_image_for_vision_bytes(resp.content, media_type)
+            content.append({"type": "image", "source": {"type": "base64", "media_type": media_type, "data": base64.b64encode(img_data).decode()}})
+
+        content.append({"type": "text", "text": (
+            "Describe ONLY this person's physical appearance for an AI art face-replacement prompt.\n"
+            "Be specific and concise. One sentence, comma-separated, all lowercase.\n"
+            "Include: gender, approximate age, hair color+length+style, eye color+shape, "
+            "skin tone, glasses (yes/no and description), beard/facial hair (yes/no), distinctive features.\n"
+            "Explicitly state absences: 'no glasses', 'no beard', 'smooth skin' etc.\n"
+            "Example: young woman mid-20s, shoulder-length brown hair, blue-green almond eyes, "
+            "fair skin with rosy cheeks, no glasses, no beard, soft round face, full lips\n"
+            "Return ONLY the description. No preamble, no quotes."
+        )})
+        msg = claude_client.messages.create(
+            model="claude-opus-4-20250514",
+            max_tokens=120,
+            messages=[{"role": "user", "content": content}]
+        )
+        desc = msg.content[0].text.strip().strip('"').strip("'")
+        print(f"[FaceDesc] Extracted: {desc}")
+        return desc
+    except Exception as e:
+        print(f"[FaceDesc] Error: {e}")
+        return "young person, no glasses, no beard, no facial hair"
+
+
+def generate_from_template_img2img(template_url: str, face_description: str, template_name: str, attempt: int = 1) -> tuple[str | None, dict]:
+    """v2.7.0 core: replace the face in an Antonos template via img2img.
+
+    WHY this works better than face-swap:
+    - fal-ai/face-swap only detects photorealistic faces. Drawn cartoon faces
+      (Antonos templates) are not detected as valid swap targets.
+    - img2img at medium strength (0.38-0.54) keeps most of the template intact
+      (body, costume, background, ink style) while prompt guides FLUX to draw
+      a new face matching the customer description.
+    - Antonos LoRA ensures the newly drawn face is in caricature style.
+
+    Strength calibration:
+      attempt 1: 0.38 -> conservative, good for face-only replacement
+      attempt 2: 0.46 -> stronger if identity_score < 6 on attempt 1
+      attempt 3: 0.54 -> aggressive, customer face takes priority
+    """
+    meta = {"attempted": False, "success": False, "error": None,
+            "method": "template_img2img", "template_url": template_url}
+
+    if not CFG.get("FAL_LORA_URL"):
+        meta["error"] = "no_lora_url_configured"
+        return None, meta
+
+    strength = min(0.58, 0.38 + (attempt - 1) * 0.08)
+    guidance = 9.0 + (attempt - 1) * 0.5
+    steps = 40 if attempt == 1 else 44 if attempt == 2 else 48
+    lora_scale = float(CFG.get(f"LORA_SCALE_{min(attempt,3)}", 0.85))
+
+    prompt = (
+        f"ANTONOS hand-drawn caricature illustration style, "
+        f"keep the same {template_name} costume body pose background and art style as the reference illustration, "
+        f"replace ONLY the face with a caricature drawing of: {face_description}, "
+        f"draw the new face in Antonos caricature style: expressive eyes, "
+        f"bold confident ink outlines around the face, cel-shaded cartoon skin, "
+        f"exaggerated slightly larger head, warm vivid editorial colours, "
+        f"do NOT change the body the costume the background or the overall composition, "
+        f"premium gift caricature illustration, NOT photorealistic face"
+    )
+
+    try:
+        meta.update({"attempted": True, "strength": strength, "lora_scale": lora_scale, "guidance": guidance})
+        print(f"[AI v2.7] Template img2img: strength={strength} guidance={guidance} lora={lora_scale} attempt={attempt}")
+        result = _fal_run("fal-ai/flux-lora/image-to-image", {
+            "prompt": prompt,
+            "image_url": template_url,
+            "strength": strength,
+            "image_size": "portrait_4_3",
+            "num_images": 1,
+            "num_inference_steps": steps,
+            "guidance_scale": guidance,
+            "enable_safety_checker": True,
+            "output_format": "jpeg",
+            "loras": [{"path": CFG["FAL_LORA_URL"], "scale": lora_scale}],
+        })
+        url = _extract_fal_image_url(result)
+        if url:
+            meta.update({"success": True, "result_url": url})
+            print(f"[AI v2.7] Template img2img success: {url}")
+            return url, meta
+        meta["error"] = f"no_url:{str(result)[:300]}"
+    except Exception as e:
+        meta["error"] = str(e)[:800]
+        print(f"[AI v2.7] Template img2img failed: {e}")
+
+    return None, meta
+
+
 def _fal_run(model: str, arguments: dict):
     import fal_client
     os.environ["FAL_KEY"] = CFG["FAL_KEY"]
@@ -701,7 +808,92 @@ def generate_identity_first_art(prompt: str, photo_urls: list, attempt: int = 1)
     return None, meta
 
 
-def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, strict: bool = True, template_id: str = "") -> tuple[str | None, dict]:
+def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, strict: bool = True, template_id: str = "", face_description: str = "", template_name: str = "") -> tuple[str | None, dict]:
+    """v2.7.0 Template img2img pipeline.
+
+    PRIMARY PATH (Antonos base image exists):
+      generate_from_template_img2img():
+        - Template image as img2img input (medium strength 0.38-0.54)
+        - Prompt contains precise customer face description → FLUX draws new face
+        - LoRA keeps Antonos caricature style on the new face
+        - Low strength preserves costume/background/body from template
+      WHY NOT face-swap: fal-ai/face-swap cannot detect drawn cartoon faces.
+
+    FALLBACK PATH (no template base image):
+      T2I with LoRA → face-swap (best effort)
+    """
+    meta = {"pipeline": "v2.7.0_template_img2img", "attempt": attempt, "stages": [],
+            "template_id": template_id, "face_description": face_description}
+
+    # ══ PRIMARY: Template img2img ═══════════════════════════════════════════
+    template_base_url = get_template_base_image(template_id) if template_id else None
+    meta["template_base_url"] = template_base_url
+
+    if template_base_url and face_description:
+        t_name = template_name or template_id
+        candidate_url, t_meta = generate_from_template_img2img(
+            template_base_url, face_description, t_name, attempt=attempt
+        )
+        meta["stages"].append({"stage": "template_img2img", **t_meta})
+
+        if candidate_url:
+            print(f"[AI v2.7] PRIMARY success attempt={attempt}")
+            return candidate_url, meta
+
+        print(f"[AI v2.7] Template img2img failed, falling back to T2I+FaceSwap")
+        meta["warning"] = "template_img2img_failed"
+
+    # ══ FALLBACK: T2I + Face-Swap ════════════════════════════════════════════
+    print(f"[AI v2.7] FALLBACK: T2I+FaceSwap for template_id={template_id}")
+    scale_key = f"LORA_SCALE_{min(max(int(attempt), 1), 3)}"
+    lora_scale = float(CFG.get(scale_key, 1.45))
+    guidance = 7.5 + (attempt - 1) * 0.5
+    steps = 40 if attempt == 1 else 45 if attempt == 2 else 50
+
+    base_url = None
+    if CFG["FAL_LORA_URL"]:
+        try:
+            result = _fal_run("fal-ai/flux-lora", {
+                "prompt": prompt,
+                "loras": [{"path": CFG["FAL_LORA_URL"], "scale": lora_scale}],
+                "image_size": "portrait_4_3", "num_images": 1,
+                "num_inference_steps": steps, "guidance_scale": guidance,
+                "enable_safety_checker": True, "output_format": "jpeg",
+            })
+            if result and result.get("images"):
+                img = result["images"][0]
+                base_url = img.get("url") if isinstance(img, dict) else img
+        except Exception as e:
+            print(f"[AI v2.7] T2I LoRA failed: {e}")
+
+    if not base_url:
+        try:
+            result = _fal_run("fal-ai/flux/schnell", {
+                "prompt": prompt, "image_size": "portrait_4_3",
+                "num_images": 1, "num_inference_steps": 8,
+            })
+            if result and result.get("images"):
+                img = result["images"][0]
+                base_url = img.get("url") if isinstance(img, dict) else img
+        except Exception as e:
+            print(f"[AI v2.7] schnell failed: {e}")
+
+    meta["stages"].append({"stage": "t2i_fallback", "success": bool(base_url), "url": base_url})
+    if not base_url:
+        meta["error"] = "all_stages_failed"
+        return None, meta
+
+    candidate_url, swap_meta = apply_identity_reference(base_url, photo_urls, strict=strict)
+    meta["stages"].append({"stage": "face_swap_on_t2i", **swap_meta})
+
+    if candidate_url:
+        return candidate_url, meta
+    if not strict and base_url:
+        meta["warning"] = "faceswap_failed_returning_t2i_base"
+        return base_url, meta
+
+    meta["error"] = "all_stages_failed"
+    return None, meta
     """v2.6.0 Template-Anchored Pipeline.
 
     PRIMARY PATH (when Antonos base image exists for this template):
@@ -720,7 +912,7 @@ def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, stri
     - Face-swap alone creates realistic face on drawn body (style mismatch)
     - Style unification (very low strength img2img) solves the face/body style mismatch
     """
-    meta = {"pipeline": "v2.6.0_template_anchored", "attempt": attempt, "stages": [], "template_id": template_id}
+    meta = {"pipeline": "v2.7.0_template_img2img", "attempt": attempt, "stages": [], "template_id": template_id}
 
     # ══ PRIMARY: Template-Anchored (real Antonos image as base) ═══════════════
     template_base_url = get_template_base_image(template_id) if template_id else None
@@ -1048,7 +1240,7 @@ def run_generation_pipeline(order_id: str):
         if not order:
             raise Exception("Order not found")
 
-        update_order_status(order_id, "generating", {"pipeline_version": "2.6.0-template-anchored"})
+        update_order_status(order_id, "generating", {"pipeline_version": "2.7.0-template-img2img"})
         print(f"[Pipeline] Starting generation for {order_id}")
 
         template_id    = order["template_id"]
@@ -1061,8 +1253,8 @@ def run_generation_pipeline(order_id: str):
         plan_id        = order["plan_id"]
         template_name  = order.get("template_name") or template.get("name", template_id)
 
-        # 1. Claude Vision identity-aware prompt
-        print("[Pipeline] Claude building identity-aware prompt...")
+        # 1. Claude Vision: scene prompt + face description (v2.7.0)
+        print("[Pipeline] Claude building identity-aware prompt and face description...")
         prompt = analyze_photo_with_claude(
             photo_urls=photo_urls,
             persons=order.get("persons", "1"),
@@ -1071,15 +1263,22 @@ def run_generation_pipeline(order_id: str):
             person_photos=person_photos,
         )
         print(f"[Pipeline] Prompt: {prompt[:180]}...")
+        # v2.7.0: extract face description for template img2img face replacement
+        face_description = extract_face_description(photo_urls) if photo_urls else ""
+        print(f"[Pipeline] Face description: {face_description}")
 
-        # 2. v2.6.0 template-anchored generation + QA retries
+        # 2. v2.7.0 template img2img generation + QA retries
         final_ai_url = None
         qa = {}
         generation_debug = []
         attempts = max(1, min(3, int(CFG.get("MAX_GENERATION_RETRIES", 2))))
         for attempt in range(1, attempts + 1):
-            print(f"[Pipeline v2.6] Template-anchored generation attempt {attempt}/{attempts}")
-            candidate_url, generation_meta = generate_candidate_art(prompt, photo_urls, attempt=attempt, strict=True, template_id=template_id)
+            print(f"[Pipeline v2.7] Template img2img attempt {attempt}/{attempts}")
+            candidate_url, generation_meta = generate_candidate_art(
+                prompt, photo_urls, attempt=attempt, strict=True,
+                template_id=template_id, face_description=face_description,
+                template_name=template_name
+            )
             generation_debug.append({"attempt": attempt, "candidate_url": candidate_url, "generation_meta": generation_meta})
             if not candidate_url:
                 qa = {"deliverable": False, "quality_score": 1, "identity_score": 1, "reason": "generation_candidate_failed", "generation_meta": generation_meta}
@@ -1122,7 +1321,7 @@ def run_generation_pipeline(order_id: str):
     except Exception as e:
         print(f"[Pipeline] ERROR for {order_id}: {e}")
         try:
-            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "2.6.0-template-anchored"})
+            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "2.7.0-template-img2img"})
         except Exception:
             pass
         notify_admin(f"❌ Order {order_id} FAILED: {e}")
@@ -1535,7 +1734,7 @@ def create_payment_intent():
                 "template_id": template_id,
                 "plan_id": plan_id,
                 "persons": str(persons),
-                "pipeline": "v2.6.0-template-anchored",
+                "pipeline": "v2.7.0-template-img2img",
             },
             description=f"Caricature — {template['name']} ({plan_id})"
         )
@@ -1561,7 +1760,7 @@ def create_payment_intent():
         "email": email,
         "name": name,
         "status": "pending",
-        "pipeline_version": "2.6.0-template-anchored",
+        "pipeline_version": "2.7.0-template-img2img",
         "moderation": moderation,
         "created_at": datetime.utcnow().isoformat(),
     })
@@ -2681,7 +2880,7 @@ def admin_test_generate():
                 "message": "Primary photo was rejected by quality check. Try a clearer face photo.",
             }, 422)
 
-        # ── 3. Build identity-aware prompt ──────────────────────────────
+        # ── 3. Build prompt + extract face description (v2.7.0) ────────────
         answers = {
             "occasion": template.get("occasion", "other"),
             "template_id": template_id,
@@ -2696,8 +2895,11 @@ def admin_test_generate():
             answers=answers,
             person_photos=[{"person_index": 1, "photo_urls": photo_urls, "qualities": qualities}],
         )
+        # v2.7.0: precise face description drives the face replacement in template img2img
+        face_description = extract_face_description(photo_urls) if photo_urls else ""
+        print(f"[AdminTest v2.7] {test_id} face_description: {face_description}")
 
-        # ── 4. v2.4 Identity-first generation, QA, upscale ────────────
+        # ── 4. v2.7.0 Template img2img generation, QA, upscale ────────────
         final_ai_url = None
         qa = {}
         candidate_debug = []
@@ -2705,8 +2907,12 @@ def admin_test_generate():
         working_prompt = prompt
 
         for attempt in range(1, attempts + 1):
-            print(f"[AdminTest v2.6] {test_id} template-anchored attempt {attempt}/{attempts} strict={strict_mode}")
-            candidate_url, generation_meta = generate_candidate_art(working_prompt, photo_urls, attempt=attempt, strict=strict_mode, template_id=template_id)
+            print(f"[AdminTest v2.7] {test_id} template img2img attempt {attempt}/{attempts} strict={strict_mode}")
+            candidate_url, generation_meta = generate_candidate_art(
+                working_prompt, photo_urls, attempt=attempt, strict=strict_mode,
+                template_id=template_id, face_description=face_description,
+                template_name=template.get("name", template_id)
+            )
             if not candidate_url:
                 qa = {"deliverable": False, "quality_score": 1, "identity_score": 1, "reason": "candidate_generation_failed", "generation_meta": generation_meta}
                 candidate_debug.append({"attempt": attempt, "candidate_url": None, "generation_meta": generation_meta, "qa": qa})
@@ -2784,7 +2990,7 @@ def admin_test_generate():
             "generation_prompt": working_prompt[:1800],
             "generation_qa": qa,
             "upscale_meta": upscale_meta,
-            "pipeline_version": "2.6.0-template-anchored",
+            "pipeline_version": "2.7.0-template-img2img",
             "strict_mode": strict_mode,
             "debug_mode": debug_mode,
             "debug_candidate_urls": candidate_debug if debug_mode else [],
@@ -2823,7 +3029,7 @@ def admin_test_generate():
                 "created_at": started_at.isoformat(),
                 "status": "failed",
                 "error": str(e),
-                "pipeline_version": "2.6.0-template-anchored",
+                "pipeline_version": "2.7.0-template-img2img",
             }, merge=True)
         except Exception:
             pass
@@ -2834,14 +3040,14 @@ def admin_test_generate():
 def health():
     return ok({
         "status":    "healthy",
-        "version":   "2.6.0-template-anchored",
+        "version":   "2.7.0-template-img2img",
         "timestamp": datetime.utcnow().isoformat(),
         "lora_ready": bool(CFG["FAL_LORA_URL"]),
     })
 
 @app.route("/", methods=["GET"])
 def root():
-    return ok({"service": "Caricature API", "version": "2.6.0-template-anchored", "docs": "/health"})
+    return ok({"service": "Caricature API", "version": "2.7.0-template-img2img", "docs": "/health"})
 
 
 if __name__ == "__main__":
