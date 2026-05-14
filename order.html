@@ -294,7 +294,8 @@ input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;h
 
 <script>
 // ═══════════════════════════════════════════════════════
-// CONFIG
+// CONFIG — Caricature.online order flow v2.2
+// Face-check UX aligned with backend v2.2
 // ═══════════════════════════════════════════════════════
 var API_URL = 'https://caricature-api-52458434183.us-central1.run.app';
 
@@ -336,7 +337,9 @@ var QUALITY_TIPS = {
   face_too_small:'Use a closer shot where the face fills at least 1/3 of the image.',
   multiple_faces:'Upload a photo with only the one person for this caricature.',
   obstructed:    'Remove sunglasses, hats or anything covering the face.',
-  low_resolution:'Use a higher resolution photo — avoid compressed screenshots.'
+  low_resolution:'Use a higher resolution photo — avoid compressed screenshots.',
+  quality_check_failed:'We could not complete the automatic quality check, but your photo was accepted.',
+  quality_check_uncertain:'Face detection was uncertain, but your photo was accepted.'
 };
 
 // ═══════════════════════════════════════════════════════
@@ -739,13 +742,21 @@ async function handleUpload(e, pi, qi) {
     var score = (data.quality && data.quality.score) || data.score || 5;
     var warns = (data.quality && data.quality.warnings) || data.warnings || [];
 
-    var explicitNoFace = warns.indexOf('no_face') >= 0
-                        && (data.quality && data.quality.face_size === 'none')
-                        && (data.score < 3);
-    var multiFace  = warns.indexOf('multiple_faces') >= 0
-                    || (data.quality && data.quality.face_size === 'multiple');
-    var uncertain  = (data.usable === false || warns.indexOf('no_face') >= 0)
-                    && !explicitNoFace && !multiFace;
+    var q = data.quality || {};
+    var hardBlock = q.hard_block === true;
+    var explicitNoFace = hardBlock
+                        && warns.indexOf('no_face') >= 0
+                        && q.face_size === 'none'
+                        && score < 3;
+    var multiFace  = hardBlock
+                    && (warns.indexOf('multiple_faces') >= 0 || q.face_size === 'multiple');
+    var uncertain  = (!hardBlock) && (
+                      q.face_size === 'unknown'
+                      || warns.indexOf('quality_check_failed') >= 0
+                      || warns.indexOf('quality_check_uncertain') >= 0
+                      || data.usable === false
+                      || warns.indexOf('no_face') >= 0
+                    );
 
     if (explicitNoFace || multiFace) {
       // ❌ Hard block: clearly not a face photo OR multiple faces
@@ -785,7 +796,8 @@ async function handleUpload(e, pi, qi) {
     } else {
       zone.classList.add('has', 'bad');
       st.className = 'uz-st err';
-      st.textContent = 'Low quality photo.';
+      st.textContent = 'Low quality photo — accepted.';
+      showDelBtn(pi, qi);
       showQA(pi, qi, 'warn', getTip(warns) || 'A clearer photo gives better results. You can still proceed.');
     }
   } catch(err) {
@@ -1088,18 +1100,36 @@ async function handlePay() {
       };
     });
 
+    var flatUploadIds = [];
+    pph.forEach(function(person) {
+      flatUploadIds = flatUploadIds.concat(person.upload_ids || []);
+    });
+
     var desc = S.flow === 'free'
-      ? [document.getElementById('descTxt').value.trim(), document.getElementById('notesTxt').value.trim()].filter(Boolean).join('. ')
+      ? document.getElementById('descTxt').value.trim()
       : '';
+    var notes = S.flow === 'free'
+      ? document.getElementById('notesTxt').value.trim()
+      : '';
+    var finalTemplateId = S.flow === 'free' ? 'custom_free' : S.templateId;
 
     var payload = {
       flow: S.flow,
-      template_id: S.templateId,
+      template_id: finalTemplateId,
       description: desc,
       occasion: S.occasion,
-      persons: S.persons,
+      persons: S.persons || '1',
       plan: S.plan,
+      upload_ids: flatUploadIds,
       person_photos: pph,
+      answers: {
+        occasion: S.occasion,
+        template_id: finalTemplateId,
+        template_name: S.templateName || (S.flow === 'free' ? 'Custom Scene' : ''),
+        description: desc,
+        notes: notes
+      },
+      notes: notes || desc,
       email: email,
       name: name
     };

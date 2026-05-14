@@ -1,5 +1,5 @@
 # ══════════════════════════════════════════════════════════════
-#   CARICATURE.ONLINE — Backend v2.1
+#   CARICATURE.ONLINE — Backend v2.2
 #   AI Caricature in the style of Antonos (caricature.photo)
 #   Stack: Flask · Firestore · GCS · fal.ai LoRA · Stripe · Resend
 # ══════════════════════════════════════════════════════════════
@@ -154,6 +154,17 @@ TEMPLATES = {
     "sport_grand_chef":  {"name":"Grand Chef",                "occasion":"sports", "persons":1, "emoji":"⭐", "desc":"Master chef"},
     "sport_photo":       {"name":"Photographer on Action",    "occasion":"sports", "persons":1, "emoji":"📷", "desc":"Photography hobby"},
     "sport_dancer":      {"name":"So You Think You Can Dance","occasion":"sports", "persons":2, "emoji":"💃", "desc":"Dancing hobby"},
+}
+
+# Custom free-description order support. Used when the customer describes a
+# scene instead of selecting a predefined template. Keeps frontend/backend
+# payloads compatible without breaking the existing template catalogue.
+TEMPLATES["custom_free"] = {
+    "name": "Custom Scene",
+    "occasion": "other",
+    "persons": 1,
+    "emoji": "✨",
+    "desc": "customer-described custom caricature scene"
 }
 
 # ── PRICING ───────────────────────────────────────────────────
@@ -368,8 +379,8 @@ def run_generation_pipeline(order_id: str):
         prompt = analyze_photo_with_claude(
             photo_urls[0] if photo_urls else "",
             order.get("persons", "1"),
-            template.get("name", template_id),
-            {**answers, "template_id": template_id}
+            order.get("template_name") or template.get("name", template_id),
+            {**answers, "template_id": template_id, "notes": order.get("notes", answers.get("notes", ""))}
         )
         print(f"[Pipeline] Prompt: {prompt[:100]}...")
 
@@ -528,6 +539,7 @@ def get_pricing():
         "amount_cents": cents,
         "amount_display": f"€{cents/100:.2f}",
         "plans": PLANS,
+        "publishable_key": CFG["STRIPE_PUB"],
     })
 
 
@@ -540,76 +552,156 @@ def get_pricing():
 #   PHOTO QUALITY ASSESSMENT
 # ══════════════════════════════════════════════════════════════
 
-def assess_photo_quality(photo_url: str) -> dict:
-    """Claude Vision — is there a human face? Returns quality dict."""
-    import base64, json as _json
-    pessimistic = {
-        "score": 1, "face_size": "none", "lighting": "unknown",
-        "sharpness": "unknown", "usable": False,
-        "visible_features": [], "warnings": ["no_face"],
-        "recovery_strategy": "template_only"
+def _quality_default_accepted(reason: str = "quality_check_failed") -> dict:
+    """Fail-open default: do not block real customer portraits when AI quality checks fail."""
+    return {
+        "score": 5,
+        "face_size": "unknown",
+        "lighting": "unknown",
+        "sharpness": "unknown",
+        "usable": True,
+        "visible_features": [],
+        "warnings": [reason],
+        "recovery_strategy": "partial_analysis",
+        "hard_block": False,
     }
+
+
+def _normalize_quality_result(result: dict) -> dict:
+    """Normalize Claude's JSON so frontend receives stable, compatible fields."""
+    base = _quality_default_accepted("quality_check_uncertain")
+    if not isinstance(result, dict):
+        result = {}
+    out = {**base, **result}
+
+    try:
+        out["score"] = max(1, min(10, int(out.get("score", 5))))
+    except Exception:
+        out["score"] = 5
+
+    warnings = out.get("warnings") or []
+    if not isinstance(warnings, list):
+        warnings = [str(warnings)]
+    warnings = [str(w).strip() for w in warnings if str(w).strip()]
+
+    face_size = str(out.get("face_size", "unknown")).lower().strip()
+    out["face_size"] = face_size
+
+    # Strict block only for confident non-person uploads or real multi-person foregrounds.
+    hard_no_face = face_size == "none" and "no_face" in warnings and out["score"] <= 2
+    hard_multi = face_size == "multiple" and "multiple_faces" in warnings
+
+    if hard_no_face:
+        out.update({
+            "score": min(out["score"], 2),
+            "usable": False,
+            "hard_block": True,
+            "recovery_strategy": "template_only",
+        })
+        if "no_face" not in warnings:
+            warnings.append("no_face")
+    elif hard_multi:
+        out.update({
+            "score": min(out["score"], 3),
+            "usable": False,
+            "hard_block": True,
+            "recovery_strategy": "template_only",
+        })
+        if "multiple_faces" not in warnings:
+            warnings.append("multiple_faces")
+    else:
+        # If there is any uncertainty, accept the upload and let the frontend show a gentle warning.
+        out["usable"] = True
+        out["hard_block"] = False
+        if face_size in ("none", "multiple"):
+            out["face_size"] = "unknown"
+            if "quality_check_uncertain" not in warnings:
+                warnings.append("quality_check_uncertain")
+        if out["score"] < 3:
+            out["score"] = 3
+
+    out["warnings"] = warnings
+    return out
+
+
+def assess_photo_quality_bytes(image_bytes: bytes, media_type: str = "image/jpeg") -> dict:
+    """Claude Vision quality check directly from upload bytes.
+
+    This avoids false negatives caused by downloading the just-uploaded GCS URL
+    before public access/ACL/CDN state is ready. Fail-open on technical errors.
+    """
+    import base64, json as _json
+
+    if not image_bytes:
+        return {
+            "score": 1, "face_size": "none", "lighting": "unknown",
+            "sharpness": "unknown", "usable": False, "visible_features": [],
+            "warnings": ["no_face"], "recovery_strategy": "template_only",
+            "hard_block": True,
+        }
+
     no_face_resp = (
         '{"score":1,"face_size":"none","lighting":"unknown","sharpness":"unknown",'
         '"usable":false,"visible_features":[],"warnings":["no_face"],'
-        '"recovery_strategy":"template_only"}'
+        '"recovery_strategy":"template_only","hard_block":true}'
     )
     multi_face_resp = (
-        '{"score":1,"face_size":"multiple","lighting":"unknown","sharpness":"unknown",'
+        '{"score":2,"face_size":"multiple","lighting":"unknown","sharpness":"unknown",'
         '"usable":false,"visible_features":[],"warnings":["multiple_faces"],'
-        '"recovery_strategy":"template_only"}'
+        '"recovery_strategy":"template_only","hard_block":true}'
     )
+
     prompt = (
-        "You are assessing a photo for caricature art generation.\n\n"
-        "TASK: Determine if this photo contains a human face as the PRIMARY subject.\n\n"
-        "CASE A — Clearly NOT a person photo (QR codes, diagrams, charts, text, "
-        "screenshots, objects, landscapes with no people, abstract images).\n"
+        "You are assessing a customer-uploaded photo for AI caricature generation.\n\n"
+        "GOAL: Be permissive with real human portraits, especially babies, toddlers, cropped portraits, "
+        "slightly angled faces, mild blur, bright photos, or portraits with harmless background activity.\n\n"
+        "CASE A — Clearly NOT a person photo: QR codes, screenshots, diagrams, charts, text pages, "
+        "objects, animals, landscapes with no visible human face, abstract images. Only choose this if certain.\n"
         "Return: " + no_face_resp + "\n\n"
-        "CASE B — Multiple CLEAR, IN-FOCUS faces of similar prominence in the "
-        "FOREGROUND (e.g. a group selfie, two people posing together).\n"
-        "IMPORTANT: Blurred background figures, partially visible people at edges, "
-        "or small distant people do NOT count. Only flag if there are clearly TWO OR MORE "
-        "people who are ALL in-focus main subjects.\n"
+        "CASE B — Multiple main people: two or more clear, in-focus foreground faces of similar importance. "
+        "Do NOT count blurred background figures, tiny distant people, partial heads at the edge, or a baby held low/partly visible "
+        "when one adult is clearly the main portrait subject. Only choose this if certain.\n"
         "Return: " + multi_face_resp + "\n\n"
-        "CASE C — One human face is the main subject, OR the image is clearly a portrait "
-        "of one person even if slightly blurry or with background activity.\n"
-        "Babies, toddlers, children, and elderly people ARE valid subjects.\n"
-        "If you can see a human face at all, this is CASE C.\n"
-        "Assess quality: Score 1-10. face_size: large|medium|small.\n"
-        "lighting: good|backlit|dark|harsh. sharpness: sharp|slightly_blurred|blurred.\n"
-        "usable: true if a face is visible (even if not perfect quality).\n"
-        "warnings: array from [face_too_small,backlit,blurred,low_resolution,obstructed].\n"
-        "recovery_strategy: full_analysis if score>=6, partial_analysis if 3-5.\n"
-        "IMPORTANT: When in doubt, choose CASE C. Only use CASE A/B when you are CERTAIN.\n"
-        "Return ONLY valid JSON."
+        "CASE C — One human face is visible as the main subject. Babies, toddlers, children and elderly people are valid. "
+        "If any human face is visible and it is not clearly CASE A/B, choose CASE C.\n"
+        "Return JSON with: score 1-10, face_size large|medium|small|unknown, lighting good|backlit|dark|harsh|unknown, "
+        "sharpness sharp|slightly_blurred|blurred|unknown, usable true, visible_features array, warnings array from "
+        "[face_too_small,backlit,blurred,dark,low_resolution,obstructed,quality_check_uncertain], "
+        "recovery_strategy full_analysis if score>=6 else partial_analysis, hard_block false.\n\n"
+        "IMPORTANT: When in doubt, choose CASE C with usable=true. Return ONLY valid JSON."
     )
+
     try:
-        img_data = requests.get(photo_url, timeout=15).content
-        img_b64  = base64.b64encode(img_data).decode()
+        img_b64 = base64.b64encode(image_bytes).decode()
         msg = claude_client.messages.create(
             model="claude-opus-4-20250514",
-            max_tokens=300,
+            max_tokens=350,
             messages=[{"role": "user", "content": [
-                {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}},
+                {"type": "image", "source": {"type": "base64", "media_type": media_type or "image/jpeg", "data": img_b64}},
                 {"type": "text",  "text": prompt}
             ]}]
         )
         raw = msg.content[0].text.strip()
-        if "{" in raw:
+        if "{" in raw and "}" in raw:
             raw = raw[raw.index("{"):raw.rindex("}")+1]
-        result = {**pessimistic, **_json.loads(raw)}
-        # Safety net: face_size=none → always no_face
-        if result.get("face_size") in ("none", "multiple"):
-            if result.get("face_size") == "none" and "no_face" not in result.get("warnings", []):
-                result.setdefault("warnings", []).append("no_face")
-            if result.get("face_size") == "multiple" and "multiple_faces" not in result.get("warnings", []):
-                result.setdefault("warnings", []).append("multiple_faces")
-            result["usable"] = False
-        print(f"[Quality] score={result.get('score')} face={result.get('face_size')} warns={result.get('warnings')}")
+        result = _normalize_quality_result(_json.loads(raw))
+        print(f"[Quality] score={result.get('score')} face={result.get('face_size')} usable={result.get('usable')} hard={result.get('hard_block')} warns={result.get('warnings')}")
         return result
     except Exception as e:
-        print(f"[Quality] Error: {e} — pessimistic defaults")
-        return pessimistic
+        print(f"[Quality] Error: {e} — accepting upload with warning")
+        return _quality_default_accepted("quality_check_failed")
+
+
+def assess_photo_quality(photo_url: str) -> dict:
+    """Backward-compatible URL wrapper. Prefer assess_photo_quality_bytes() in /api/upload."""
+    try:
+        resp = requests.get(photo_url, timeout=15)
+        resp.raise_for_status()
+        ctype = resp.headers.get("Content-Type", "image/jpeg").split(";")[0]
+        return assess_photo_quality_bytes(resp.content, ctype)
+    except Exception as e:
+        print(f"[QualityURL] Error: {e} — accepting upload with warning")
+        return _quality_default_accepted("quality_check_failed")
 
 
 @app.route("/api/upload", methods=["POST"])
@@ -631,8 +723,9 @@ def upload_photo():
     filename = f"{upload_id}.{ext}"
 
     try:
+        # Check quality directly from upload bytes before/independent of public GCS URL availability.
+        quality   = assess_photo_quality_bytes(data, file.content_type)
         photo_url = upload_to_gcs(data, filename, file.content_type, folder="uploads")
-        quality   = assess_photo_quality(photo_url)
         warns     = quality.get("warnings", ["no_face"])
         score     = quality.get("score", 1)
         db.collection("uploads").document(upload_id).set({
@@ -659,15 +752,24 @@ def upload_photo():
 @app.route("/api/create-payment-intent", methods=["POST"])
 def create_payment_intent():
     body        = request.get_json()
-    template_id = body.get("template_id")
+    template_id = body.get("template_id") or "custom_free"
     upload_ids  = body.get("upload_ids", [])
+    # Backward compatibility with older order.html payload: person_photos -> flat upload_ids
+    if not upload_ids and isinstance(body.get("person_photos"), list):
+        upload_ids = []
+        for person in body.get("person_photos", []):
+            upload_ids.extend(person.get("upload_ids", []))
     persons     = body.get("persons", "1")
     plan_id     = body.get("plan", "standard")
-    answers     = body.get("answers", {})
-    notes       = body.get("notes", "")
+    answers     = body.get("answers", {}) or {}
+    notes       = body.get("notes", "") or body.get("description", "") or answers.get("notes", "")
     email       = body.get("email", "").strip().lower()
     name        = body.get("name", "").strip()
 
+    if not template_id or template_id not in TEMPLATES:
+        template_id = "custom_free" if body.get("flow") == "free" or body.get("description") else template_id
+    if not template_id or template_id not in TEMPLATES:
+        template_id = "custom_free" if body.get("flow") == "free" or body.get("description") else template_id
     if not template_id or template_id not in TEMPLATES:
         return err("Invalid template")
     if not upload_ids:
@@ -688,7 +790,7 @@ def create_payment_intent():
 
     amount_cents = calc_price(persons, plan_id)
     order_id     = f"ord_{str(uuid.uuid4()).replace('-','')[:16]}"
-    template     = TEMPLATES[template_id]
+    template     = TEMPLATES.get(template_id, TEMPLATES["custom_free"])
 
     try:
         intent = stripe.PaymentIntent.create(
@@ -1074,10 +1176,15 @@ def create_free_order():
     """Create an order using a free token — no Stripe payment needed."""
     body        = request.get_json()
     free_token  = body.get("free_token", "").strip()
-    template_id = body.get("template_id")
+    template_id = body.get("template_id") or "custom_free"
     upload_ids  = body.get("upload_ids", [])
+    if not upload_ids and isinstance(body.get("person_photos"), list):
+        upload_ids = []
+        for person in body.get("person_photos", []):
+            upload_ids.extend(person.get("upload_ids", []))
     persons     = body.get("persons", "1")
-    answers     = body.get("answers", {})
+    answers     = body.get("answers", {}) or {}
+    notes       = body.get("notes", "") or body.get("description", "") or answers.get("notes", "")
     email       = body.get("email", "").strip().lower()
     name        = body.get("name", "").strip()
 
@@ -1110,7 +1217,7 @@ def create_free_order():
     if not photo_urls:
         return err("Photos not found. Please re-upload.")
 
-    template = TEMPLATES[template_id]
+    template = TEMPLATES.get(template_id, TEMPLATES["custom_free"])
     order_id = f"free_{str(uuid.uuid4()).replace('-','')[:16]}"
 
     # Mark token as used immediately
@@ -1133,6 +1240,7 @@ def create_free_order():
         "photo_urls":     photo_urls,
         "upload_ids":     upload_ids,
         "answers":        answers,
+        "notes":          notes,
         "email":          email,
         "name":           name,
         "status":         "pending",
