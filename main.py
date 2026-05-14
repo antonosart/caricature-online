@@ -1,6 +1,6 @@
 # ══════════════════════════════════════════════════════════════
-#   CARICATURE.ONLINE — Backend v2.5.0 TWO-STAGE PIPELINE
-#   High-Strength Style Transform + Face-Swap Identity Rescue
+#   CARICATURE.ONLINE — Backend v2.5.1 T2I + FACE-SWAP PIPELINE
+#   Scene-First Generation: LoRA T2I → Face-Swap Identity
 #   Stack: Flask · Firestore · GCS · fal.ai LoRA · Stripe · Resend
 # ══════════════════════════════════════════════════════════════
 
@@ -43,18 +43,12 @@ CFG = {
     "FAL_IDENTITY_I2I_MODEL": os.environ.get("FAL_IDENTITY_I2I_MODEL", "fal-ai/flux-lora/image-to-image").strip(),
     "FAL_SECONDARY_I2I_MODEL": os.environ.get("FAL_SECONDARY_I2I_MODEL", "fal-ai/flux-general/image-to-image").strip(),
     "IDENTITY_FIRST_ENABLED": os.environ.get("IDENTITY_FIRST_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"},
-    # v2.5.0: High-strength defaults. At 0.50 FLUX stays in photo territory;
-    # 0.82+ fully enters illustration space. Face-swap rescue then restores identity.
-    "IDENTITY_STRENGTH_1": float(os.environ.get("IDENTITY_STRENGTH_1", "0.82")),
-    "IDENTITY_STRENGTH_2": float(os.environ.get("IDENTITY_STRENGTH_2", "0.88")),
-    "IDENTITY_STRENGTH_3": float(os.environ.get("IDENTITY_STRENGTH_3", "0.92")),
-    "LORA_SCALE_1": float(os.environ.get("LORA_SCALE_1", "1.55")),
-    "LORA_SCALE_2": float(os.environ.get("LORA_SCALE_2", "1.70")),
-    "LORA_SCALE_3": float(os.environ.get("LORA_SCALE_3", "1.85")),
-    # v2.5.0: Face-swap rescue: when style is good but identity weak, auto-apply face-swap
-    "FACE_SWAP_RESCUE_ENABLED": os.environ.get("FACE_SWAP_RESCUE_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"},
-    "FACE_SWAP_RESCUE_MIN_STYLE": int(os.environ.get("FACE_SWAP_RESCUE_MIN_STYLE", "6")),
-    "FACE_SWAP_RESCUE_MAX_IDENTITY": int(os.environ.get("FACE_SWAP_RESCUE_MAX_IDENTITY", "5")),
+    "IDENTITY_STRENGTH_1": float(os.environ.get("IDENTITY_STRENGTH_1", "0.50")),
+    "IDENTITY_STRENGTH_2": float(os.environ.get("IDENTITY_STRENGTH_2", "0.62")),
+    "IDENTITY_STRENGTH_3": float(os.environ.get("IDENTITY_STRENGTH_3", "0.72")),
+    "LORA_SCALE_1": float(os.environ.get("LORA_SCALE_1", "1.30")),
+    "LORA_SCALE_2": float(os.environ.get("LORA_SCALE_2", "1.45")),
+    "LORA_SCALE_3": float(os.environ.get("LORA_SCALE_3", "1.65")),
     "MAX_GENERATION_RETRIES": int(os.environ.get("MAX_GENERATION_RETRIES", "3")),
     "MIN_STYLE_SCORE": int(os.environ.get("MIN_STYLE_SCORE", "6")),
     "MIN_IDENTITY_SCORE": int(os.environ.get("MIN_IDENTITY_SCORE", "6")),
@@ -479,47 +473,59 @@ def analyze_photo_with_claude(photo_urls: list, persons: str, template_name: str
         people_count = str(persons or "1")
 
         content.append({"type": "text", "text": f"""
-You are preparing a production prompt for an AI caricature order.
+You are writing a TEXT-TO-IMAGE generation prompt for an AI caricature product called Caricature.online.
+The art style is "Antonos" — hand-drawn editorial caricature illustration with bold ink outlines, exaggerated proportions (large head, expressive eyes), warm vivid colours, cel-shaded cartoon skin, clean painterly finish. NOT photorealistic. NOT a filter. A premium drawn illustration.
 
-GOAL:
-Create a recognisable, family-friendly, high-quality caricature in the Antonos/caricature.photo visual direction.
-Preserve identity from the uploaded reference photos: face shape, hairstyle, hairline, eyes, nose, mouth, skin tone, glasses, beard, distinctive features, and approximate age.
+IMPORTANT ARCHITECTURE NOTE:
+This prompt will be used for TEXT-TO-IMAGE generation. The customer's FACE will be composited in AFTER generation via face-swap. Therefore:
+- DO describe the FULL SCENE: costume, background, setting, props, pose, action
+- DO describe the person's physical traits (hair colour, eye colour, skin tone) for the illustration to match
+- DO NOT describe the photo's background (bathroom, room, wall) — describe only the TEMPLATE SCENE
+- The prompt must make the template scene the dominant element
 
-ORDER:
-Template/theme: {template_name}
-People count: {people_count}
-Occasion: {occasion_desc}
-Customer notes: {notes}
+TEMPLATE / THEME: {template_name}
+OCCASION: {occasion_desc}
+PEOPLE: {people_count}
+CUSTOMER NOTES: {notes}
 
-RULES:
-- Do not invent a different person.
-- Keep the person recognisable even with caricature exaggeration.
-- Use tasteful exaggeration: larger head, expressive face, clean bold outlines, warm editorial colour.
-- Avoid photorealism. Avoid grotesque distortion. Avoid unsafe content.
-- For multiple people, describe each person separately as Person 1, Person 2, etc.
+STUDY the reference photo(s) and extract only the person's physical appearance:
+- Hair: colour, length, texture
+- Eyes: colour, shape
+- Skin tone
+- Age range (approximate)
+- Notable features (glasses, beard, freckles, etc.)
 
-Return only one line starting with PROMPT: and make it detailed but concise.
+Then write ONE prompt that:
+1. Opens with the ANTONOS caricature style markers
+2. Describes the TEMPLATE SCENE in rich detail (costume, setting, action, props)
+3. Weaves in the person's physical traits so the illustration matches
+4. Ends with art quality markers
+
+Return ONLY one line starting with PROMPT:
 """})
         msg = claude_client.messages.create(
             model="claude-opus-4-20250514",
-            max_tokens=700,
+            max_tokens=800,
             messages=[{"role": "user", "content": content}]
         )
         text = msg.content[0].text.strip()
         if "PROMPT:" in text:
             text = text.split("PROMPT:")[-1].strip()
         return (
-            "ANTONOS caricature style, identity-preserving caricature, "
+            "ANTONOS hand-drawn caricature illustration style, "
             + text
-            + ", clean bold ink outlines, expressive but recognisable face, vivid warm colours, premium gift illustration, ultra detailed, 4K composition"
+            + ", bold confident ink outlines, exaggerated caricature proportions, vivid warm editorial colours, "
+            "cel-shaded cartoon skin, clean premium gift illustration, NOT photorealistic, NOT a photo filter, "
+            "ultra detailed scene, 4K composition"
         )
     except Exception as e:
         print(f"[Claude] Error: {e}")
         template = TEMPLATES.get(answers.get("template_id", ""), {})
         return (
-            f"ANTONOS caricature style, identity-preserving portrait caricature, "
-            f"{template.get('desc','portrait')}, {template_name} theme, exaggerated but recognisable features, "
-            f"bold lines, colorful, professional premium caricature art, 4K composition"
+            f"ANTONOS hand-drawn caricature illustration style, "
+            f"{template_name} theme scene, {template.get('desc','portrait')}, "
+            f"bold ink outlines, exaggerated caricature proportions, vivid warm editorial colours, "
+            f"cel-shaded cartoon skin, NOT photorealistic, premium gift illustration, 4K composition"
         )
 
 
@@ -531,28 +537,40 @@ def _fal_run(model: str, arguments: dict):
 
 
 def generate_base_art(prompt: str, photo_urls: list, attempt: int = 1) -> str | None:
-    """Generate the caricature scene. LoRA is used for Antonos style; identity is reinforced later."""
+    """Stage 1 of v2.5.1 pipeline: generate the full template scene in Antonos style.
+
+    This is TEXT-TO-IMAGE — the prompt drives the entire scene composition
+    (costume, background, pose, props). The customer's face is NOT used here;
+    it is composited via face-swap in Stage 2.
+    LoRA encodes the Antonos hand-drawn caricature style.
+    """
+    scale_key = f"LORA_SCALE_{min(max(int(attempt), 1), 3)}"
+    lora_scale = float(CFG.get(scale_key, 1.45))
     guidance = 7.5 + (attempt - 1) * 0.5
-    steps = 32 if attempt == 1 else 36
+    steps = 40 if attempt == 1 else 45 if attempt == 2 else 50
 
     if CFG["FAL_LORA_URL"]:
         try:
-            print(f"[AI] LoRA base generation attempt={attempt}")
+            print(f"[AI v2.5] T2I LoRA scene generation attempt={attempt} lora_scale={lora_scale}")
             result = _fal_run("fal-ai/flux-lora", {
                 "prompt": prompt,
-                "loras": [{"path": CFG["FAL_LORA_URL"], "scale": 1.0}],
+                "loras": [{"path": CFG["FAL_LORA_URL"], "scale": lora_scale}],
                 "image_size": "portrait_4_3",
                 "num_images": 1,
                 "num_inference_steps": steps,
                 "guidance_scale": guidance,
+                "enable_safety_checker": True,
+                "output_format": "jpeg",
             })
             if result and result.get("images"):
-                return result["images"][0]["url"]
+                url = result["images"][0].get("url") if isinstance(result["images"][0], dict) else result["images"][0]
+                print(f"[AI v2.5] T2I LoRA success: {url}")
+                return url
         except Exception as e:
-            print(f"[AI] LoRA base failed: {e}")
+            print(f"[AI v2.5] T2I LoRA failed: {e}")
 
     try:
-        print(f"[AI] FLUX fallback attempt={attempt}")
+        print(f"[AI v2.5] FLUX schnell fallback attempt={attempt}")
         result = _fal_run("fal-ai/flux/schnell", {
             "prompt": prompt,
             "image_size": "portrait_4_3",
@@ -560,9 +578,10 @@ def generate_base_art(prompt: str, photo_urls: list, attempt: int = 1) -> str | 
             "num_inference_steps": 8,
         })
         if result and result.get("images"):
-            return result["images"][0]["url"]
+            url = result["images"][0].get("url") if isinstance(result["images"][0], dict) else result["images"][0]
+            return url
     except Exception as e:
-        print(f"[AI] FLUX fallback failed: {e}")
+        print(f"[AI v2.5] FLUX schnell fallback failed: {e}")
     return None
 
 
@@ -585,16 +604,14 @@ def _extract_fal_image_url(result: dict) -> str | None:
 def _identity_strength_for_attempt(attempt: int) -> float:
     """Return img2img strength for attempt.
 
-    v2.5.0: Strengths raised to 0.82/0.88/0.92.
-    At <0.75 FLUX img2img stays in photo-realistic territory regardless of prompt/LoRA.
-    At 0.82+ the model fully enters illustration space — the LoRA can dominate.
-    Identity is recovered by the face-swap rescue stage that follows.
+    Lower strength preserves face/pose more; higher strength allows stronger caricature/theme.
+    v2.4.2 uses a calibrated range: enough denoise for illustration, not enough to replace identity.
     """
     if attempt <= 1:
-        return max(0.50, min(0.95, float(CFG.get("IDENTITY_STRENGTH_1", 0.82))))
+        return max(0.25, min(0.95, float(CFG.get("IDENTITY_STRENGTH_1", 0.46))))
     if attempt == 2:
-        return max(0.50, min(0.95, float(CFG.get("IDENTITY_STRENGTH_2", 0.88))))
-    return max(0.50, min(0.95, float(CFG.get("IDENTITY_STRENGTH_3", 0.92))))
+        return max(0.25, min(0.95, float(CFG.get("IDENTITY_STRENGTH_2", 0.52))))
+    return max(0.25, min(0.95, float(CFG.get("IDENTITY_STRENGTH_3", 0.60))))
 
 
 def build_identity_first_prompt(prompt: str, attempt: int = 1) -> str:
@@ -630,14 +647,10 @@ def build_identity_first_prompt(prompt: str, attempt: int = 1) -> str:
 
 
 def _i2i_arguments(prompt: str, reference_url: str, attempt: int = 1, model: str | None = None) -> dict:
-    """Build fal image-to-image arguments compatible with FLUX LoRA img2img endpoints.
-
-    v2.5.0: Higher guidance + more steps to keep prompt control strong at high denoising.
-    At strength 0.82+ we need guidance_scale 6-8 so the LoRA/prompt wins over the raw photo pixels.
-    """
+    """Build fal image-to-image arguments compatible with FLUX LoRA img2img endpoints."""
     strength = _identity_strength_for_attempt(attempt)
-    steps = 40 if attempt == 1 else 45 if attempt == 2 else 50
-    guidance = 6.5 if attempt == 1 else 7.0 if attempt == 2 else 7.5
+    steps = 34 if attempt == 1 else 38 if attempt == 2 else 42
+    guidance = 4.2 if attempt == 1 else 5.0 if attempt == 2 else 5.8
     args = {
         "prompt": build_identity_first_prompt(prompt, attempt),
         "image_url": reference_url,
@@ -651,7 +664,7 @@ def _i2i_arguments(prompt: str, reference_url: str, attempt: int = 1, model: str
     }
     if CFG.get("FAL_LORA_URL"):
         scale_key = f"LORA_SCALE_{min(max(int(attempt), 1), 3)}"
-        args["loras"] = [{"path": CFG["FAL_LORA_URL"], "scale": float(CFG.get(scale_key, 1.55))}]
+        args["loras"] = [{"path": CFG["FAL_LORA_URL"], "scale": float(CFG.get(scale_key, 1.25))}]
     return args
 
 
@@ -706,32 +719,54 @@ def generate_identity_first_art(prompt: str, photo_urls: list, attempt: int = 1)
 
 
 def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, strict: bool = True) -> tuple[str | None, dict]:
-    """Generate one candidate with v2.4 identity-first, then legacy fallback.
+    """Generate one candidate using the v2.5.1 two-stage pipeline.
 
-    Returns (candidate_url, meta). meta contains enough information for admin debug,
-    QA history, and production troubleshooting.
+    Stage 1 — Text-to-Image with LoRA: generates the full template scene/costume/background
+              in Antonos caricature style. The prompt drives the entire composition.
+    Stage 2 — Face-Swap: composites the customer's actual face into the generated scene.
+
+    This is the correct architecture for template-based orders (Spartan, Batman, etc.).
+    img2img (the old primary path) is wrong for templates because it can only transform
+    what is in the original selfie — it cannot generate a Spartan costume from a bathroom photo.
+    img2img is kept as a last-resort fallback only.
     """
-    meta = {"pipeline": "v2.5.0_two_stage_style_rescue", "attempt": attempt, "stages": []}
+    meta = {"pipeline": "v2.5.1_t2i_faceswap", "attempt": attempt, "stages": []}
 
-    i2i_url, i2i_meta = generate_identity_first_art(prompt, photo_urls, attempt=attempt)
-    meta["stages"].append({"stage": "identity_first_img2img", **i2i_meta})
-    if i2i_url:
-        return i2i_url, meta
-
-    # Legacy fallback: generate scene/style, then apply face-reference. Kept for resilience.
+    # ── Stage 1: T2I — generate full Antonos-style scene ────────────────────
     base_url = generate_base_art(prompt, photo_urls, attempt=attempt)
     meta["base_url"] = base_url
+    meta["stages"].append({"stage": "t2i_lora_scene", "success": bool(base_url), "url": base_url})
     if not base_url:
-        meta["error"] = "base_generation_failed_after_identity_first"
+        meta["error"] = "t2i_scene_generation_failed"
+        print(f"[AI v2.5] T2I scene generation failed attempt={attempt}")
         return None, meta
 
+    # ── Stage 2: Face-swap — composite customer face into scene ─────────────
     candidate_url, identity_meta = apply_identity_reference(base_url, photo_urls, strict=strict)
-    meta["stages"].append({"stage": "legacy_face_reference", **identity_meta})
+    meta["stages"].append({"stage": "face_swap_identity", **identity_meta})
     meta["identity_meta"] = identity_meta
+
     if candidate_url:
+        print(f"[AI v2.5] T2I+FaceSwap success attempt={attempt}")
         return candidate_url, meta
 
-    meta["error"] = "legacy_identity_reference_failed"
+    # Face-swap failed but we have a styled scene — in non-strict mode return it
+    # so QA can score it and the admin debug can inspect it.
+    if not strict and base_url:
+        print(f"[AI v2.5] Face-swap failed, returning unswopped scene for debug attempt={attempt}")
+        meta["warning"] = "face_swap_failed_returning_base_scene"
+        return base_url, meta
+
+    # ── Last resort: img2img (only if T2I+faceswap completely failed) ────────
+    if CFG.get("IDENTITY_FIRST_ENABLED", True):
+        print(f"[AI v2.5] Falling back to img2img attempt={attempt}")
+        i2i_url, i2i_meta = generate_identity_first_art(prompt, photo_urls, attempt=attempt)
+        meta["stages"].append({"stage": "img2img_fallback", **i2i_meta})
+        if i2i_url:
+            meta["warning"] = "used_img2img_fallback"
+            return i2i_url, meta
+
+    meta["error"] = "all_generation_stages_failed"
     return None, meta
 
 
@@ -882,7 +917,7 @@ def run_generation_pipeline(order_id: str):
         if not order:
             raise Exception("Order not found")
 
-        update_order_status(order_id, "generating", {"pipeline_version": "2.5.0-two-stage-style-rescue"})
+        update_order_status(order_id, "generating", {"pipeline_version": "2.5.1-t2i-faceswap"})
         print(f"[Pipeline] Starting generation for {order_id}")
 
         template_id    = order["template_id"]
@@ -925,21 +960,6 @@ def run_generation_pipeline(order_id: str):
             if (qa.get("deliverable", True) and qa.get("quality_score", 7) >= int(CFG.get("MIN_QUALITY_SCORE", 6)) and qa.get("identity_score", 7) >= int(CFG.get("MIN_IDENTITY_SCORE", 6)) and qa.get("style_score", 0) >= int(CFG.get("MIN_STYLE_SCORE", 6))):
                 final_ai_url = candidate_url
                 break
-            # v2.5.0: face-swap rescue — if style is good but identity is weak, swap face in
-            style_ok = qa.get("style_score", 0) >= int(CFG.get("FACE_SWAP_RESCUE_MIN_STYLE", 6))
-            identity_weak = qa.get("identity_score", 10) <= int(CFG.get("FACE_SWAP_RESCUE_MAX_IDENTITY", 5))
-            if style_ok and identity_weak and CFG.get("FACE_SWAP_RESCUE_ENABLED", True) and candidate_url and photo_urls:
-                print(f"[Pipeline v2.5] Face-swap rescue: style={qa.get('style_score')} identity={qa.get('identity_score')} — attempting rescue")
-                rescued_url, rescue_meta = apply_identity_reference(candidate_url, photo_urls, strict=False)
-                if rescued_url and rescue_meta.get("success"):
-                    rescue_qa = assess_generated_result(prompt, rescued_url, photo_urls[0])
-                    rescue_qa["generation_meta"] = {**qa.get("generation_meta", {}), "rescue": rescue_meta}
-                    generation_debug.append({"attempt": f"{attempt}_rescue", "candidate_url": rescued_url, "generation_meta": rescue_meta, "qa": rescue_qa})
-                    print(f"[Pipeline v2.5] Rescue QA: style={rescue_qa.get('style_score')} identity={rescue_qa.get('identity_score')}")
-                    if rescue_qa.get("style_score", 0) >= int(CFG.get("MIN_STYLE_SCORE", 6)) and rescue_qa.get("identity_score", 0) >= int(CFG.get("MIN_IDENTITY_SCORE", 6)):
-                        final_ai_url = rescued_url
-                        qa = rescue_qa
-                        break
             prompt += ", preserve exact uploaded identity, same age and face structure, avoid generic beauty portrait, stronger likeness, stronger hand-drawn caricature linework, ink outlines, cel shaded cartoon skin, not photorealistic"
 
         if not final_ai_url:
@@ -971,7 +991,7 @@ def run_generation_pipeline(order_id: str):
     except Exception as e:
         print(f"[Pipeline] ERROR for {order_id}: {e}")
         try:
-            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "2.5.0-two-stage-style-rescue"})
+            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "2.5.1-t2i-faceswap"})
         except Exception:
             pass
         notify_admin(f"❌ Order {order_id} FAILED: {e}")
@@ -1384,7 +1404,7 @@ def create_payment_intent():
                 "template_id": template_id,
                 "plan_id": plan_id,
                 "persons": str(persons),
-                "pipeline": "v2.5.0-two-stage-style-rescue",
+                "pipeline": "v2.5.1-t2i-faceswap",
             },
             description=f"Caricature — {template['name']} ({plan_id})"
         )
@@ -1410,7 +1430,7 @@ def create_payment_intent():
         "email": email,
         "name": name,
         "status": "pending",
-        "pipeline_version": "2.5.0-two-stage-style-rescue",
+        "pipeline_version": "2.5.1-t2i-faceswap",
         "moderation": moderation,
         "created_at": datetime.utcnow().isoformat(),
     })
@@ -2489,21 +2509,6 @@ def admin_test_generate():
             if passes_strict:
                 final_ai_url = candidate_url
                 break
-            # v2.5.0: face-swap rescue — if style is good but identity is weak
-            style_ok = qa.get("style_score", 0) >= int(CFG.get("FACE_SWAP_RESCUE_MIN_STYLE", 6))
-            identity_weak = qa.get("identity_score", 10) <= int(CFG.get("FACE_SWAP_RESCUE_MAX_IDENTITY", 5))
-            if style_ok and identity_weak and CFG.get("FACE_SWAP_RESCUE_ENABLED", True) and candidate_url and photo_urls:
-                print(f"[AdminTest v2.5] {test_id} face-swap rescue: style={qa.get('style_score')} identity={qa.get('identity_score')}")
-                rescued_url, rescue_meta = apply_identity_reference(candidate_url, photo_urls, strict=False)
-                if rescued_url and rescue_meta.get("success"):
-                    rescue_qa = assess_generated_result(working_prompt, rescued_url, photo_urls[0])
-                    rescue_qa["generation_meta"] = {**qa.get("generation_meta", {}), "rescue": rescue_meta}
-                    candidate_debug.append({"attempt": f"{attempt}_rescue", "candidate_url": rescued_url, "base_url": candidate_url, "generation_meta": rescue_meta, "qa": rescue_qa})
-                    print(f"[AdminTest v2.5] {test_id} rescue QA: style={rescue_qa.get('style_score')} identity={rescue_qa.get('identity_score')}")
-                    if rescue_qa.get("style_score", 0) >= 6 and rescue_qa.get("identity_score", 0) >= 6:
-                        final_ai_url = rescued_url
-                        qa = rescue_qa
-                        break
             # In admin debug / strict=false, do not stop at the first weak candidate.
             # Generate all variants and later return the best score for inspection.
             if not strict_mode:
@@ -2560,7 +2565,7 @@ def admin_test_generate():
             "generation_prompt": working_prompt[:1800],
             "generation_qa": qa,
             "upscale_meta": upscale_meta,
-            "pipeline_version": "2.5.0-two-stage-style-rescue",
+            "pipeline_version": "2.5.1-t2i-faceswap",
             "strict_mode": strict_mode,
             "debug_mode": debug_mode,
             "debug_candidate_urls": candidate_debug if debug_mode else [],
@@ -2599,7 +2604,7 @@ def admin_test_generate():
                 "created_at": started_at.isoformat(),
                 "status": "failed",
                 "error": str(e),
-                "pipeline_version": "2.5.0-two-stage-style-rescue",
+                "pipeline_version": "2.5.1-t2i-faceswap",
             }, merge=True)
         except Exception:
             pass
@@ -2610,14 +2615,14 @@ def admin_test_generate():
 def health():
     return ok({
         "status":    "healthy",
-        "version":   "2.5.0-two-stage-style-rescue",
+        "version":   "2.5.1-t2i-faceswap",
         "timestamp": datetime.utcnow().isoformat(),
         "lora_ready": bool(CFG["FAL_LORA_URL"]),
     })
 
 @app.route("/", methods=["GET"])
 def root():
-    return ok({"service": "Caricature API", "version": "2.5.0-two-stage-style-rescue", "docs": "/health"})
+    return ok({"service": "Caricature API", "version": "2.5.1-t2i-faceswap", "docs": "/health"})
 
 
 if __name__ == "__main__":
