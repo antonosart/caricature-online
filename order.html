@@ -721,12 +721,14 @@ async function handleUpload(e, pi, qi) {
     var score = (data.quality && data.quality.score) || data.score || 5;
     var warns = (data.quality && data.quality.warnings) || data.warnings || [];
 
-    // Always keep the upload — only warn, never block
     if (warns.indexOf('no_face') >= 0) {
-      zone.classList.add('has', 'bad');
-      st.className = 'uz-st warn';
-      st.textContent = 'No face detected — you can still proceed.';
-      showQA(pi, qi, 'warn', 'We could not detect a face clearly. For best results: ' + QUALITY_TIPS.no_face + ' You can still continue.');
+      zone.classList.add('bad');
+      st.className = 'uz-st err';
+      st.textContent = 'No face detected.';
+      S.personUploads[pi].u[qi] = null;
+      prev.style.display = 'none';
+      iconDiv.style.display = '';
+      showQA(pi, qi, 'err', 'We could not detect a face clearly. For best results: Please upload a photo showing the face clearly — front-facing, not covered.');
     } else if (score >= 7) {
       zone.classList.add('has');
       st.className = 'uz-st ok';
@@ -739,8 +741,8 @@ async function handleUpload(e, pi, qi) {
       if (tip) showQA(pi, qi, 'warn', tip);
     } else {
       zone.classList.add('has', 'bad');
-      st.className = 'uz-st warn';
-      st.textContent = 'Low quality — you can still proceed.';
+      st.className = 'uz-st err';
+      st.textContent = 'Low quality photo.';
       showQA(pi, qi, 'warn', getTip(warns) || 'A clearer photo gives better results. You can still proceed.');
     }
   } catch(err) {
@@ -753,7 +755,48 @@ async function handleUpload(e, pi, qi) {
     iconDiv.style.display = '';
   }
 
+  // If both photos uploaded for this person, verify they're the same person
+  if (qi === 1 && S.personUploads[pi].u[0] !== null && S.personUploads[pi].u[1] !== null) {
+    verifySamePerson(pi);
+  }
   checkPhotosBtn();
+}
+
+async function verifySamePerson(pi) {
+  var pu = S.personUploads[pi];
+  var url1 = pu.u[0] ? pu.u[0].photo_url : null;
+  var url2 = pu.u[1] ? pu.u[1].photo_url : null;
+  if (!url1 || !url2) return;
+
+  var checkEl = document.getElementById('same-check-' + pi);
+  if (!checkEl) {
+    checkEl = document.createElement('div');
+    checkEl.id = 'same-check-' + pi;
+    checkEl.style.cssText = 'border-radius:8px;padding:10px 14px;font-size:13px;margin-top:8px;line-height:1.6;';
+    var sec = document.getElementById('personSecs').children[pi];
+    if (sec) sec.appendChild(checkEl);
+  }
+  checkEl.style.cssText += 'background:#f0f9ff;border:1px solid #bae6fd;color:#0369a1;';
+  checkEl.textContent = 'Checking if both photos are of the same person...';
+
+  try {
+    var r = await fetch(API_URL + '/api/verify-same-person', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({photo_url1: url1, photo_url2: url2})
+    });
+    var d = await r.json();
+    if (d.same_person) {
+      checkEl.style.cssText = 'border-radius:8px;padding:10px 14px;font-size:13px;margin-top:8px;line-height:1.6;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;';
+      checkEl.textContent = 'Both photos appear to be the same person.';
+    } else {
+      checkEl.style.cssText = 'border-radius:8px;padding:10px 14px;font-size:13px;margin-top:8px;line-height:1.6;background:#fffbeb;border:1px solid #fde68a;color:#92400e;';
+      var personLabel = S.personUploads.length > 1 ? 'Person ' + (pi + 1) : 'this person';
+      checkEl.innerHTML = '<strong>⚠️ The two photos may be of different people.</strong><br>Please check that both photos are of ' + personLabel + ' and re-upload if needed.';
+    }
+  } catch(e) {
+    checkEl.remove();
+  }
 }
 
 function getTip(warns) {
