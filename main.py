@@ -565,6 +565,166 @@ def extract_face_description(photo_urls: list) -> str:
         return "young person, no glasses, no beard, no facial hair"
 
 
+def create_face_mask_for_template(template_url: str, template_id: str) -> str | None:
+    """v2.8.0: Generate a soft face mask for a template using Claude Vision.
+
+    Claude Vision locates the character's face/head as % of image dimensions.
+    PIL draws a soft-edged ellipse over that area (white=repaint, black=keep).
+    The mask is stored in GCS for reuse: template_masks/{template_id}_mask.png
+
+    Why inpainting with mask is the ONLY correct approach:
+    - img2img at low strength: preserves template but face doesn't change
+    - img2img at high strength: face changes but template is destroyed
+    - Inpainting: ONLY the masked face area is repainted, everything else untouched
+    """
+    try:
+        from PIL import Image, ImageDraw, ImageFilter
+        from io import BytesIO
+
+        # Check GCS cache first
+        bucket = gcs_client.bucket(CFG["GCS_BUCKET"])
+        mask_blob_name = f"template_masks/{template_id}_mask.png"
+        mask_blob = bucket.blob(mask_blob_name)
+        if mask_blob.exists():
+            mask_url = f"https://storage.googleapis.com/{CFG['GCS_BUCKET']}/{mask_blob_name}"
+            print(f"[Mask] Using cached mask: {mask_url}")
+            return mask_url
+
+        # Download template
+        resp = requests.get(template_url, timeout=20)
+        resp.raise_for_status()
+        im = Image.open(BytesIO(resp.content)).convert("RGB")
+        w, h = im.size
+
+        # Claude Vision: locate the face bounding box
+        img_data, media_type, _ = prepare_image_for_vision_bytes(resp.content)
+        img_b64 = base64.b64encode(img_data).decode()
+
+        msg = claude_client.messages.create(
+            model="claude-opus-4-20250514",
+            max_tokens=120,
+            messages=[{"role": "user", "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": img_b64}},
+                {"type": "text", "text": (
+                    "In this caricature illustration, identify the bounding box of the character's face and head area.\n"
+                    "Include forehead, hair, ears, chin. Add 15% margin on all sides.\n"
+                    "Return ONLY JSON, no text: {\"x_min\": 0-100, \"y_min\": 0-100, \"x_max\": 0-100, \"y_max\": 0-100}\n"
+                    "Values are percentages of image width (x) and height (y)."
+                )}
+            ]}]
+        )
+        raw = msg.content[0].text.strip()
+        if "{" in raw:
+            raw = raw[raw.index("{"):raw.rindex("}")+1]
+        bbox = json.loads(raw)
+
+        x1 = max(0, int(bbox["x_min"] / 100 * w))
+        y1 = max(0, int(bbox["y_min"] / 100 * h))
+        x2 = min(w, int(bbox["x_max"] / 100 * w))
+        y2 = min(h, int(bbox["y_max"] / 100 * h))
+        print(f"[Mask] Face bbox: ({x1},{y1})-({x2},{y2}) on {w}x{h} image")
+
+        # Draw soft elliptical mask
+        mask = Image.new("RGB", (w, h), "black")
+        draw = ImageDraw.Draw(mask)
+        draw.ellipse([x1, y1, x2, y2], fill="white")
+        mask = mask.filter(ImageFilter.GaussianBlur(radius=max(10, (x2-x1)//8)))
+
+        # Upload to GCS
+        out = BytesIO()
+        mask.save(out, format="PNG")
+        mask_blob.upload_from_string(out.getvalue(), content_type="image/png")
+        mask_url = f"https://storage.googleapis.com/{CFG['GCS_BUCKET']}/{mask_blob_name}"
+        print(f"[Mask] Created and saved mask: {mask_url}")
+        return mask_url
+
+    except Exception as e:
+        print(f"[Mask] Error creating face mask: {e}")
+        return None
+
+
+def generate_from_template_inpainting(template_url: str, mask_url: str, face_description: str, template_name: str, attempt: int = 1) -> tuple[str | None, dict]:
+    """v2.8.0 core: inpaint ONLY the face area in the Antonos template.
+
+    The mask (white=repaint, black=keep) covers only the face/head area.
+    FLUX inpainting with LoRA repaints just the face in Antonos caricature style
+    matching the customer's face_description. Everything outside the mask
+    (body, costume, background, hands) stays pixel-perfect from the template.
+
+    This solves the fundamental problem with img2img:
+    - Low strength: face doesn't change  
+    - High strength: everything changes
+    Inpainting: ONLY the masked area changes, everything else is untouched.
+    """
+    meta = {"attempted": False, "success": False, "error": None,
+            "method": "template_inpainting", "template_url": template_url, "mask_url": mask_url}
+
+    if not CFG.get("FAL_LORA_URL"):
+        meta["error"] = "no_lora_url"
+        return None, meta
+
+    guidance = 9.0 + (attempt - 1) * 0.5
+    steps = 40 if attempt == 1 else 44 if attempt == 2 else 48
+    lora_scale = float(CFG.get(f"LORA_SCALE_{min(attempt,3)}", 0.90))
+
+    # Prompt: describe the face to draw in the masked area
+    prompt = (
+        f"ANTONOS hand-drawn caricature illustration style, "
+        f"caricature portrait face of: {face_description}, "
+        f"drawn in Antonos editorial caricature art, bold confident ink outlines around face, "
+        f"cel-shaded cartoon skin, exaggerated expressive eyes, "
+        f"warm vivid colours, caricature proportions, NOT photorealistic, "
+        f"premium gift illustration face, same {template_name} costume visible around face"
+    )
+
+    # Try FLUX LoRA inpainting (mask_url parameter)
+    models_to_try = [
+        ("fal-ai/flux-lora/image-to-image", {
+            "prompt": prompt,
+            "image_url": template_url,
+            "mask_url": mask_url,
+            "strength": 0.99,
+            "image_size": "portrait_4_3",
+            "num_images": 1,
+            "num_inference_steps": steps,
+            "guidance_scale": guidance,
+            "enable_safety_checker": True,
+            "output_format": "jpeg",
+            "loras": [{"path": CFG["FAL_LORA_URL"], "scale": lora_scale}],
+        }),
+        # Fallback: standard FLUX dev inpainting (no LoRA)
+        ("fal-ai/flux/dev/image-to-image", {
+            "prompt": prompt,
+            "image_url": template_url,
+            "mask_url": mask_url,
+            "strength": 0.99,
+            "image_size": "portrait_4_3",
+            "num_images": 1,
+            "num_inference_steps": steps,
+            "guidance_scale": guidance,
+            "enable_safety_checker": True,
+            "output_format": "jpeg",
+        }),
+    ]
+
+    for model, args in models_to_try:
+        try:
+            meta.update({"attempted": True, "model": model, "guidance": guidance, "lora_scale": lora_scale})
+            print(f"[AI v2.8] Inpainting via {model} attempt={attempt}")
+            result = _fal_run(model, args)
+            url = _extract_fal_image_url(result)
+            if url:
+                meta.update({"success": True, "result_url": url})
+                print(f"[AI v2.8] Inpainting success: {url}")
+                return url, meta
+            meta["error"] = f"no_url:{str(result)[:200]}"
+        except Exception as e:
+            meta["error"] = str(e)[:600]
+            print(f"[AI v2.8] Inpainting failed via {model}: {e}")
+
+    return None, meta
+
+
 def generate_from_template_img2img(template_url: str, face_description: str, template_name: str, attempt: int = 1) -> tuple[str | None, dict]:
     """v2.7.0 core: replace the face in an Antonos template via img2img.
 
@@ -809,7 +969,7 @@ def generate_identity_first_art(prompt: str, photo_urls: list, attempt: int = 1)
 
 
 def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, strict: bool = True, template_id: str = "", face_description: str = "", template_name: str = "") -> tuple[str | None, dict]:
-    """v2.7.0 Template img2img pipeline.
+    """v2.8.0 Template Inpainting pipeline.
 
     PRIMARY PATH (Antonos base image exists):
       generate_from_template_img2img():
@@ -822,7 +982,7 @@ def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, stri
     FALLBACK PATH (no template base image):
       T2I with LoRA → face-swap (best effort)
     """
-    meta = {"pipeline": "v2.7.0_template_img2img", "attempt": attempt, "stages": [],
+    meta = {"pipeline": "v2.8.0_inpainting", "attempt": attempt, "stages": [],
             "template_id": template_id, "face_description": face_description}
 
     # ══ PRIMARY: Template img2img ═══════════════════════════════════════════
@@ -831,17 +991,38 @@ def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, stri
 
     if template_base_url and face_description:
         t_name = template_name or template_id
+
+        # ── Stage 1: Create/retrieve face mask ──────────────────────────
+        mask_url = create_face_mask_for_template(template_base_url, template_id)
+        meta["mask_url"] = mask_url
+
+        if mask_url:
+            # ── Stage 2: Inpaint ONLY the face area ─────────────────────
+            # This is the only approach that can change the face without
+            # destroying the template body/costume/background.
+            candidate_url, inp_meta = generate_from_template_inpainting(
+                template_base_url, mask_url, face_description, t_name, attempt=attempt
+            )
+            meta["stages"].append({"stage": "template_inpainting", **inp_meta})
+
+            if candidate_url:
+                print(f"[AI v2.8] PRIMARY inpainting success attempt={attempt}")
+                return candidate_url, meta
+
+            print(f"[AI v2.8] Inpainting failed, trying img2img fallback")
+            meta["warning"] = "inpainting_failed"
+
+        # ── Fallback: img2img on template (medium strength) ─────────────
         candidate_url, t_meta = generate_from_template_img2img(
             template_base_url, face_description, t_name, attempt=attempt
         )
-        meta["stages"].append({"stage": "template_img2img", **t_meta})
+        meta["stages"].append({"stage": "template_img2img_fallback", **t_meta})
 
         if candidate_url:
-            print(f"[AI v2.7] PRIMARY success attempt={attempt}")
+            print(f"[AI v2.8] img2img fallback success attempt={attempt}")
             return candidate_url, meta
 
-        print(f"[AI v2.7] Template img2img failed, falling back to T2I+FaceSwap")
-        meta["warning"] = "template_img2img_failed"
+        meta["warning"] = "template_primary_and_fallback_failed"
 
     # ══ FALLBACK: T2I + Face-Swap ════════════════════════════════════════════
     print(f"[AI v2.7] FALLBACK: T2I+FaceSwap for template_id={template_id}")
@@ -912,7 +1093,7 @@ def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, stri
     - Face-swap alone creates realistic face on drawn body (style mismatch)
     - Style unification (very low strength img2img) solves the face/body style mismatch
     """
-    meta = {"pipeline": "v2.7.0_template_img2img", "attempt": attempt, "stages": [], "template_id": template_id}
+    meta = {"pipeline": "v2.8.0_inpainting", "attempt": attempt, "stages": [], "template_id": template_id}
 
     # ══ PRIMARY: Template-Anchored (real Antonos image as base) ═══════════════
     template_base_url = get_template_base_image(template_id) if template_id else None
@@ -1240,7 +1421,7 @@ def run_generation_pipeline(order_id: str):
         if not order:
             raise Exception("Order not found")
 
-        update_order_status(order_id, "generating", {"pipeline_version": "2.7.0-template-img2img"})
+        update_order_status(order_id, "generating", {"pipeline_version": "2.8.0-inpainting"})
         print(f"[Pipeline] Starting generation for {order_id}")
 
         template_id    = order["template_id"]
@@ -1321,7 +1502,7 @@ def run_generation_pipeline(order_id: str):
     except Exception as e:
         print(f"[Pipeline] ERROR for {order_id}: {e}")
         try:
-            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "2.7.0-template-img2img"})
+            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "2.8.0-inpainting"})
         except Exception:
             pass
         notify_admin(f"❌ Order {order_id} FAILED: {e}")
@@ -1734,7 +1915,7 @@ def create_payment_intent():
                 "template_id": template_id,
                 "plan_id": plan_id,
                 "persons": str(persons),
-                "pipeline": "v2.7.0-template-img2img",
+                "pipeline": "v2.8.0-inpainting",
             },
             description=f"Caricature — {template['name']} ({plan_id})"
         )
@@ -1760,7 +1941,7 @@ def create_payment_intent():
         "email": email,
         "name": name,
         "status": "pending",
-        "pipeline_version": "2.7.0-template-img2img",
+        "pipeline_version": "2.8.0-inpainting",
         "moderation": moderation,
         "created_at": datetime.utcnow().isoformat(),
     })
@@ -2990,7 +3171,7 @@ def admin_test_generate():
             "generation_prompt": working_prompt[:1800],
             "generation_qa": qa,
             "upscale_meta": upscale_meta,
-            "pipeline_version": "2.7.0-template-img2img",
+            "pipeline_version": "2.8.0-inpainting",
             "strict_mode": strict_mode,
             "debug_mode": debug_mode,
             "debug_candidate_urls": candidate_debug if debug_mode else [],
@@ -3029,7 +3210,7 @@ def admin_test_generate():
                 "created_at": started_at.isoformat(),
                 "status": "failed",
                 "error": str(e),
-                "pipeline_version": "2.7.0-template-img2img",
+                "pipeline_version": "2.8.0-inpainting",
             }, merge=True)
         except Exception:
             pass
@@ -3040,14 +3221,14 @@ def admin_test_generate():
 def health():
     return ok({
         "status":    "healthy",
-        "version":   "2.7.0-template-img2img",
+        "version":   "2.8.0-inpainting",
         "timestamp": datetime.utcnow().isoformat(),
         "lora_ready": bool(CFG["FAL_LORA_URL"]),
     })
 
 @app.route("/", methods=["GET"])
 def root():
-    return ok({"service": "Caricature API", "version": "2.7.0-template-img2img", "docs": "/health"})
+    return ok({"service": "Caricature API", "version": "2.8.0-inpainting", "docs": "/health"})
 
 
 if __name__ == "__main__":
