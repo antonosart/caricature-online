@@ -922,7 +922,7 @@ def run_generation_pipeline(order_id: str):
         if not order:
             raise Exception("Order not found")
 
-        update_order_status(order_id, "generating", {"pipeline_version": "2.4.1-expert-identity-lock"})
+        update_order_status(order_id, "generating", {"pipeline_version": "2.4.3-expert-two-stage-illustration"})
         print(f"[Pipeline] Starting generation for {order_id}")
 
         template_id    = order["template_id"]
@@ -996,7 +996,7 @@ def run_generation_pipeline(order_id: str):
     except Exception as e:
         print(f"[Pipeline] ERROR for {order_id}: {e}")
         try:
-            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "2.4.1-expert-identity-lock"})
+            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "2.4.3-expert-two-stage-illustration"})
         except Exception:
             pass
         notify_admin(f"❌ Order {order_id} FAILED: {e}")
@@ -1409,7 +1409,7 @@ def create_payment_intent():
                 "template_id": template_id,
                 "plan_id": plan_id,
                 "persons": str(persons),
-                "pipeline": "v2.4.1-expert-identity-lock",
+                "pipeline": "v2.4.3-expert-two-stage-illustration",
             },
             description=f"Caricature — {template['name']} ({plan_id})"
         )
@@ -1435,7 +1435,7 @@ def create_payment_intent():
         "email": email,
         "name": name,
         "status": "pending",
-        "pipeline_version": "2.4.1-expert-identity-lock",
+        "pipeline_version": "2.4.3-expert-two-stage-illustration",
         "moderation": moderation,
         "created_at": datetime.utcnow().isoformat(),
     })
@@ -2589,7 +2589,7 @@ def admin_test_generate():
             "generation_prompt": working_prompt[:1800],
             "generation_qa": qa,
             "upscale_meta": upscale_meta,
-            "pipeline_version": "2.4.1-expert-identity-lock",
+            "pipeline_version": "2.4.3-expert-two-stage-illustration",
             "strict_mode": strict_mode,
             "debug_mode": debug_mode,
             "debug_candidate_urls": candidate_debug if debug_mode else [],
@@ -2628,7 +2628,7 @@ def admin_test_generate():
                 "created_at": started_at.isoformat(),
                 "status": "failed",
                 "error": str(e),
-                "pipeline_version": "2.4.1-expert-identity-lock",
+                "pipeline_version": "2.4.3-expert-two-stage-illustration",
             }, merge=True)
         except Exception:
             pass
@@ -2639,14 +2639,14 @@ def admin_test_generate():
 def health():
     return ok({
         "status":    "healthy",
-        "version":   "2.4.1-expert-identity-lock",
+        "version":   "2.4.3-expert-two-stage-illustration",
         "timestamp": datetime.utcnow().isoformat(),
         "lora_ready": bool(CFG["FAL_LORA_URL"]),
     })
 
 @app.route("/", methods=["GET"])
 def root():
-    return ok({"service": "Caricature API", "version": "2.4.1-expert-identity-lock", "docs": "/health"})
+    return ok({"service": "Caricature API", "version": "2.4.3-expert-two-stage-illustration", "docs": "/health"})
 
 
 if __name__ == "__main__":
