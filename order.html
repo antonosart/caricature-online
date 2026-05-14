@@ -320,9 +320,12 @@ var PERSONS_LIST = [
 var PERSON_EXTRA = {1:0, 2:5, 3:10, 4:15, 5:20};
 
 var PLANS = [
-  {id:'standard', name:'Standard',  price:14.99, desc:'Digital art · Email delivery', popular:false},
-  {id:'premium',  name:'Premium',   price:24.99, desc:'Free revision · Priority queue', popular:true},
-  {id:'gift',     name:'Gift Pack', price:49.99, desc:'3 prints · 4K resolution', popular:false}
+  {id:'basic',    name:'Basic',    price:8.99,  popular:false,
+   features:['1 caricature in your chosen template','4K ultra-HD quality','Delivered by email in ~90 seconds','1 free revision included']},
+  {id:'standard', name:'Standard', price:14.99, popular:true,
+   features:['1 caricature in your chosen template','4K ultra-HD quality','2 free revisions if not 100% happy','Priority generation queue','Personalisation questions included']},
+  {id:'premium',  name:'Premium',  price:19.99, popular:false,
+   features:['1 caricature in your chosen template','4K ultra-HD quality','3 free revisions included','Priority generation queue']}
 ];
 
 var QUALITY_TIPS = {
@@ -744,15 +747,21 @@ async function handleUpload(e, pi, qi) {
     if (noFace || multiFace) {
       zone.classList.add('bad');
       st.className = 'uz-st err';
-      S.personUploads[pi].u[qi] = null;
+      // Keep upload data so user can override if it's a false negative
+      var uploadData = {upload_id: data.upload_id, photo_url: data.photo_url};
+      S.personUploads[pi].u[qi] = null; // block by default
       prev.style.display = 'none';
       iconDiv.style.display = '';
       if (multiFace) {
         st.textContent = 'Multiple faces detected.';
-        showQA(pi, qi, 'err', 'This photo contains more than one person. Please upload a photo showing only ONE person with a clear face — front-facing, good lighting.');
+        showQAWithOverride(pi, qi,
+          'This photo contains more than one person. Please upload a photo with only ONE person clearly visible.',
+          null); // no override for multi-face
       } else {
         st.textContent = 'No face detected.';
-        showQA(pi, qi, 'err', 'We could not detect a face clearly. Please upload a photo showing the face clearly — front-facing, not covered.');
+        showQAWithOverride(pi, qi,
+          'We could not detect a face clearly. Please upload a photo showing the face clearly — front-facing, not covered.',
+          uploadData); // allow override for possible false negative
       }
     } else if (score >= 7) {
       zone.classList.add('has');
@@ -826,6 +835,41 @@ async function verifySamePerson(pi) {
   }
 }
 
+
+async function verifyCrossPersons(pi) {
+  var n = S.personUploads.length;
+  if (n < 2) return;
+  for (var j = 0; j < n; j++) {
+    if (j === pi) continue;
+    var urlA = S.personUploads[pi].u[0] ? S.personUploads[pi].u[0].photo_url : null;
+    var urlB = S.personUploads[j].u[0]  ? S.personUploads[j].u[0].photo_url  : null;
+    if (!urlA || !urlB) continue;
+    var crossId = 'cross-' + Math.min(pi,j) + '-' + Math.max(pi,j);
+    var oldEl = document.getElementById(crossId);
+    try {
+      var r = await fetch(API_URL + '/api/verify-same-person', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({photo_url1: urlA, photo_url2: urlB})
+      });
+      var d = await r.json();
+      if (d.same_person) {
+        if (!oldEl) {
+          oldEl = document.createElement('div');
+          oldEl.id = crossId;
+          var sec = document.getElementById('personSecs').children[pi];
+          if (sec) sec.appendChild(oldEl);
+        }
+        oldEl.style.cssText = 'border-radius:8px;padding:12px 14px;font-size:13px;margin-top:8px;line-height:1.6;background:#fffbeb;border:1px solid #fde68a;color:#92400e;';
+        oldEl.innerHTML = '<strong>Person ' + (Math.min(pi,j)+1) + ' and Person ' + (Math.max(pi,j)+1) +
+          ' appear to have the same face.</strong><br>' +
+          'If you want the same person twice, you can continue. Otherwise please re-upload different photos.';
+      } else {
+        if (oldEl) oldEl.remove();
+      }
+    } catch(e) { if (oldEl) oldEl.remove(); }
+  }
+}
+
 function showDelBtn(pi, qi) {
   var btn = document.getElementById('del-' + pi + '-' + qi);
   if (btn) btn.style.display = 'block';
@@ -870,13 +914,43 @@ function getTip(warns) {
 }
 
 function showQA(pi, qi, type, msg) {
-  var id = 'qa-' + pi + '-' + qi;
+  showQAWithOverride(pi, qi, msg, null);
+}
+
+function showQAWithOverride(pi, qi, msg, uploadData) {
+  var oldEl = document.getElementById('qa-' + pi + '-' + qi);
+  if (oldEl) oldEl.remove();
   var el = document.createElement('div');
-  el.id = id;
-  el.className = 'qa ' + (type === 'err' ? 'err' : 'warn');
+  el.id = 'qa-' + pi + '-' + qi;
+  el.style.cssText = 'border-radius:8px;padding:12px 14px;font-size:13px;margin-top:8px;line-height:1.6;' +
+    (uploadData ? 'background:#fffbeb;border:1px solid #fde68a;color:#92400e;'
+                : 'background:#fef2f2;border:1px solid #fecaca;color:#991b1b;');
   el.textContent = msg;
+  if (uploadData) {
+    var btn = document.createElement('button');
+    btn.textContent = 'Use this photo anyway';
+    btn.style.cssText = 'display:block;margin-top:8px;padding:7px 14px;border-radius:6px;' +
+      'background:#92400e;color:white;font-size:12px;font-weight:700;cursor:pointer;border:none;';
+    btn.addEventListener('click', (function(pii, qii, uData) {
+      return function() {
+        S.personUploads[pii].u[qii] = uData;
+        var zone = document.getElementById('uz-' + pii + '-' + qii);
+        var prev = document.getElementById('up-' + pii + '-' + qii);
+        var ic   = document.getElementById('ui-' + pii + '-' + qii);
+        var st   = document.getElementById('st-' + pii + '-' + qii);
+        if (zone) { zone.classList.remove('bad'); zone.classList.add('has'); }
+        if (prev) prev.style.display = 'block';
+        if (ic)   ic.style.display   = 'none';
+        if (st)   { st.className = 'uz-st warn'; st.textContent = 'Used (face detection uncertain)'; }
+        showDelBtn(pii, qii);
+        el.remove();
+        checkPhotosBtn();
+      };
+    })(pi, qi, uploadData));
+    el.appendChild(btn);
+  }
   var zone = document.getElementById('uz-' + pi + '-' + qi);
-  zone.parentNode.insertBefore(el, zone.nextSibling);
+  if (zone) zone.parentNode.insertBefore(el, zone.nextSibling);
 }
 
 function photosOk() {
@@ -896,10 +970,15 @@ function buildPlans() {
     var div = document.createElement('div');
     div.className = 'plan-c' + (p.id === 'standard' ? ' sel' : '');
     div.id = 'plan-' + p.id;
-    div.innerHTML = (p.popular ? '<div class="plan-badge">POPULAR</div>' : '') +
-      '<div class="plan-name">' + p.name + '</div>' +
-      '<div class="plan-price">€' + p.price.toFixed(2) + '</div>' +
-      '<div class="plan-desc">' + p.desc + '</div>';
+    var featuresHtml = (p.features||[]).map(function(f){
+      return '<li style="font-size:12px;color:#8a7968;margin-top:4px;list-style:none;padding-left:16px;position:relative;">' +
+             '<span style="position:absolute;left:0;color:#c8792a;">✓</span>' + f + '</li>';
+    }).join('');
+    div.innerHTML = (p.popular ? '<div class="plan-badge">MOST POPULAR</div>' : '') +
+      '<div class="plan-name" style="font-size:15px;font-weight:700;margin-bottom:2px;">' + p.name + '</div>' +
+      '<div style="font-size:11px;color:#8a7968;margin-bottom:8px;">one-time · 1 person</div>' +
+      '<div class="plan-price" style="font-size:28px;">€' + p.price.toFixed(2) + '</div>' +
+      '<ul style="margin-top:10px;padding:0;">' + featuresHtml + '</ul>';
     div.addEventListener('click', (function(pid) {
       return function() { pickPlan(pid); };
     })(p.id));

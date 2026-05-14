@@ -157,11 +157,11 @@ TEMPLATES = {
 }
 
 # ── PRICING ───────────────────────────────────────────────────
-PERSON_PRICE = {1: 0, 2: 500, "3-4": 1000, "5+": 2000}  # cents added to base
+PERSON_PRICE = {1: 0, "1": 0, 2: 500, "2": 500, 3: 1000, "3": 1000, 4: 1500, "4": 1500, 5: 2000, "5": 2000}
 PLANS = {
-    "standard": {"name": "Standard",  "base_cents": 1499, "extra_cents": 0,    "label": "Standard"},
-    "premium":  {"name": "Premium",   "base_cents": 1499, "extra_cents": 1000, "label": "Premium +€10 (free revision)"},
-    "gift":     {"name": "Gift Pack", "base_cents": 1499, "extra_cents": 3500, "label": "Gift Pack +€35 (3 prints, 4K)"},
+    "basic":    {"name": "Basic",    "base_cents":  899, "extra_cents": 0, "label": "Basic"},
+    "standard": {"name": "Standard", "base_cents": 1499, "extra_cents": 0, "label": "Standard"},
+    "premium":  {"name": "Premium",  "base_cents": 1999, "extra_cents": 0, "label": "Premium"},
 }
 
 OCCASIONS = {
@@ -560,13 +560,19 @@ def assess_photo_quality(photo_url: str) -> dict:
         '"recovery_strategy":"template_only"}'
     )
     prompt = (
-        "CRITICAL assessment for caricature generation:\n"
-        "RULE 1: If NOT a person photo (diagram, QR code, landscape, text, barcode, "
-        "screenshot, math, object), return exactly:\n" + no_face_resp + "\n"
-        "RULE 2: If MORE THAN ONE person or face appears, return exactly:\n" + multi_face_resp + "\n"
-        "RULE 3: If EXACTLY ONE person with visible face, assess quality.\n"
-        "Score 1-10. face_size: large|medium|small. lighting: good|backlit|dark|harsh.\n"
-        "sharpness: sharp|slightly_blurred|blurred. usable: true only if one face clearly visible.\n"
+        "You are assessing a photo for caricature art generation.\n\n"
+        "STEP 1: Is there a human face as the MAIN SUBJECT?\n"
+        "Count only CLEAR, IN-FOCUS faces in the foreground. "
+        "Ignore blurred background figures, reflections, small distant people.\n"
+        "Babies and children ARE valid subjects — assess them normally.\n\n"
+        "CASE A — No human face (QR codes, diagrams, text, objects, landscapes, "
+        "screenshots, abstract): return exactly:\n" + no_face_resp + "\n\n"
+        "CASE B — Two or more CLEAR in-focus faces in the foreground "
+        "(not blurred background): return exactly:\n" + multi_face_resp + "\n\n"
+        "CASE C — Exactly ONE clear face (any age including babies): assess quality.\n"
+        "Score 1-10. face_size: large|medium|small. "
+        "lighting: good|backlit|dark|harsh. sharpness: sharp|slightly_blurred|blurred.\n"
+        "usable: true if face is clearly the main subject.\n"
         "warnings: array from [face_too_small,backlit,blurred,low_resolution,obstructed].\n"
         "recovery_strategy: full_analysis if score>=6, partial_analysis if 3-5.\n"
         "Return ONLY valid JSON."
