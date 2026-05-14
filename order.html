@@ -371,6 +371,7 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('btn3').addEventListener('click', function() { goTo(4); });
   document.getElementById('btn4t').addEventListener('click', function() { goTo(5); });
   document.getElementById('btn4f').addEventListener('click', function() { goTo(5); });
+  document.getElementById('btn5').addEventListener('click', function() { goTo(6); });
   document.getElementById('s5back').addEventListener('click', function() {
     goTo(S.flow === 'template' ? 4 : 3);
   });
@@ -671,6 +672,20 @@ function buildPhotoSections() {
       })(pi, qi));
       zone.appendChild(inp);
 
+      // Delete (X) button — shown only when photo is uploaded
+      var delBtn = document.createElement('button');
+      delBtn.id = 'del-' + pi + '-' + qi;
+      delBtn.textContent = '✕';
+      delBtn.title = 'Remove photo';
+      delBtn.style.cssText = 'display:none;position:absolute;top:6px;right:6px;z-index:10;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.65);color:white;font-size:12px;font-weight:700;cursor:pointer;border:none;line-height:1;padding:0;';
+      delBtn.addEventListener('click', (function(pii, qii) {
+        return function(e) {
+          e.preventDefault(); e.stopPropagation();
+          deletePhoto(pii, qii);
+        };
+      })(pi, qi));
+      zone.appendChild(delBtn);
+
       row.appendChild(zone);
     });
 
@@ -733,10 +748,12 @@ async function handleUpload(e, pi, qi) {
       zone.classList.add('has');
       st.className = 'uz-st ok';
       st.textContent = 'Excellent quality!';
+      showDelBtn(pi, qi);
     } else if (score >= 4) {
       zone.classList.add('has');
       st.className = 'uz-st warn';
       st.textContent = 'Good photo.';
+      showDelBtn(pi, qi);
       var tip = getTip(warns);
       if (tip) showQA(pi, qi, 'warn', tip);
     } else {
@@ -797,6 +814,41 @@ async function verifySamePerson(pi) {
   } catch(e) {
     checkEl.remove();
   }
+}
+
+function showDelBtn(pi, qi) {
+  var btn = document.getElementById('del-' + pi + '-' + qi);
+  if (btn) btn.style.display = 'block';
+}
+
+function deletePhoto(pi, qi) {
+  // Clear state
+  S.personUploads[pi].u[qi] = null;
+
+  // Reset zone UI
+  var zone = document.getElementById('uz-' + pi + '-' + qi);
+  var prev = document.getElementById('up-' + pi + '-' + qi);
+  var iconDiv = document.getElementById('ui-' + pi + '-' + qi);
+  var st = document.getElementById('st-' + pi + '-' + qi);
+  var delBtn = document.getElementById('del-' + pi + '-' + qi);
+  var inp = zone ? zone.querySelector('input[type=file]') : null;
+
+  if (zone) { zone.classList.remove('has', 'bad'); }
+  if (prev) { prev.src = ''; prev.style.display = 'none'; }
+  if (iconDiv) { iconDiv.style.display = ''; }
+  if (st) { st.className = 'uz-st'; st.textContent = ''; }
+  if (delBtn) { delBtn.style.display = 'none'; }
+  if (inp) { inp.value = ''; }
+
+  // Remove quality alert
+  var qa = document.getElementById('qa-' + pi + '-' + qi);
+  if (qa) qa.remove();
+
+  // Remove same-person check result
+  var sc = document.getElementById('same-check-' + pi);
+  if (sc) sc.remove();
+
+  checkPhotosBtn();
 }
 
 function getTip(warns) {
