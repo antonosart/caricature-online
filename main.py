@@ -1,5 +1,5 @@
 # ══════════════════════════════════════════════════════════════
-#   CARICATURE.ONLINE — Backend v2.3.1 EXPERT LEVEL +9.5
+#   CARICATURE.ONLINE — Backend v2.3.2 EXPERT LEVEL +9.5
 #   4K AI Caricature Pipeline · Identity-aware · Stripe-safe · Admin Test Endpoint
 #   Stack: Flask · Firestore · GCS · fal.ai LoRA · Stripe · Resend
 # ══════════════════════════════════════════════════════════════
@@ -246,6 +246,84 @@ def notify_admin(msg: str):
         pass
 
 
+# ══════════════════════════════════════════════════════════════
+#   IMAGE NORMALISATION — Claude-safe vision payloads
+# ══════════════════════════════════════════════════════════════
+
+def prepare_image_for_vision_bytes(image_bytes: bytes, media_type: str = "image/jpeg", max_bytes: int = 4_500_000) -> tuple[bytes, str, dict]:
+    """Compress/resize images before sending to Claude Vision.
+
+    Anthropic image inputs have a 5MB base64/source limit. Customer phone photos
+    are often 8–12MB, so every vision call must use a Claude-safe JPEG copy.
+    The original upload remains untouched in GCS for generation/reference.
+    """
+    meta = {
+        "original_bytes": len(image_bytes or b""),
+        "processed_bytes": len(image_bytes or b""),
+        "processed": False,
+        "method": "original",
+        "max_side": None,
+    }
+    if not image_bytes:
+        return image_bytes, media_type or "image/jpeg", meta
+
+    # Already small enough: keep as-is, unless it is an uncommon type.
+    if len(image_bytes) <= max_bytes and (media_type or "").lower() in {"image/jpeg", "image/png", "image/webp"}:
+        return image_bytes, media_type or "image/jpeg", meta
+
+    try:
+        from PIL import Image
+        from io import BytesIO
+
+        im = Image.open(BytesIO(image_bytes))
+        im = im.convert("RGB")
+
+        # Claude does not need full camera resolution for face analysis.
+        # 1568px preserves facial features while keeping payload compact.
+        max_side = 1568
+        w, h = im.size
+        if max(w, h) > max_side:
+            ratio = max_side / float(max(w, h))
+            im = im.resize((max(1, int(w * ratio)), max(1, int(h * ratio))), Image.Resampling.LANCZOS)
+
+        last = None
+        for quality in (88, 84, 80, 76, 72, 68, 64):
+            out = BytesIO()
+            im.save(out, format="JPEG", quality=quality, optimize=True, progressive=True)
+            data = out.getvalue()
+            last = data
+            if len(data) <= max_bytes:
+                meta.update({
+                    "processed_bytes": len(data),
+                    "processed": True,
+                    "method": f"pillow_jpeg_q{quality}",
+                    "max_side": max_side,
+                })
+                return data, "image/jpeg", meta
+
+        # Last-resort: smaller side.
+        if last and len(last) > max_bytes:
+            w, h = im.size
+            ratio = 1024 / float(max(w, h))
+            if ratio < 1:
+                im = im.resize((max(1, int(w * ratio)), max(1, int(h * ratio))), Image.Resampling.LANCZOS)
+            out = BytesIO()
+            im.save(out, format="JPEG", quality=72, optimize=True, progressive=True)
+            data = out.getvalue()
+            meta.update({
+                "processed_bytes": len(data),
+                "processed": True,
+                "method": "pillow_jpeg_1024_q72",
+                "max_side": 1024,
+            })
+            return data, "image/jpeg", meta
+
+        return last or image_bytes, "image/jpeg", meta
+    except Exception as e:
+        print(f"[VisionImage] Compression failed: {e}")
+        return image_bytes, media_type or "image/jpeg", meta
+
+
 
 # ══════════════════════════════════════════════════════════════
 #   CONTENT SAFETY — text/order moderation
@@ -367,9 +445,13 @@ def analyze_photo_with_claude(photo_urls: list, persons: str, template_name: str
         content = []
         refs = []
         for i, url in enumerate((photo_urls or [])[:6], start=1):
-            img_data = requests.get(url, timeout=15).content
+            resp = requests.get(url, timeout=15)
+            resp.raise_for_status()
+            media_type = resp.headers.get("Content-Type", "image/jpeg").split(";")[0]
+            img_data, media_type, vision_meta = prepare_image_for_vision_bytes(resp.content, media_type)
+            print(f"[Claude] Vision ref {i}: {vision_meta}")
             img_b64 = base64.b64encode(img_data).decode()
-            content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}})
+            content.append({"type": "image", "source": {"type": "base64", "media_type": media_type, "data": img_b64}})
             refs.append(f"Reference photo {i}")
 
         occasion_desc = answers.get("occasion", "")
@@ -464,21 +546,56 @@ def generate_base_art(prompt: str, photo_urls: list, attempt: int = 1) -> str | 
     return None
 
 
-def apply_identity_reference(base_url: str, photo_urls: list) -> str:
-    """Apply face reference after scene generation. For now, safest for first/primary face."""
+def _extract_fal_image_url(result: dict) -> str | None:
+    """Extract image URL from common fal response shapes."""
+    if not isinstance(result, dict):
+        return None
+    if result.get("image") and isinstance(result["image"], dict):
+        return result["image"].get("url")
+    if result.get("images") and isinstance(result["images"], list) and result["images"]:
+        first = result["images"][0]
+        if isinstance(first, dict):
+            return first.get("url")
+    if result.get("url"):
+        return result.get("url")
+    return None
+
+
+def apply_identity_reference(base_url: str, photo_urls: list, strict: bool = False) -> tuple[str | None, dict]:
+    """Apply face reference after scene generation.
+
+    fal-ai/face-swap currently expects swap_image_url for the identity/source face.
+    Older code used face_image_url, which caused the face transfer to never run.
+    """
+    meta = {"attempted": False, "success": False, "method": "none", "error": None}
     if not base_url or not photo_urls:
-        return base_url
-    try:
-        print("[AI] Applying identity face reference...")
-        result = _fal_run("fal-ai/face-swap", {
-            "base_image_url": base_url,
-            "face_image_url": photo_urls[0],
-        })
-        if result and result.get("image") and result["image"].get("url"):
-            return result["image"]["url"]
-    except Exception as e:
-        print(f"[AI] Face reference step failed: {e}")
-    return base_url
+        meta["error"] = "missing_base_or_reference"
+        return (None if strict else base_url), meta
+
+    reference_url = photo_urls[0]
+    attempts = [
+        ("fal-ai/face-swap:swap_image_url", {"base_image_url": base_url, "swap_image_url": reference_url}),
+        # Compatibility fallback for accounts/endpoints that still use source/target naming.
+        ("fal-ai/face-swap:source_target", {"target_image_url": base_url, "source_image_url": reference_url}),
+        # Last legacy fallback; normally not used now.
+        ("fal-ai/face-swap:legacy_face_image_url", {"base_image_url": base_url, "face_image_url": reference_url}),
+    ]
+
+    for method, args in attempts:
+        try:
+            print(f"[AI] Applying identity face reference via {method}...")
+            meta.update({"attempted": True, "method": method, "error": None})
+            result = _fal_run("fal-ai/face-swap", args)
+            url = _extract_fal_image_url(result)
+            if url:
+                meta.update({"success": True, "result_url": url})
+                return url, meta
+            meta["error"] = f"no_image_url_in_response:{str(result)[:300]}"
+        except Exception as e:
+            meta["error"] = str(e)[:800]
+            print(f"[AI] Face reference step failed via {method}: {e}")
+
+    return (None if strict else base_url), meta
 
 
 def upscale_to_4k(image_url: str, order_id: str) -> tuple[bytes, dict]:
@@ -534,15 +651,24 @@ def assess_generated_result(prompt: str, result_url: str, reference_url: str | N
     """Lightweight post-generation QA. Does not block delivery unless generation obviously failed."""
     try:
         content = []
-        result_bytes = requests.get(result_url, timeout=20).content
-        content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.b64encode(result_bytes).decode()}})
+        result_resp = requests.get(result_url, timeout=20)
+        result_resp.raise_for_status()
+        result_media = result_resp.headers.get("Content-Type", "image/jpeg").split(";")[0]
+        result_bytes, result_media, result_meta = prepare_image_for_vision_bytes(result_resp.content, result_media)
+        print(f"[QA] Vision result image: {result_meta}")
+        content.append({"type": "image", "source": {"type": "base64", "media_type": result_media, "data": base64.b64encode(result_bytes).decode()}})
         if reference_url:
-            ref_bytes = requests.get(reference_url, timeout=20).content
-            content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.b64encode(ref_bytes).decode()}})
+            ref_resp = requests.get(reference_url, timeout=20)
+            ref_resp.raise_for_status()
+            ref_media = ref_resp.headers.get("Content-Type", "image/jpeg").split(";")[0]
+            ref_bytes, ref_media, ref_meta = prepare_image_for_vision_bytes(ref_resp.content, ref_media)
+            print(f"[QA] Vision reference image: {ref_meta}")
+            content.append({"type": "image", "source": {"type": "base64", "media_type": ref_media, "data": base64.b64encode(ref_bytes).decode()}})
         content.append({"type": "text", "text": (
             "Assess this generated caricature for customer delivery. "
             "Return ONLY JSON: {\"deliverable\":true/false,\"quality_score\":1-10,\"identity_score\":1-10,\"reason\":\"...\"}. "
-            "Be practical: caricature exaggeration is allowed, but blank, corrupted, wrong subject, or no face should fail."
+            "Be practical: caricature exaggeration is allowed, but blank, corrupted, wrong subject, no face, or weak likeness should fail. "
+            "For identity_score, compare face shape, eyes, nose, mouth, hairline/hair, age, expression, and distinctive features."
         )})
         msg = claude_client.messages.create(model="claude-opus-4-20250514", max_tokens=180, messages=[{"role": "user", "content": content}])
         raw = msg.content[0].text.strip()
@@ -561,7 +687,10 @@ def assess_generated_result(prompt: str, result_url: str, reference_url: str | N
 def generate_with_lora(prompt: str, photo_urls: list) -> str | None:
     """Backward-compatible wrapper used by older routes/tests."""
     base = generate_base_art(prompt, photo_urls, attempt=1)
-    return apply_identity_reference(base, photo_urls) if base else None
+    if not base:
+        return None
+    url, _identity_meta = apply_identity_reference(base, photo_urls, strict=False)
+    return url
 
 
 def run_generation_pipeline(order_id: str):
@@ -572,7 +701,7 @@ def run_generation_pipeline(order_id: str):
         if not order:
             raise Exception("Order not found")
 
-        update_order_status(order_id, "generating", {"pipeline_version": "2.3-expert-4k"})
+        update_order_status(order_id, "generating", {"pipeline_version": "2.3.2-expert-identity-fix"})
         print(f"[Pipeline] Starting generation for {order_id}")
 
         template_id    = order["template_id"]
@@ -605,10 +734,15 @@ def run_generation_pipeline(order_id: str):
             base_url = generate_base_art(prompt, photo_urls, attempt=attempt)
             if not base_url:
                 continue
-            candidate_url = apply_identity_reference(base_url, photo_urls)
+            candidate_url, identity_meta = apply_identity_reference(base_url, photo_urls, strict=True)
+            if not candidate_url:
+                qa = {"deliverable": False, "quality_score": 1, "identity_score": 1, "reason": "identity_reference_failed", "identity_meta": identity_meta}
+                print(f"[Pipeline] Identity failed attempt={attempt}: {identity_meta}")
+                continue
             qa = assess_generated_result(prompt, candidate_url, photo_urls[0] if photo_urls else None)
+            qa["identity_meta"] = identity_meta
             print(f"[Pipeline] QA attempt={attempt}: {qa}")
-            if qa.get("deliverable", True) and qa.get("quality_score", 7) >= 5:
+            if qa.get("deliverable", True) and qa.get("quality_score", 7) >= 5 and qa.get("identity_score", 7) >= 5:
                 final_ai_url = candidate_url
                 break
             prompt += ", improve facial likeness, clear human face, clean finished premium caricature, no artifacts"
@@ -641,7 +775,7 @@ def run_generation_pipeline(order_id: str):
     except Exception as e:
         print(f"[Pipeline] ERROR for {order_id}: {e}")
         try:
-            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "2.3-expert-4k"})
+            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "2.3.2-expert-identity-fix"})
         except Exception:
             pass
         notify_admin(f"❌ Order {order_id} FAILED: {e}")
@@ -905,12 +1039,14 @@ def assess_photo_quality_bytes(image_bytes: bytes, media_type: str = "image/jpeg
     )
 
     try:
-        img_b64 = base64.b64encode(image_bytes).decode()
+        safe_bytes, safe_media_type, vision_meta = prepare_image_for_vision_bytes(image_bytes, media_type)
+        print(f"[Quality] Vision image: {vision_meta}")
+        img_b64 = base64.b64encode(safe_bytes).decode()
         msg = claude_client.messages.create(
             model="claude-opus-4-20250514",
             max_tokens=350,
             messages=[{"role": "user", "content": [
-                {"type": "image", "source": {"type": "base64", "media_type": media_type or "image/jpeg", "data": img_b64}},
+                {"type": "image", "source": {"type": "base64", "media_type": safe_media_type or "image/jpeg", "data": img_b64}},
                 {"type": "text",  "text": prompt}
             ]}]
         )
@@ -1052,7 +1188,7 @@ def create_payment_intent():
                 "template_id": template_id,
                 "plan_id": plan_id,
                 "persons": str(persons),
-                "pipeline": "v2.3-expert-4k",
+                "pipeline": "v2.3.2-expert-identity-fix",
             },
             description=f"Caricature — {template['name']} ({plan_id})"
         )
@@ -1078,7 +1214,7 @@ def create_payment_intent():
         "email": email,
         "name": name,
         "status": "pending",
-        "pipeline_version": "2.3-expert-4k",
+        "pipeline_version": "2.3.2-expert-identity-fix",
         "moderation": moderation,
         "created_at": datetime.utcnow().isoformat(),
     })
@@ -2135,9 +2271,14 @@ def admin_test_generate():
             base_url = generate_base_art(working_prompt, photo_urls, attempt=attempt)
             if not base_url:
                 continue
-            candidate_url = apply_identity_reference(base_url, photo_urls)
+            candidate_url, identity_meta = apply_identity_reference(base_url, photo_urls, strict=True)
+            if not candidate_url:
+                qa = {"deliverable": False, "quality_score": 1, "identity_score": 1, "reason": "identity_reference_failed", "identity_meta": identity_meta}
+                print(f"[AdminTest] {test_id} identity failed attempt {attempt}: {identity_meta}")
+                continue
             qa = assess_generated_result(working_prompt, candidate_url, photo_urls[0] if photo_urls else None)
-            if qa.get("deliverable", True) and qa.get("quality_score", 7) >= 5:
+            qa["identity_meta"] = identity_meta
+            if qa.get("deliverable", True) and qa.get("quality_score", 7) >= 5 and qa.get("identity_score", 7) >= 5:
                 final_ai_url = candidate_url
                 break
             working_prompt += ", stronger likeness to uploaded face, clear finished caricature, no artifacts"
@@ -2168,7 +2309,7 @@ def admin_test_generate():
             "generation_prompt": working_prompt[:1800],
             "generation_qa": qa,
             "upscale_meta": upscale_meta,
-            "pipeline_version": "2.3.1-expert-4k-test",
+            "pipeline_version": "2.3.2-expert-identity-fix",
         }
         if save_test:
             try:
@@ -2201,7 +2342,7 @@ def admin_test_generate():
                 "created_at": started_at.isoformat(),
                 "status": "failed",
                 "error": str(e),
-                "pipeline_version": "2.3.1-expert-4k-test",
+                "pipeline_version": "2.3.2-expert-identity-fix",
             }, merge=True)
         except Exception:
             pass
@@ -2212,14 +2353,14 @@ def admin_test_generate():
 def health():
     return ok({
         "status":    "healthy",
-        "version":   "2.3.1-expert-4k-test",
+        "version":   "2.3.2-expert-identity-fix",
         "timestamp": datetime.utcnow().isoformat(),
         "lora_ready": bool(CFG["FAL_LORA_URL"]),
     })
 
 @app.route("/", methods=["GET"])
 def root():
-    return ok({"service": "Caricature API", "version": "2.3.1-expert-4k-test", "docs": "/health"})
+    return ok({"service": "Caricature API", "version": "2.3.2-expert-identity-fix", "docs": "/health"})
 
 
 if __name__ == "__main__":
