@@ -751,7 +751,7 @@ def generate_from_template_inpainting(
     """
     meta = {
         "attempted": False, "success": False, "error": None,
-        "method": "template_inpainting_v2.9.5_template_lock_no_text", "pipeline_version": "2.9.5-template-lock-no-text",
+        "method": "template_inpainting_v2.9.6_template_preservation_qa", "pipeline_version": "2.9.6-template-preservation-qa",
         "template_url": template_url, "mask_url": mask_url,
         "has_photo_reference": bool(photo_urls),
         "stage1_url": None, "stage2_url": None, "stage3_url": None,
@@ -846,8 +846,8 @@ def generate_from_template_inpainting(
     meta.update({
         "success": True,
         "result_url": inpainted_url,
-        "stage2_skipped": "disabled_v2.9.5_template_lock_no_text",
-        "stage3_skipped": "disabled_v2.9.5_template_lock_no_text",
+        "stage2_skipped": "disabled_v2.9.6_template_preservation_qa",
+        "stage3_skipped": "disabled_v2.9.6_template_preservation_qa",
     })
     print(f"[AI v2.9] Stage1-only result (template locked): {inpainted_url}")
     return inpainted_url, meta
@@ -1660,7 +1660,7 @@ def upscale_to_4k(image_url: str, order_id: str) -> tuple[bytes, dict]:
     return raw, meta
 
 
-def assess_generated_result(prompt: str, result_url: str, reference_url: str | None = None) -> dict:
+def assess_generated_result(prompt: str, result_url: str, reference_url: str | None = None, template_url: str | None = None) -> dict:
     """Lightweight post-generation QA. Does not block delivery unless generation obviously failed."""
     try:
         content = []
@@ -1677,16 +1677,24 @@ def assess_generated_result(prompt: str, result_url: str, reference_url: str | N
             ref_bytes, ref_media, ref_meta = prepare_image_for_vision_bytes(ref_resp.content, ref_media)
             print(f"[QA] Vision reference image: {ref_meta}")
             content.append({"type": "image", "source": {"type": "base64", "media_type": ref_media, "data": base64.b64encode(ref_bytes).decode()}})
+        if template_url:
+            tpl_resp = requests.get(template_url, timeout=20)
+            tpl_resp.raise_for_status()
+            tpl_media = tpl_resp.headers.get("Content-Type", "image/jpeg").split(";")[0]
+            tpl_bytes, tpl_media, tpl_meta = prepare_image_for_vision_bytes(tpl_resp.content, tpl_media)
+            print(f"[QA] Vision template image: {tpl_meta}")
+            content.append({"type": "image", "source": {"type": "base64", "media_type": tpl_media, "data": base64.b64encode(tpl_bytes).decode()}})
         content.append({"type": "text", "text": (
             "Assess this generated image for customer delivery as an AI CARICATURE product. "
             "Return ONLY JSON: {\"deliverable\":true/false,\"quality_score\":1-10,\"identity_score\":1-10,\"style_score\":1-10,"
-            "\"has_text_or_logo\":true/false,\"reason\":\"...\"}. "
+            "\"template_preservation_score\":1-10,\"has_text_or_logo\":true/false,\"reason\":\"...\"}. "
             "quality_score = technical completeness, clean image, no corruption, no missing face/body. "
             "identity_score = likeness to the reference: face shape, eyes, nose, mouth, hairline/hair, age, expression, distinctive features. "
             "style_score = how clearly it is a hand-drawn cartoon/caricature illustration with visible linework, stylised shading, exaggerated proportions, and non-photorealistic finish. "
+            "template_preservation_score = how faithfully the original template is preserved when a template image is provided: body pose preserved, costume preserved, hands/arms preserved, background preserved, only head/face/hair changed, and no full-image redraw. "
             "CRITICAL RULE: visible words, letters, numbers, signatures, captions, badges, stamps, or logo/watermark marks anywhere in the output must set has_text_or_logo=true and deliverable=false. "
             "IMPORTANT: If the result looks like a retouched photo, selfie, realistic portrait, beauty filter, or simple face enhancement, style_score must be 1-3 and deliverable must be false even if identity is good. "
-            "Caricature exaggeration is allowed, but wrong subject, weak likeness, photorealism, blank/corrupted image, no face, generic beauty portrait, or any text/logo artifact should fail."
+            "Caricature exaggeration is allowed, but wrong subject, weak likeness, photorealism, blank/corrupted image, no face, generic beauty portrait, template body/pose/background not preserved, or any text/logo artifact should fail."
         )})
         msg = claude_client.messages.create(model="claude-opus-4-20250514", max_tokens=180, messages=[{"role": "user", "content": content}])
         raw = msg.content[0].text.strip()
@@ -1696,17 +1704,22 @@ def assess_generated_result(prompt: str, result_url: str, reference_url: str | N
         data["quality_score"] = int(data.get("quality_score", 7))
         data["identity_score"] = int(data.get("identity_score", 7))
         data["style_score"] = int(data.get("style_score", 1))
+        data["template_preservation_score"] = int(data.get("template_preservation_score", 10 if template_url else 7))
         data["has_text_or_logo"] = bool(data.get("has_text_or_logo", False))
         if data["has_text_or_logo"]:
             data["deliverable"] = False
+        elif data["identity_score"] < int(CFG.get("MIN_IDENTITY_SCORE", 6)):
+            data["deliverable"] = False
         elif data["style_score"] < int(CFG.get("MIN_STYLE_SCORE", 6)):
+            data["deliverable"] = False
+        elif template_url and data["template_preservation_score"] < 8:
             data["deliverable"] = False
         else:
             data["deliverable"] = bool(data.get("deliverable", True))
         return data
     except Exception as e:
         print(f"[QA] Result QA failed open: {e}")
-        return {"deliverable": False, "quality_score": 5, "identity_score": 5, "style_score": 1, "reason": "qa_failed_open_style_unknown"}
+        return {"deliverable": False, "quality_score": 5, "identity_score": 5, "style_score": 1, "template_preservation_score": 1 if template_url else 5, "has_text_or_logo": False, "reason": "qa_failed_open_style_unknown"}
 
 
 def generate_with_lora(prompt: str, photo_urls: list) -> str | None:
@@ -1726,7 +1739,7 @@ def run_generation_pipeline(order_id: str):
         if not order:
             raise Exception("Order not found")
 
-        update_order_status(order_id, "generating", {"pipeline_version": "2.9.5-template-lock-no-text"})
+        update_order_status(order_id, "generating", {"pipeline_version": "2.9.6-template-preservation-qa"})
         print(f"[Pipeline] Starting generation for {order_id}")
 
         template_id    = order["template_id"]
@@ -1770,7 +1783,12 @@ def run_generation_pipeline(order_id: str):
                 qa = {"deliverable": False, "quality_score": 1, "identity_score": 1, "reason": "generation_candidate_failed", "generation_meta": generation_meta}
                 print(f"[Pipeline v2.4] Candidate failed attempt={attempt}: {generation_meta}")
                 continue
-            qa = assess_generated_result(prompt, candidate_url, photo_urls[0] if photo_urls else None)
+            qa = assess_generated_result(
+                prompt,
+                candidate_url,
+                photo_urls[0] if photo_urls else None,
+                template_url=(generation_meta.get("template_base_url") or generation_meta.get("template_url"))
+            )
             qa["generation_meta"] = generation_meta
             print(f"[Pipeline v2.4] QA attempt={attempt}: {json.dumps(qa, ensure_ascii=False)[:1200]}")
             if (qa.get("deliverable", True) and qa.get("quality_score", 7) >= int(CFG.get("MIN_QUALITY_SCORE", 6)) and qa.get("identity_score", 7) >= int(CFG.get("MIN_IDENTITY_SCORE", 6)) and qa.get("style_score", 0) >= int(CFG.get("MIN_STYLE_SCORE", 6))):
@@ -1807,7 +1825,7 @@ def run_generation_pipeline(order_id: str):
     except Exception as e:
         print(f"[Pipeline] ERROR for {order_id}: {e}")
         try:
-            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "2.9.5-template-lock-no-text"})
+            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "2.9.6-template-preservation-qa"})
         except Exception:
             pass
         notify_admin(f"❌ Order {order_id} FAILED: {e}")
@@ -2220,7 +2238,7 @@ def create_payment_intent():
                 "template_id": template_id,
                 "plan_id": plan_id,
                 "persons": str(persons),
-                "pipeline": "v2.9.5-template-lock-no-text",
+                "pipeline": "v2.9.6-template-preservation-qa",
             },
             description=f"Caricature — {template['name']} ({plan_id})"
         )
@@ -2246,7 +2264,7 @@ def create_payment_intent():
         "email": email,
         "name": name,
         "status": "pending",
-        "pipeline_version": "2.9.5-template-lock-no-text",
+        "pipeline_version": "2.9.6-template-preservation-qa",
         "moderation": moderation,
         "created_at": datetime.utcnow().isoformat(),
     })
@@ -3405,7 +3423,12 @@ def admin_test_generate():
                 print(f"[AdminTest v2.4] {test_id} candidate failed attempt {attempt}: {json.dumps(generation_meta, ensure_ascii=False)[:1200]}")
                 continue
 
-            qa = assess_generated_result(working_prompt, candidate_url, photo_urls[0] if photo_urls else None)
+            qa = assess_generated_result(
+                working_prompt,
+                candidate_url,
+                photo_urls[0] if photo_urls else None,
+                template_url=(generation_meta.get("template_base_url") or generation_meta.get("template_url"))
+            )
             qa["generation_meta"] = generation_meta
             candidate_debug.append({
                 "attempt": attempt,
@@ -3476,7 +3499,7 @@ def admin_test_generate():
             "generation_prompt": working_prompt[:1800],
             "generation_qa": qa,
             "upscale_meta": upscale_meta,
-            "pipeline_version": "2.9.5-template-lock-no-text",
+            "pipeline_version": "2.9.6-template-preservation-qa",
             "strict_mode": strict_mode,
             "debug_mode": debug_mode,
             "debug_candidate_urls": candidate_debug if debug_mode else [],
@@ -3515,7 +3538,7 @@ def admin_test_generate():
                 "created_at": started_at.isoformat(),
                 "status": "failed",
                 "error": str(e),
-                "pipeline_version": "2.9.5-template-lock-no-text",
+                "pipeline_version": "2.9.6-template-preservation-qa",
             }, merge=True)
         except Exception:
             pass
@@ -3526,14 +3549,14 @@ def admin_test_generate():
 def health():
     return ok({
         "status":    "healthy",
-        "version":   "2.9.5-template-lock-no-text",
+        "version":   "2.9.6-template-preservation-qa",
         "timestamp": datetime.utcnow().isoformat(),
         "lora_ready": bool(CFG["FAL_LORA_URL"]),
     })
 
 @app.route("/", methods=["GET"])
 def root():
-    return ok({"service": "Caricature API", "version": "2.9.5-template-lock-no-text", "docs": "/health"})
+    return ok({"service": "Caricature API", "version": "2.9.6-template-preservation-qa", "docs": "/health"})
 
 
 if __name__ == "__main__":
