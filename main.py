@@ -1,6 +1,6 @@
 # ══════════════════════════════════════════════════════════════
-#   CARICATURE.ONLINE — Backend v2.7.0 TEMPLATE IMG2IMG PIPELINE
-#   Antonos Template → img2img face replace (no face-swap needed)
+#   CARICATURE.ONLINE — Backend v3.0.5
+#   Antonos Template → 
 #   Stack: Flask · Firestore · GCS · fal.ai LoRA · Stripe · Resend
 # ══════════════════════════════════════════════════════════════
 
@@ -570,7 +570,7 @@ def extract_face_description(photo_urls: list) -> str:
 
 
 def create_face_mask_for_template(template_url: str, template_id: str) -> str | None:
-    """v3.0.4-photo-preprocess-identity: create a conservative head/hair mask.
+    """v3.0.5-identity-crop-and-head-guard: create a conservative head/hair mask.
 
     The old v2.9.5 mask was intentionally large (45% width / 55% height) to avoid
     missing the head, but for fixed templates it repainted too much costume/body.
@@ -750,7 +750,7 @@ def generate_from_template_inpainting(
 
     meta = {
         "attempted": False, "success": False, "error": None,
-        "method": "template_inpainting_v3.0.3_identity_lock_qa", "pipeline_version": "3.0.4-photo-preprocess-identity",
+        "method": "template_inpainting_v3.0.5_identity_crop_and_head_guard", "pipeline_version": "3.0.5-identity-crop-and-head-guard",
         "identity_guard_version": "v3.0.3",
         "no_facial_hair_guard_applied": no_facial_hair_guard_applied,
         "glasses_guard_applied": glasses_guard_applied,
@@ -1289,7 +1289,7 @@ def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, stri
     FALLBACK PATH (no template base image):
       T2I with LoRA → face-swap (best effort)
     """
-    meta = {"pipeline": "v3.0.4-photo-preprocess-identity", "attempt": attempt, "stages": [],
+    meta = {"pipeline": "v3.0.5-identity-crop-and-head-guard", "attempt": attempt, "stages": [],
             "template_id": template_id, "face_description": face_description}
 
     # ══ PRIMARY-PLUS: v3.0.0 layer-template composite (fallback-safe) ════════
@@ -1303,7 +1303,7 @@ def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, stri
         )
         meta["stages"].append({"stage": "layer_template_composite", **layer_meta})
         if layer_url:
-            meta["pipeline"] = "v3.0.4-photo-preprocess-identity"
+            meta["pipeline"] = "v3.0.5-identity-crop-and-head-guard"
             print(f"[AI v3.0] Layer template composite success attempt={attempt}")
             return layer_url, meta
 
@@ -1622,59 +1622,123 @@ def get_template_layer_assets(template_id: str) -> dict:
         return out
 
 def preprocess_identity_reference(photo_urls: list, output_id: str) -> tuple[str | None, dict]:
-    """v3.0.4-photo-preprocess-identity: build a centered head/face identity crop from customer photo."""
+    """v3.0.5-identity-crop-and-head-guard: build a full portrait head identity crop.
+
+    The crop is only an identity reference, never a deliverable. It must include
+    full hair/head, forehead, eyes, nose, mouth, chin and jaw so the model does
+    not infer missing features from a partial face.
+    """
     meta = {
         "identity_preprocess_applied": False,
         "identity_crop_url": None,
         "identity_crop_bbox": None,
         "identity_crop_method": None,
+        "identity_crop_valid": False,
+        "identity_crop_validation_reason": None,
+        "identity_crop_face_coverage": None,
         "error": None,
     }
     if not photo_urls:
         meta["error"] = "no_photo_urls"
+        meta["identity_crop_validation_reason"] = "no_photo_urls"
         return None, meta
+
     try:
         from PIL import Image
         from io import BytesIO
+
         resp = requests.get(photo_urls[0], timeout=30)
         resp.raise_for_status()
         im = Image.open(BytesIO(resp.content)).convert("RGB")
         w, h = im.size
+        if w < 64 or h < 64:
+            meta["error"] = "source_image_too_small"
+            meta["identity_crop_validation_reason"] = "source_image_too_small"
+            return None, meta
 
-        # Conservative centered head crop: includes forehead/hairline/jaw/visible hair.
-        crop_w = max(64, int(w * 0.62))
-        crop_h = max(64, int(h * 0.68))
+        # v3.0.5 crop: portrait head crop, not square eye-only crop.
+        # We intentionally keep a generous vertical area to preserve mouth/chin/jaw.
+        crop_w = max(96, int(w * 0.74))
+        crop_h = max(128, int(h * 0.88))
+        crop_w = min(crop_w, w)
+        crop_h = min(crop_h, h)
+
         cx = w // 2
-        cy = int(h * 0.40)
+        # Slightly lower center than v3.0.4 so the chin/mouth are not cut.
+        cy = int(h * 0.50)
+
         x0 = max(0, min(w - crop_w, cx - crop_w // 2))
         y0 = max(0, min(h - crop_h, cy - crop_h // 2))
         x1 = min(w, x0 + crop_w)
         y1 = min(h, y0 + crop_h)
+
+        # If the lower face is close to the bottom, expand/downshift where possible.
+        lower_margin = h - y1
+        if lower_margin > 0 and y1 < int(h * 0.94):
+            shift = min(lower_margin, int(h * 0.08))
+            y0 = min(max(0, y0 + shift), max(0, h - crop_h))
+            y1 = min(h, y0 + crop_h)
+
         crop = im.crop((x0, y0, x1, y1))
 
-        # Normalize to square canvas for stronger identity conditioning.
-        side = max(crop.width, crop.height)
-        canvas = Image.new("RGB", (side, side), (255, 255, 255))
-        canvas.paste(crop, ((side - crop.width) // 2, (side - crop.height) // 2))
+        crop_ratio = crop.height / max(crop.width, 1)
+        coverage = {
+            "source_w": int(w),
+            "source_h": int(h),
+            "crop_w": int(crop.width),
+            "crop_h": int(crop.height),
+            "crop_h_over_source": round(crop.height / float(h), 4),
+            "crop_w_over_source": round(crop.width / float(w), 4),
+            "crop_aspect_h_over_w": round(crop_ratio, 4),
+        }
+        meta["identity_crop_face_coverage"] = coverage
 
+        valid = True
+        reason = "ok"
+        if crop.height < max(128, int(h * 0.58)):
+            valid = False
+            reason = "identity_crop_too_short"
+        elif crop_ratio < 1.05:
+            valid = False
+            reason = "identity_crop_not_portrait"
+        elif y1 < int(h * 0.78):
+            valid = False
+            reason = "identity_crop_likely_upper_face_only"
+        elif (y1 - y0) < int(h * 0.65):
+            valid = False
+            reason = "identity_crop_lower_face_may_be_missing"
+
+        meta["identity_crop_valid"] = bool(valid)
+        meta["identity_crop_validation_reason"] = reason
+
+        if not valid:
+            meta["error"] = reason
+            print(f"[IdentityPreprocess v3.0.5] Rejecting crop for {output_id}: {reason} coverage={coverage}")
+            return None, meta
+
+        # Keep portrait crop. Do not square-pad it: square padding encouraged full
+        # rectangular photo outputs in v3.0.4.
         out = BytesIO()
-        canvas.save(out, format="JPEG", quality=95, optimize=True)
+        crop.save(out, format="JPEG", quality=95, optimize=True)
         folder = "admin_tests/identity_crops" if str(output_id).startswith("test_") else "results/identity_crops"
         url = upload_to_gcs(out.getvalue(), f"identity_crop_{output_id}.jpg", "image/jpeg", folder=folder)
+
         meta.update({
             "identity_preprocess_applied": True,
             "identity_crop_url": url,
             "identity_crop_bbox": [int(x0), int(y0), int(x1 - x0), int(y1 - y0)],
-            "identity_crop_method": "centered_head_crop_v1",
+            "identity_crop_method": "centered_portrait_head_crop_v2",
         })
         return url, meta
+
     except Exception as e:
         meta["error"] = str(e)[:500]
+        meta["identity_crop_validation_reason"] = "exception"
         return None, meta
 
 
 def generate_caricature_head_only(photo_urls: list, face_description: str, template_name: str, attempt: int = 1, identity_ref_url: str | None = None) -> tuple[str | None, dict]:
-    """v3.0.4-photo-preprocess-identity: generate only a transparent caricature head.
+    """v3.0.5-identity-crop-and-head-guard: generate only a transparent caricature head.
 
     The output must be a usable cutout. The compositor will reject full-frame
     photo rectangles and fall back to safer inpainting when the cutout is invalid.
@@ -1684,7 +1748,7 @@ def generate_caricature_head_only(photo_urls: list, face_description: str, templ
         "success": False,
         "model": None,
         "error": None,
-        "pipeline": "3.0.4-photo-preprocess-identity",
+        "pipeline": "3.0.5-identity-crop-and-head-guard",
         "used_reference_photo": bool(photo_urls),
         "identity_reference_url": identity_ref_url,
     }
@@ -1748,7 +1812,7 @@ def generate_caricature_head_only(photo_urls: list, face_description: str, templ
     for model, args in models:
         try:
             meta.update({"attempted": True, "model": model, "error": None})
-            print(f"[LayerTemplate v3.0.2] Head-only generation via {model} attempt={attempt}")
+            print(f"[LayerTemplate v3.0.5] Head-only generation via {model} attempt={attempt}")
             result = _fal_run(model, args)
             url = _extract_fal_image_url(result)
             if url:
@@ -1762,7 +1826,7 @@ def generate_caricature_head_only(photo_urls: list, face_description: str, templ
     return None, meta
 
 def composite_head_on_template(body_url: str, head_url: str, metadata: dict, output_id: str) -> tuple[str | None, dict]:
-    """v3.0.4-photo-preprocess-identity: alpha-composite a valid head cutout over a fixed body.
+    """v3.0.5-identity-crop-and-head-guard: alpha-composite a valid head cutout over a fixed body.
 
     If the generated head is actually a full-frame photo/portrait, reject it so
     generate_candidate_art can fall back to template inpainting instead of
@@ -1786,7 +1850,7 @@ def composite_head_on_template(body_url: str, head_url: str, metadata: dict, out
 
     def _reject(reason: str):
         meta.update({"invalid_head_cutout": True, "cutout_guard_reason": reason, "error": reason})
-        print(f"[LayerTemplate v3.0.2] Rejecting layer composite: {reason}")
+        print(f"[LayerTemplate v3.0.5] Rejecting layer composite: {reason}")
         return None, meta
 
     try:
@@ -1855,6 +1919,24 @@ def composite_head_on_template(body_url: str, head_url: str, metadata: dict, out
         # this is probably a whole portrait/square pasted onto the template.
         if bbox_ratio > 0.82 and meta["removed_ratio"] < 0.08:
             return _reject("invalid_head_cutout_low_background_removed")
+
+        # Guard 2b v3.0.5: anti-photo-rectangle guard. A real illustrated head
+        # cutout should not preserve nearly the whole input rectangle.
+        border_alpha_values = []
+        if original_w > 2 and original_h > 2:
+            for x in range(original_w):
+                border_alpha_values.append(alpha.getpixel((x, 0)))
+                border_alpha_values.append(alpha.getpixel((x, original_h - 1)))
+            for y in range(original_h):
+                border_alpha_values.append(alpha.getpixel((0, y)))
+                border_alpha_values.append(alpha.getpixel((original_w - 1, y)))
+        border_opaque_ratio = (
+            sum(1 for v in border_alpha_values if v > 8) / float(max(1, len(border_alpha_values)))
+        )
+        meta["border_opaque_ratio"] = round(border_opaque_ratio, 4)
+
+        if bbox_ratio > 0.82 or nonzero_ratio > 0.88 or meta["removed_ratio"] < 0.18 or border_opaque_ratio > 0.18:
+            return _reject("invalid_head_cutout_photo_rectangle")
 
         # Guard 3: tiny/fragmented output is unusable.
         if bbox_ratio < 0.04 or nonzero_ratio < 0.025:
@@ -1928,11 +2010,11 @@ def composite_head_on_template(body_url: str, head_url: str, metadata: dict, out
 
     except Exception as e:
         meta["error"] = str(e)[:800]
-        print(f"[LayerTemplate v3.0.2] Composite failed: {e}")
+        print(f"[LayerTemplate v3.0.5] Composite failed: {e}")
         return None, meta
 
 def generate_from_template_layers(template_id: str, template_name: str, photo_urls: list, face_description: str, output_id: str) -> tuple[str | None, dict]:
-    meta = {"attempted": False, "success": False, "pipeline": "v3.0.4-photo-preprocess-identity", "template_id": template_id}
+    meta = {"attempted": False, "success": False, "pipeline": "v3.0.5-identity-crop-and-head-guard", "template_id": template_id}
     assets = get_template_layer_assets(template_id)
     meta["layer_assets"] = {
         "available": assets.get("available"),
@@ -1952,6 +2034,9 @@ def generate_from_template_layers(template_id: str, template_name: str, photo_ur
     meta["identity_crop_url"] = preprocess_meta.get("identity_crop_url")
     meta["identity_crop_bbox"] = preprocess_meta.get("identity_crop_bbox")
     meta["identity_crop_method"] = preprocess_meta.get("identity_crop_method")
+    meta["identity_crop_valid"] = preprocess_meta.get("identity_crop_valid")
+    meta["identity_crop_validation_reason"] = preprocess_meta.get("identity_crop_validation_reason")
+    meta["identity_crop_face_coverage"] = preprocess_meta.get("identity_crop_face_coverage")
 
     # Two attempts maximum: if the first head is a bad cutout, try once more;
     # after that, fail hard so caller automatically falls back to inpainting.
@@ -1975,7 +2060,7 @@ def generate_from_template_layers(template_id: str, template_name: str, photo_ur
 
         if comp_meta.get("invalid_head_cutout"):
             meta["error"] = "invalid_head_cutout"
-            print(f"[LayerTemplate v3.0.2] Invalid head cutout on attempt {head_attempt}: {comp_meta.get('cutout_guard_reason')}")
+            print(f"[LayerTemplate v3.0.5] Invalid head cutout on attempt {head_attempt}: {comp_meta.get('cutout_guard_reason')}")
             continue
 
         meta["error"] = "composite_failed"
@@ -2182,7 +2267,7 @@ def run_generation_pipeline(order_id: str):
         if not order:
             raise Exception("Order not found")
 
-        update_order_status(order_id, "generating", {"pipeline_version": "3.0.4-photo-preprocess-identity"})
+        update_order_status(order_id, "generating", {"pipeline_version": "3.0.5-identity-crop-and-head-guard"})
         print(f"[Pipeline] Starting generation for {order_id}")
 
         template_id    = order["template_id"]
@@ -2271,7 +2356,7 @@ def run_generation_pipeline(order_id: str):
     except Exception as e:
         print(f"[Pipeline] ERROR for {order_id}: {e}")
         try:
-            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "3.0.4-photo-preprocess-identity"})
+            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "3.0.5-identity-crop-and-head-guard"})
         except Exception:
             pass
         notify_admin(f"❌ Order {order_id} FAILED: {e}")
@@ -2684,7 +2769,7 @@ def create_payment_intent():
                 "template_id": template_id,
                 "plan_id": plan_id,
                 "persons": str(persons),
-                "pipeline": "v3.0.4-photo-preprocess-identity",
+                "pipeline": "v3.0.5-identity-crop-and-head-guard",
             },
             description=f"Caricature — {template['name']} ({plan_id})"
         )
@@ -2710,7 +2795,7 @@ def create_payment_intent():
         "email": email,
         "name": name,
         "status": "pending",
-        "pipeline_version": "3.0.4-photo-preprocess-identity",
+        "pipeline_version": "3.0.5-identity-crop-and-head-guard",
         "moderation": moderation,
         "created_at": datetime.utcnow().isoformat(),
     })
@@ -3948,7 +4033,7 @@ def admin_test_generate():
             "generation_prompt": working_prompt[:1800],
             "generation_qa": qa,
             "upscale_meta": upscale_meta,
-            "pipeline_version": "3.0.4-photo-preprocess-identity",
+            "pipeline_version": "3.0.5-identity-crop-and-head-guard",
             "strict_mode": strict_mode,
             "debug_mode": debug_mode,
             "debug_candidate_urls": candidate_debug if debug_mode else [],
@@ -3987,7 +4072,7 @@ def admin_test_generate():
                 "created_at": started_at.isoformat(),
                 "status": "failed",
                 "error": str(e),
-                "pipeline_version": "3.0.4-photo-preprocess-identity",
+                "pipeline_version": "3.0.5-identity-crop-and-head-guard",
             }, merge=True)
         except Exception:
             pass
@@ -3998,14 +4083,14 @@ def admin_test_generate():
 def health():
     return ok({
         "status":    "healthy",
-        "version":   "3.0.4-photo-preprocess-identity",
+        "version":   "3.0.5-identity-crop-and-head-guard",
         "timestamp": datetime.utcnow().isoformat(),
         "lora_ready": bool(CFG["FAL_LORA_URL"]),
     })
 
 @app.route("/", methods=["GET"])
 def root():
-    return ok({"service": "Caricature API", "version": "3.0.4-photo-preprocess-identity", "docs": "/health"})
+    return ok({"service": "Caricature API", "version": "3.0.5-identity-crop-and-head-guard", "docs": "/health"})
 
 
 if __name__ == "__main__":
