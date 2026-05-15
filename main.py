@@ -1268,7 +1268,7 @@ def generate_identity_first_art(prompt: str, photo_urls: list, attempt: int = 1)
 
 
 def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, strict: bool = True, template_id: str = "", face_description: str = "", template_name: str = "") -> tuple[str | None, dict]:
-    """v2.8.0 Template Inpainting pipeline.
+    """v2.9.5_template_lock_no_text Template Inpainting pipeline.
 
     PRIMARY PATH (Antonos base image exists):
       generate_from_template_img2img():
@@ -1281,7 +1281,7 @@ def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, stri
     FALLBACK PATH (no template base image):
       T2I with LoRA → face-swap (best effort)
     """
-    meta = {"pipeline": "v2.8.0_inpainting", "attempt": attempt, "stages": [],
+    meta = {"pipeline": "v2.9.5_template_lock_no_text", "attempt": attempt, "stages": [],
             "template_id": template_id, "face_description": face_description}
 
     # ══ PRIMARY: Template img2img ═══════════════════════════════════════════
@@ -1306,10 +1306,10 @@ def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, stri
             meta["stages"].append({"stage": "template_inpainting", **inp_meta})
 
             if candidate_url:
-                print(f"[AI v2.8] PRIMARY inpainting success attempt={attempt}")
+                print(f"[AI v2.9.5] PRIMARY inpainting success attempt={attempt}")
                 return candidate_url, meta
 
-            print(f"[AI v2.8] Inpainting failed, trying img2img fallback")
+            print(f"[AI v2.9.5] Inpainting failed, trying img2img fallback")
             meta["warning"] = "inpainting_failed"
 
         # ── Fallback: img2img on template (medium strength) ─────────────
@@ -1319,7 +1319,7 @@ def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, stri
         meta["stages"].append({"stage": "template_img2img_fallback", **t_meta})
 
         if candidate_url:
-            print(f"[AI v2.8] img2img fallback success attempt={attempt}")
+            print(f"[AI v2.9.5] img2img fallback success attempt={attempt}")
             return candidate_url, meta
 
         meta["warning"] = "template_primary_and_fallback_failed"
@@ -1393,7 +1393,7 @@ def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, stri
     - Face-swap alone creates realistic face on drawn body (style mismatch)
     - Style unification (very low strength img2img) solves the face/body style mismatch
     """
-    meta = {"pipeline": "v2.8.0_inpainting", "attempt": attempt, "stages": [], "template_id": template_id}
+    meta = {"pipeline": "v2.9.5_template_lock_no_text", "attempt": attempt, "stages": [], "template_id": template_id}
 
     # ══ PRIMARY: Template-Anchored (real Antonos image as base) ═══════════════
     template_base_url = get_template_base_image(template_id) if template_id else None
