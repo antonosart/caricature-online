@@ -1,6 +1,6 @@
 # ══════════════════════════════════════════════════════════════
-#   CARICATURE.ONLINE — Backend v3.0.1 LAYER TEMPLATE COMPOSITE
-#   Photo → clean caricature head → fixed template body composite
+#   CARICATURE.ONLINE — Backend v2.7.0 TEMPLATE IMG2IMG PIPELINE
+#   Antonos Template → img2img face replace (no face-swap needed)
 #   Stack: Flask · Firestore · GCS · fal.ai LoRA · Stripe · Resend
 # ══════════════════════════════════════════════════════════════
 
@@ -567,53 +567,44 @@ def extract_face_description(photo_urls: list) -> str:
 
 
 def create_face_mask_for_template(template_url: str, template_id: str) -> str | None:
-    """v2.9.5-template-lock-no-text: Robust face mask with minimum size guarantee.
+    """v3.0.2-head-cutout-guard: create a conservative head/hair mask.
 
-    KEY FIXES vs v2.8.0:
-    - Minimum mask size: always >= 45% of image width, >= 55% of image height
-      (prevents Claude Vision returning a tiny bbox like a single glasses lens)
-    - Shape: rectangle (ellipse left face corners outside mask)
-    - Margin: 35% applied to Claude Vision bbox, then clamped to minimum
-    - Strong Gaussian blur for smooth inpainting transition
-    - Fallback: if Claude Vision fails, use center-biased default mask
+    The old v2.9.5 mask was intentionally large (45% width / 55% height) to avoid
+    missing the head, but for fixed templates it repainted too much costume/body.
+    This version is smaller, versioned in GCS so old cached masks are not reused,
+    and uses a rounded/elliptical head-area mask with controlled feathering.
     """
     try:
         from PIL import Image, ImageDraw, ImageFilter
         from io import BytesIO
 
-        # Check GCS cache
         bucket = gcs_client.bucket(CFG["GCS_BUCKET"])
-        mask_blob_name = f"template_masks/{template_id}_mask.png"
+        mask_blob_name = f"template_masks/{template_id}_mask_v302.png"
         mask_blob = bucket.blob(mask_blob_name)
         if mask_blob.exists():
             mask_url = f"https://storage.googleapis.com/{CFG['GCS_BUCKET']}/{mask_blob_name}"
-            print(f"[Mask] Using cached mask: {mask_url}")
+            print(f"[Mask v3.0.2] Using cached mask: {mask_url}")
             return mask_url
 
-        # Download template
         resp = requests.get(template_url, timeout=20)
         resp.raise_for_status()
         im = Image.open(BytesIO(resp.content)).convert("RGB")
         w, h = im.size
 
-        # Claude Vision: locate face bbox
         img_data, media_type, _ = prepare_image_for_vision_bytes(resp.content)
         img_b64 = base64.b64encode(img_data).decode()
 
         try:
             msg = claude_client.messages.create(
                 model="claude-opus-4-20250514",
-                max_tokens=150,
+                max_tokens=180,
                 messages=[{"role": "user", "content": [
                     {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": img_b64}},
                     {"type": "text", "text": (
-                        "In this caricature, find the COMPLETE head and hair bounding box.\n"
-                        "Include: ALL hair (even if large/exaggerated), full forehead, both ears, chin, neck top.\n"
-                        "The caricature head is typically large — make sure to include ALL of it.\n"
-                        "Be VERY generous. Cover the entire head area including any hairstyle.\n"
-                        "Return ONLY this JSON (no other text):\n"
-                        "{\"x_min\": <0-100>, \"y_min\": <0-100>, \"x_max\": <0-100>, \"y_max\": <0-100>}\n"
-                        "Values are percentages of image width (x) and height (y)."
+                        "Find the visible head + hair area of the main caricature character only.\n"
+                        "Include hair, forehead, ears, face, chin and only the top of the neck.\n"
+                        "Do NOT include shoulders, chest, cape, hands, weapon, costume, body or background.\n"
+                        "Return ONLY JSON: {\"x_min\":0-100,\"y_min\":0-100,\"x_max\":0-100,\"y_max\":0-100}."
                     )}
                 ]}]
             )
@@ -621,73 +612,73 @@ def create_face_mask_for_template(template_url: str, template_id: str) -> str | 
             if "{" in raw:
                 raw = raw[raw.index("{"):raw.rindex("}")+1]
             bbox = json.loads(raw)
-
             x1_pct = float(bbox["x_min"])
             y1_pct = float(bbox["y_min"])
             x2_pct = float(bbox["x_max"])
             y2_pct = float(bbox["y_max"])
 
-            # Apply 35% margin to Claude Vision bbox
-            bw = x2_pct - x1_pct
-            bh = y2_pct - y1_pct
-            x1_pct = max(0.0, x1_pct - bw * 0.35)
-            y1_pct = max(0.0, y1_pct - bh * 0.35)
-            x2_pct = min(100.0, x2_pct + bw * 0.35)
-            y2_pct = min(100.0, y2_pct + bh * 0.35)
-
-            print(f"[Mask] Claude Vision bbox (with 35% margin): x={x1_pct:.1f}-{x2_pct:.1f} y={y1_pct:.1f}-{y2_pct:.1f}")
+            bw = max(1.0, x2_pct - x1_pct)
+            bh = max(1.0, y2_pct - y1_pct)
+            # Controlled margin: enough for hair, not enough to repaint costume.
+            x1_pct = max(0.0, x1_pct - bw * 0.18)
+            y1_pct = max(0.0, y1_pct - bh * 0.22)
+            x2_pct = min(100.0, x2_pct + bw * 0.18)
+            y2_pct = min(100.0, y2_pct + bh * 0.14)
+            print(f"[Mask v3.0.2] Claude bbox+margin: x={x1_pct:.1f}-{x2_pct:.1f} y={y1_pct:.1f}-{y2_pct:.1f}")
         except Exception as ve:
-            print(f"[Mask] Claude Vision failed ({ve}), using center default")
-            # Fallback: center-biased mask covering upper 65% of image
-            x1_pct, y1_pct, x2_pct, y2_pct = 10.0, 2.0, 90.0, 68.0
+            print(f"[Mask v3.0.2] Claude Vision failed ({ve}), using conservative default")
+            x1_pct, y1_pct, x2_pct, y2_pct = 30.0, 3.0, 70.0, 43.0
 
-        # MINIMUM SIZE GUARANTEE
-        # Mask must cover at least 45% of width and 55% of height.
-        # This prevents a tiny bbox (e.g. a glasses lens) from being used.
-        min_w_pct = 45.0
-        min_h_pct = 55.0
-        cx = (x1_pct + x2_pct) / 2
-        cy = (y1_pct + y2_pct) / 2
+        # Conservative minimums: enough for head/hair, avoids repainting body.
+        min_w_pct = 30.0
+        min_h_pct = 38.0
+        max_w_pct = 62.0
+        max_h_pct = 58.0
+        cx = (x1_pct + x2_pct) / 2.0
+        cy = (y1_pct + y2_pct) / 2.0
+        cur_w = max(1.0, x2_pct - x1_pct)
+        cur_h = max(1.0, y2_pct - y1_pct)
 
-        if (x2_pct - x1_pct) < min_w_pct:
-            x1_pct = max(0.0, cx - min_w_pct / 2)
-            x2_pct = min(100.0, cx + min_w_pct / 2)
-            print(f"[Mask] Width too small — expanded to {x2_pct-x1_pct:.1f}%")
+        target_w = min(max(cur_w, min_w_pct), max_w_pct)
+        target_h = min(max(cur_h, min_h_pct), max_h_pct)
+        x1_pct = max(0.0, cx - target_w / 2.0)
+        x2_pct = min(100.0, cx + target_w / 2.0)
+        y1_pct = max(0.0, cy - target_h / 2.0)
+        y2_pct = min(100.0, cy + target_h / 2.0)
 
-        if (y2_pct - y1_pct) < min_h_pct:
-            y1_pct = max(0.0, cy - min_h_pct / 2)
-            y2_pct = min(100.0, cy + min_h_pct / 2)
-            print(f"[Mask] Height too small — expanded to {y2_pct-y1_pct:.1f}%")
+        x1 = max(0, int(x1_pct / 100.0 * w))
+        y1 = max(0, int(y1_pct / 100.0 * h))
+        x2 = min(w, int(x2_pct / 100.0 * w))
+        y2 = min(h, int(y2_pct / 100.0 * h))
+        if x2 <= x1 or y2 <= y1:
+            raise Exception("invalid_mask_bbox")
 
-        # Convert to pixels
-        x1 = max(0, int(x1_pct / 100 * w))
-        y1 = max(0, int(y1_pct / 100 * h))
-        x2 = min(w, int(x2_pct / 100 * w))
-        y2 = min(h, int(y2_pct / 100 * h))
-        print(f"[Mask] Final rect: ({x1},{y1})-({x2},{y2}) on {w}x{h} = {x2-x1}x{y2-y1}px")
+        print(f"[Mask v3.0.2] Final head mask: ({x1},{y1})-({x2},{y2}) on {w}x{h}")
 
-        # Draw rectangular mask (rectangle covers corners that ellipse misses)
         mask = Image.new("L", (w, h), 0)
         draw = ImageDraw.Draw(mask)
-        draw.rectangle([x1, y1, x2, y2], fill=255)
+        # Rounded rectangle keeps hair/top coverage better than a pure ellipse,
+        # while still avoiding square costume repaint artifacts.
+        try:
+            radius = max(18, min(x2 - x1, y2 - y1) // 5)
+            draw.rounded_rectangle([x1, y1, x2, y2], radius=radius, fill=255)
+        except Exception:
+            draw.ellipse([x1, y1, x2, y2], fill=255)
 
-        # Strong blur for smooth inpainting transition
-        blur_radius = max(20, (x2 - x1) // 5)
+        blur_radius = max(10, min(28, (x2 - x1) // 10))
         mask = mask.filter(ImageFilter.GaussianBlur(radius=blur_radius))
 
-        # Save as RGB PNG for GCS
         mask_rgb = Image.merge("RGB", [mask, mask, mask])
         out = BytesIO()
         mask_rgb.save(out, format="PNG")
         mask_blob.upload_from_string(out.getvalue(), content_type="image/png")
         mask_url = f"https://storage.googleapis.com/{CFG['GCS_BUCKET']}/{mask_blob_name}"
-        print(f"[Mask] v2.9.5-template-lock-no-text mask saved (rect {x2-x1}x{y2-y1}px, blur={blur_radius}px): {mask_url}")
+        print(f"[Mask v3.0.2] Saved mask blur={blur_radius}: {mask_url}")
         return mask_url
 
     except Exception as e:
-        print(f"[Mask] Error: {e}")
+        print(f"[Mask v3.0.2] Error: {e}")
         return None
-
 
 def generate_from_template_inpainting(
     template_url: str,
@@ -751,7 +742,7 @@ def generate_from_template_inpainting(
     """
     meta = {
         "attempted": False, "success": False, "error": None,
-        "method": "template_inpainting_v3.0.1_layer_alpha_fix", "pipeline_version": "3.0.1-layer-alpha-fix",
+        "method": "template_inpainting_v3.0.2_head_cutout_guard", "pipeline_version": "3.0.2-head-cutout-guard",
         "template_url": template_url, "mask_url": mask_url,
         "has_photo_reference": bool(photo_urls),
         "stage1_url": None, "stage2_url": None, "stage3_url": None,
@@ -846,8 +837,8 @@ def generate_from_template_inpainting(
     meta.update({
         "success": True,
         "result_url": inpainted_url,
-        "stage2_skipped": "disabled_v3.0.1_layer_alpha_fix",
-        "stage3_skipped": "disabled_v3.0.1_layer_alpha_fix",
+        "stage2_skipped": "disabled_v3.0.2_head_cutout_guard",
+        "stage3_skipped": "disabled_v3.0.2_head_cutout_guard",
     })
     print(f"[AI v2.9] Stage1-only result (template locked): {inpainted_url}")
     return inpainted_url, meta
@@ -954,7 +945,7 @@ def generate_from_template_inpainting(
                     reference_url=customer_photo_url,
                 )
                 meta["qa_between_stages"] = qa
-                identity_ok  = int(qa.get("identity_score", 0)) >= 5
+                identity_ok  = int(qa.get("identity_score", 0)) >= 7
                 deliverable  = qa.get("deliverable", True)
                 print(f"[AI v2.9] Stage2 QA: identity={qa.get('identity_score')} style={qa.get('style_score')} deliverable={deliverable}")
 
@@ -1281,10 +1272,10 @@ def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, stri
     FALLBACK PATH (no template base image):
       T2I with LoRA → face-swap (best effort)
     """
-    meta = {"pipeline": "v2.9.5_template_lock_no_text", "attempt": attempt, "stages": [],
+    meta = {"pipeline": "v3.0.2-head-cutout-guard", "attempt": attempt, "stages": [],
             "template_id": template_id, "face_description": face_description}
 
-    # ══ PRIMARY-PLUS: v3.0.1 layer-alpha-fix (fallback-safe) ════════
+    # ══ PRIMARY-PLUS: v3.0.0 layer-template composite (fallback-safe) ════════
     if template_id and face_description:
         layer_url, layer_meta = generate_from_template_layers(
             template_id=template_id,
@@ -1295,7 +1286,7 @@ def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, stri
         )
         meta["stages"].append({"stage": "layer_template_composite", **layer_meta})
         if layer_url:
-            meta["pipeline"] = "v3.0.1-layer-alpha-fix"
+            meta["pipeline"] = "v3.0.2-head-cutout-guard"
             print(f"[AI v3.0] Layer template composite success attempt={attempt}")
             return layer_url, meta
 
@@ -1615,52 +1606,51 @@ def get_template_layer_assets(template_id: str) -> dict:
 
 
 def generate_caricature_head_only(photo_urls: list, face_description: str, template_name: str, attempt: int = 1) -> tuple[str | None, dict]:
-    """v3.0.1-layer-alpha-fix: Generate only a clean caricature head cutout.
+    """v3.0.2-head-cutout-guard: generate only a transparent caricature head.
 
-    The layer pipeline must NOT generate body/costume/background. The output is
-    later alpha-composited onto a fixed Antonos template body/background layer.
+    The output must be a usable cutout. The compositor will reject full-frame
+    photo rectangles and fall back to safer inpainting when the cutout is invalid.
     """
     meta = {
         "attempted": False,
         "success": False,
         "model": None,
         "error": None,
-        "pipeline": "3.0.1-layer-alpha-fix",
+        "pipeline": "3.0.2-head-cutout-guard",
         "used_reference_photo": bool(photo_urls),
     }
 
     prompt = (
-        "Generate ONLY a transparent PNG caricature head cutout: head, face, ears, hair and a very small neck only. "
-        "No shoulders, no torso, no hands, no costume, no cape, no helmet, no props, no background, no frame, no halo, no white box. "
-        "If true transparency is not possible, use a pure white background only so it can be removed later. "
-        "Preserve the exact identity from the reference photo and description: face shape, eyelids, eyebrow shape, eye spacing, nose bridge and tip, lips, chin, jawline, hairline, hair colour, hair length, age and distinctive marks. "
-        "Avoid generic pretty cartoon girl, Disney, anime, glamour, beauty portrait, celebrity face, model-like face or adultification. "
-        "Use Antonos hand-drawn caricature style: bold confident ink outlines, cel-shaded skin, warm editorial colour, expressive but recognisable features. "
+        "Create a SINGLE transparent PNG cutout containing ONLY the person's caricature head: hair, ears, face, chin and a tiny neck base. "
+        "The canvas outside the head must be transparent. If transparency is impossible, use pure white background only. "
+        "Absolutely no shoulders, torso, clothes, costume, cape, hands, props, helmet, background scene, photo rectangle, border, frame, halo, text, logo or watermark. "
+        "Use the uploaded reference photo identity exactly; do not beautify, adultify, glamorize, change age, change eye color, change nose, change mouth, change jaw, or invent a different person. "
+        "Avoid generic pretty cartoon, Disney, anime, beauty portrait, celebrity face, model face, realistic selfie, pasted photograph. "
+        "Antonos hand-drawn caricature style: bold confident ink outline, cel-shaded skin, warm editorial colors, expressive but recognisable face. "
         f"Identity description: {face_description}. "
-        f"Template context only for mood, not costume: {template_name}. "
-        "No text, no logo, no watermark, no letters, no captions, no signature."
+        f"Template mood only: {template_name}. "
+        "Return head cutout only."
     )
 
-    step_count = 24 if attempt <= 1 else 28 if attempt == 2 else 32
+    step_count = 26 if attempt <= 1 else 30 if attempt == 2 else 34
     models: list[tuple[str, dict]] = []
 
-    # Best effort identity-preserving path: start from the real photo, but ask
-    # the model to remove everything except a head cutout.
+    # Prefer photo-conditioned img2img for identity, but keep denoise high enough
+    # to avoid retaining the full original photo rectangle.
     if photo_urls and CFG.get("FAL_LORA_URL"):
         models.append(("fal-ai/flux-lora/image-to-image", {
             "prompt": prompt,
             "image_url": photo_urls[0],
-            "strength": 0.62 if attempt <= 1 else 0.70,
+            "strength": 0.76 if attempt <= 1 else 0.82,
             "image_size": "square_hd",
             "num_images": 1,
             "num_inference_steps": step_count,
-            "guidance_scale": 7.5,
+            "guidance_scale": 8.0,
             "enable_safety_checker": True,
             "output_format": "png",
             "loras": [{"path": CFG["FAL_LORA_URL"], "scale": float(CFG.get(f"LORA_SCALE_{min(max(int(attempt), 1), 3)}", 1.45))}],
         }))
 
-    # Text-to-image fallback: relies on Claude's face_description.
     if CFG.get("FAL_LORA_URL"):
         models.append(("fal-ai/flux-lora", {
             "prompt": prompt,
@@ -1668,7 +1658,7 @@ def generate_caricature_head_only(photo_urls: list, face_description: str, templ
             "image_size": "square_hd",
             "num_images": 1,
             "num_inference_steps": step_count,
-            "guidance_scale": 8.0,
+            "guidance_scale": 8.5,
             "output_format": "png",
             "enable_safety_checker": True,
         }))
@@ -1682,9 +1672,8 @@ def generate_caricature_head_only(photo_urls: list, face_description: str, templ
 
     for model, args in models:
         try:
-            meta["attempted"] = True
-            meta["model"] = model
-            print(f"[LayerTemplate] Head-only generation via {model} attempt={attempt}")
+            meta.update({"attempted": True, "model": model, "error": None})
+            print(f"[LayerTemplate v3.0.2] Head-only generation via {model} attempt={attempt}")
             result = _fal_run(model, args)
             url = _extract_fal_image_url(result)
             if url:
@@ -1693,18 +1682,16 @@ def generate_caricature_head_only(photo_urls: list, face_description: str, templ
             meta["error"] = f"no_url:{model}:{str(result)[:300]}"
         except Exception as e:
             meta["error"] = str(e)[:500]
-            print(f"[LayerTemplate] Head generation failed via {model}: {e}")
+            print(f"[LayerTemplate v3.0.2] Head generation failed via {model}: {e}")
 
     return None, meta
 
-
 def composite_head_on_template(body_url: str, head_url: str, metadata: dict, output_id: str) -> tuple[str | None, dict]:
-    """v3.0.1-layer-alpha-fix: Alpha-composite generated head over fixed body PNG.
+    """v3.0.2-head-cutout-guard: alpha-composite a valid head cutout over a fixed body.
 
-    Supports both absolute metadata:
-      face_x, face_y, face_w, face_h, rotation, scale
-    and normalized metadata:
-      face_center_x, face_center_y, face_width, face_height, face_angle, head_scale
+    If the generated head is actually a full-frame photo/portrait, reject it so
+    generate_candidate_art can fall back to template inpainting instead of
+    delivering a pasted square.
     """
     meta = {
         "attempted": False,
@@ -1712,9 +1699,20 @@ def composite_head_on_template(body_url: str, head_url: str, metadata: dict, out
         "error": None,
         "white_bg_removed": False,
         "head_alpha_bbox": None,
+        "invalid_head_cutout": False,
+        "cutout_guard_reason": None,
+        "alpha_bbox_ratio": None,
+        "alpha_nonzero_px": None,
+        "removed_pixels": 0,
+        "removed_ratio": 0.0,
         "composite_mode": "alpha_head_over_fixed_body_layer",
         "metadata_used": metadata or {},
     }
+
+    def _reject(reason: str):
+        meta.update({"invalid_head_cutout": True, "cutout_guard_reason": reason, "error": reason})
+        print(f"[LayerTemplate v3.0.2] Rejecting layer composite: {reason}")
+        return None, meta
 
     try:
         from PIL import Image, ImageFilter, ImageOps
@@ -1729,10 +1727,10 @@ def composite_head_on_template(body_url: str, head_url: str, metadata: dict, out
         body = Image.open(BytesIO(body_resp.content)).convert("RGBA")
         head = Image.open(BytesIO(head_resp.content)).convert("RGBA")
         body_w, body_h = body.size
+        original_w, original_h = head.size
+        total_px = max(1, original_w * original_h)
 
-        # ── Robust white/light background removal ───────────────────────
-        # FLUX often returns a white square around the head even when asked for
-        # transparency. Remove pure white and low-saturation near-white pixels.
+        # Remove pure/near-white background pixels often returned by FLUX.
         px = head.load()
         removed = 0
         for y in range(head.height):
@@ -1746,37 +1744,63 @@ def composite_head_on_template(body_url: str, head_url: str, metadata: dict, out
                 sat = (maxc - minc) / max(maxc, 1)
                 is_white = r > 245 and g > 245 and b > 245
                 is_light_gray = light > 238 and sat < 0.16
+                # Only remove very low-saturation bright pixels to avoid deleting skin/hair highlights.
                 if is_white or is_light_gray:
                     px[x, y] = (r, g, b, 0)
                     removed += 1
 
         meta["white_bg_removed"] = removed > 0
-        meta["removed_pixels"] = removed
+        meta["removed_pixels"] = int(removed)
+        meta["removed_ratio"] = round(removed / float(total_px), 4)
 
-        # Feather alpha edge to suppress halos without destroying linework.
         alpha = head.split()[-1]
         bbox = alpha.getbbox()
         if not bbox:
-            raise Exception("head_alpha_empty_after_background_removal")
+            return _reject("invalid_head_cutout_empty_alpha")
 
-        # Crop before blur so resizing is based on the actual head.
-        head = head.crop(bbox)
+        alpha_nonzero = sum(1 for v in alpha.getdata() if v > 8)
+        bbox_w = max(1, bbox[2] - bbox[0])
+        bbox_h = max(1, bbox[3] - bbox[1])
+        bbox_area = bbox_w * bbox_h
+        bbox_ratio = bbox_area / float(total_px)
+        nonzero_ratio = alpha_nonzero / float(total_px)
         meta["head_alpha_bbox"] = [int(v) for v in bbox]
+        meta["alpha_nonzero_px"] = int(alpha_nonzero)
+        meta["alpha_bbox_ratio"] = round(bbox_ratio, 4)
+        meta["alpha_nonzero_ratio"] = round(nonzero_ratio, 4)
+        meta["original_head_size"] = [original_w, original_h]
 
-        # Soft alpha edge.
+        # Guard 1: full-frame output means it is not a cutout.
+        covers_full_width = bbox_w >= original_w * 0.94
+        covers_full_height = bbox_h >= original_h * 0.94
+        if bbox_ratio > 0.90 and covers_full_width and covers_full_height:
+            return _reject("invalid_head_cutout_full_frame")
+
+        # Guard 2: if almost nothing was removed and alpha covers most of the frame,
+        # this is probably a whole portrait/square pasted onto the template.
+        if bbox_ratio > 0.82 and meta["removed_ratio"] < 0.08:
+            return _reject("invalid_head_cutout_low_background_removed")
+
+        # Guard 3: tiny/fragmented output is unusable.
+        if bbox_ratio < 0.04 or nonzero_ratio < 0.025:
+            return _reject("invalid_head_cutout_too_small")
+
+        # Crop before feathering/resizing.
+        head = head.crop(bbox)
         alpha = head.split()[-1]
         alpha = alpha.filter(ImageFilter.GaussianBlur(radius=2))
         head.putalpha(alpha)
 
-        # ── Metadata normalization ───────────────────────────────────────
         scale = float(metadata.get("scale", metadata.get("head_scale", 1.0)) or 1.0)
         rotation = float(metadata.get("rotation", metadata.get("face_angle", 0.0)) or 0.0)
 
         if all(k in metadata for k in ("face_x", "face_y", "face_w", "face_h")):
-            face_w = max(1, int(float(metadata.get("face_w")) * scale))
-            face_h = max(1, int(float(metadata.get("face_h")) * scale))
-            face_x = int(float(metadata.get("face_x")) - (face_w - float(metadata.get("face_w"))) / 2)
-            face_y = int(float(metadata.get("face_y")) - (face_h - float(metadata.get("face_h"))) / 2)
+            base_w = float(metadata.get("face_w"))
+            base_h = float(metadata.get("face_h"))
+            face_w = max(1, int(base_w * scale))
+            face_h = max(1, int(base_h * scale))
+            face_x = int(float(metadata.get("face_x")) - (face_w - base_w) / 2.0)
+            face_y = int(float(metadata.get("face_y")) - (face_h - base_h) / 2.0)
         elif all(k in metadata for k in ("face_center_x", "face_center_y", "face_width", "face_height")):
             face_w = max(1, int(float(metadata.get("face_width")) * body_w * scale))
             face_h = max(1, int(float(metadata.get("face_height")) * body_h * scale))
@@ -1785,9 +1809,12 @@ def composite_head_on_template(body_url: str, head_url: str, metadata: dict, out
             face_x = cx - face_w // 2
             face_y = cy - face_h // 2
         else:
-            raise Exception("invalid_template_metadata_missing_face_bbox")
+            return _reject("invalid_template_metadata_missing_face_bbox")
 
-        # Resize and rotate the head cutout.
+        # Guard 4: metadata sanity; avoid covering too much of template canvas.
+        if face_w > body_w * 0.65 or face_h > body_h * 0.75:
+            return _reject("invalid_template_metadata_face_box_too_large")
+
         head = ImageOps.contain(head, (face_w, face_h), Image.Resampling.LANCZOS)
         canvas = Image.new("RGBA", (face_w, face_h), (0, 0, 0, 0))
         canvas.alpha_composite(head, ((face_w - head.width) // 2, (face_h - head.height) // 2))
@@ -1798,8 +1825,6 @@ def composite_head_on_template(body_url: str, head_url: str, metadata: dict, out
 
         paste_x = int(face_x - (head.width - face_w) // 2)
         paste_y = int(face_y - (head.height - face_h) // 2)
-
-        # Clamp softly to canvas bounds to prevent crashes on bad metadata.
         paste_x = max(-head.width + 1, min(body_w - 1, paste_x))
         paste_y = max(-head.height + 1, min(body_h - 1, paste_y))
 
@@ -1828,12 +1853,11 @@ def composite_head_on_template(body_url: str, head_url: str, metadata: dict, out
 
     except Exception as e:
         meta["error"] = str(e)[:800]
-        print(f"[LayerTemplate] Composite failed: {e}")
+        print(f"[LayerTemplate v3.0.2] Composite failed: {e}")
         return None, meta
 
-
 def generate_from_template_layers(template_id: str, template_name: str, photo_urls: list, face_description: str, output_id: str) -> tuple[str | None, dict]:
-    meta = {"attempted": False, "success": False, "pipeline": "v3.0.1-layer-alpha-fix", "template_id": template_id}
+    meta = {"attempted": False, "success": False, "pipeline": "v3.0.2-head-cutout-guard", "template_id": template_id}
     assets = get_template_layer_assets(template_id)
     meta["layer_assets"] = {
         "available": assets.get("available"),
@@ -1845,22 +1869,37 @@ def generate_from_template_layers(template_id: str, template_name: str, photo_ur
     if not assets.get("available"):
         meta["error"] = "layer_assets_missing"
         return None, meta
-    meta["attempted"] = True
-    head_url, head_meta = generate_caricature_head_only(photo_urls, face_description, template_name)
-    meta["head_generation"] = head_meta
-    if not head_url:
-        meta["error"] = "head_generation_failed"
-        return None, meta
-    comp_url, comp_meta = composite_head_on_template(assets["body_url"], head_url, assets.get("metadata") or {}, output_id)
-    meta["composite"] = comp_meta
-    meta["template_base_url"] = assets.get("body_url")
-    meta["template_url"] = assets.get("body_url")
-    if not comp_url:
-        meta["error"] = "composite_failed"
-        return None, meta
-    meta.update({"success": True, "result_url": comp_url})
-    return comp_url, meta
 
+    meta["attempted"] = True
+
+    # Two attempts maximum: if the first head is a bad cutout, try once more;
+    # after that, fail hard so caller automatically falls back to inpainting.
+    for head_attempt in (1, 2):
+        head_url, head_meta = generate_caricature_head_only(photo_urls, face_description, template_name, attempt=head_attempt)
+        meta.setdefault("head_attempts", []).append(head_meta)
+        meta["head_generation"] = head_meta
+        if not head_url:
+            meta["error"] = "head_generation_failed"
+            continue
+
+        comp_url, comp_meta = composite_head_on_template(assets["body_url"], head_url, assets.get("metadata") or {}, output_id)
+        meta.setdefault("composite_attempts", []).append(comp_meta)
+        meta["composite"] = comp_meta
+        meta["template_base_url"] = assets.get("body_url")
+        meta["template_url"] = assets.get("body_url")
+
+        if comp_url and not comp_meta.get("invalid_head_cutout"):
+            meta.update({"success": True, "result_url": comp_url})
+            return comp_url, meta
+
+        if comp_meta.get("invalid_head_cutout"):
+            meta["error"] = "invalid_head_cutout"
+            print(f"[LayerTemplate v3.0.2] Invalid head cutout on attempt {head_attempt}: {comp_meta.get('cutout_guard_reason')}")
+            continue
+
+        meta["error"] = "composite_failed"
+
+    return None, meta
 
 def stylize_face_blend(image_url: str, prompt: str) -> tuple[str | None, dict]:
     """Stage 3 of v2.6.0 pipeline: style unification after face-swap.
@@ -2046,7 +2085,7 @@ def run_generation_pipeline(order_id: str):
         if not order:
             raise Exception("Order not found")
 
-        update_order_status(order_id, "generating", {"pipeline_version": "3.0.1-layer-alpha-fix"})
+        update_order_status(order_id, "generating", {"pipeline_version": "3.0.2-head-cutout-guard"})
         print(f"[Pipeline] Starting generation for {order_id}")
 
         template_id    = order["template_id"]
@@ -2132,7 +2171,7 @@ def run_generation_pipeline(order_id: str):
     except Exception as e:
         print(f"[Pipeline] ERROR for {order_id}: {e}")
         try:
-            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "3.0.1-layer-alpha-fix"})
+            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "3.0.2-head-cutout-guard"})
         except Exception:
             pass
         notify_admin(f"❌ Order {order_id} FAILED: {e}")
@@ -2545,7 +2584,7 @@ def create_payment_intent():
                 "template_id": template_id,
                 "plan_id": plan_id,
                 "persons": str(persons),
-                "pipeline": "v3.0.1-layer-alpha-fix",
+                "pipeline": "v3.0.2-head-cutout-guard",
             },
             description=f"Caricature — {template['name']} ({plan_id})"
         )
@@ -2571,7 +2610,7 @@ def create_payment_intent():
         "email": email,
         "name": name,
         "status": "pending",
-        "pipeline_version": "3.0.1-layer-alpha-fix",
+        "pipeline_version": "3.0.2-head-cutout-guard",
         "moderation": moderation,
         "created_at": datetime.utcnow().isoformat(),
     })
@@ -3746,7 +3785,7 @@ def admin_test_generate():
             })
             print(f"[AdminTest v2.4] {test_id} QA attempt {attempt}: {json.dumps(qa, ensure_ascii=False)[:1200]}")
 
-            passes_strict = qa.get("deliverable", True) and qa.get("quality_score", 7) >= 6 and qa.get("identity_score", 7) >= 6
+            passes_strict = qa.get("deliverable", True) and qa.get("quality_score", 7) >= int(CFG.get("MIN_QUALITY_SCORE", 6)) and qa.get("identity_score", 7) >= int(CFG.get("MIN_IDENTITY_SCORE", 6)) and qa.get("style_score", 7) >= int(CFG.get("MIN_STYLE_SCORE", 6))
             if passes_strict:
                 final_ai_url = candidate_url
                 break
@@ -3806,7 +3845,7 @@ def admin_test_generate():
             "generation_prompt": working_prompt[:1800],
             "generation_qa": qa,
             "upscale_meta": upscale_meta,
-            "pipeline_version": "3.0.1-layer-alpha-fix",
+            "pipeline_version": "3.0.2-head-cutout-guard",
             "strict_mode": strict_mode,
             "debug_mode": debug_mode,
             "debug_candidate_urls": candidate_debug if debug_mode else [],
@@ -3845,7 +3884,7 @@ def admin_test_generate():
                 "created_at": started_at.isoformat(),
                 "status": "failed",
                 "error": str(e),
-                "pipeline_version": "3.0.1-layer-alpha-fix",
+                "pipeline_version": "3.0.2-head-cutout-guard",
             }, merge=True)
         except Exception:
             pass
@@ -3856,14 +3895,14 @@ def admin_test_generate():
 def health():
     return ok({
         "status":    "healthy",
-        "version":   "3.0.1-layer-alpha-fix",
+        "version":   "3.0.2-head-cutout-guard",
         "timestamp": datetime.utcnow().isoformat(),
         "lora_ready": bool(CFG["FAL_LORA_URL"]),
     })
 
 @app.route("/", methods=["GET"])
 def root():
-    return ok({"service": "Caricature API", "version": "3.0.1-layer-alpha-fix", "docs": "/health"})
+    return ok({"service": "Caricature API", "version": "3.0.2-head-cutout-guard", "docs": "/health"})
 
 
 if __name__ == "__main__":
