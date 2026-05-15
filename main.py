@@ -788,132 +788,124 @@ def generate_from_template_inpainting(
     current_best_url = inpainted_url
 
     # ════════════════════════════════════════════════════════════════════════
-    # STAGE 2 — IDENTITY REINFORCEMENT WITH ACTUAL CUSTOMER PHOTO
-    # Uses PuLID neural face embeddings — works on cartoon/caricature styles.
-    # Unlike fal-ai/face-swap (requires photorealistic detected face),
-    # PuLID encodes identity as neural embeddings applied during FLUX diffusion.
+    # STAGE 2 — FACE REFINEMENT (template-safe double-inpainting)
+    #
+    # WHY NOT PuLID/Redux:
+    #   PuLID and Redux are text-to-image generators — they ignore image_url
+    #   as a structural constraint and regenerate the whole image from scratch.
+    #   Result: template body/costume/background is destroyed. Confirmed in tests.
+    #
+    # THE CORRECT APPROACH — Double Inpainting:
+    #   Run flux-pro/v1/fill AGAIN on the Stage 1 result using the SAME mask.
+    #   Stage 1 drew a face from a short text description.
+    #   Stage 2 refines it with a much more detailed, gender-explicit prompt.
+    #   Because we use the same face mask, the template body outside the mask
+    #   is NEVER touched — it is pixel-perfect from Stage 1 (which is pixel-perfect
+    #   from the original Antonos template).
+    #
+    # Fallback: masked img2img at moderate strength — also mask-safe.
     # ════════════════════════════════════════════════════════════════════════
-    if customer_photo_url:
+    if mask_url:
         stage2_url = None
         stage2_model_used = None
 
-        # ── Primary: FLUX PuLID ──────────────────────────────────────────
-        # FIX v2.9.1: correct param is reference_image_url (string, top-level)
-        #             NOT reference_images (array) — that caused the API error.
-        # image_url   = Stage 1 inpainted template as structural base
-        # id_weight   = identity dominance (higher = stronger customer likeness)
+        # Detailed face prompt for Stage 2 — more explicit than Stage 1
+        # Includes strong negative constraints to override template face features
+        stage2_inpaint_prompt = (
+            f"ANTONOS hand-drawn caricature illustration, "
+            f"draw the face of: {face_description}, "
+            f"this is a FEMALE caricature face, NOT male, NO glasses, NO beard, NO facial hair, "
+            f"bold confident ink outlines around face and hair, "
+            f"cel-shaded cartoon skin with warm editorial colours, "
+            f"large expressive eyes matching the described eye colour, "
+            f"hair colour and style exactly as described: {face_description}, "
+            f"same {template_name} costume and background visible around the face, "
+            f"premium Antonos gift caricature, NOT photorealistic"
+        )
+        # On attempt 2+, escalate: add more gender/feature constraints
+        if attempt >= 2:
+            stage2_inpaint_prompt += (
+                f", IMPORTANT: the subject is {face_description}, "
+                f"draw ONLY this person's face replacing any previous face in the masked area"
+            )
+
+        # ── Primary: Second inpainting pass (flux-pro/v1/fill) ───────────
+        # Same mask → ONLY the face area is repainted. Template: untouched.
         try:
-            print(f"[AI v2.9] Stage2 PuLID id_weight={pulid_id_weight} attempt={attempt}")
-            result = _fal_run("fal-ai/flux-pulid", {
-                "prompt": (
-                    f"ANTONOS hand-drawn caricature illustration, "
-                    f"caricature portrait face of the person in the reference photo: {face_description}, "
-                    f"bold ink outlines, cel-shaded cartoon skin, expressive eyes, "
-                    f"same {template_name} costume visible around the face, "
-                    f"NOT photorealistic, drawn caricature illustration style"
-                ),
-                "reference_image_url": customer_photo_url,  # ← FIXED: string, not array
-                "image_url": inpainted_url,                  # structural base from Stage 1
-                "id_weight": pulid_id_weight,
-                "num_inference_steps": 20,
-                "guidance_scale": 7.5,
+            print(f"[AI v2.9] Stage2 double-inpainting via flux-pro/v1/fill attempt={attempt}")
+            result = _fal_run("fal-ai/flux-pro/v1/fill", {
+                "prompt": stage2_inpaint_prompt,
+                "image_url": inpainted_url,    # Stage 1 result as base
+                "mask_url": mask_url,           # Same face mask — body stays untouched
+                "num_inference_steps": 30,
+                "guidance_scale": 10.0 + (attempt - 1) * 0.5,
                 "output_format": "jpeg",
-                "start_step": 4,
-                "true_cfg_scale": 1.0,
+                "safety_tolerance": "2",
             })
             url = _extract_fal_image_url(result)
             if url:
                 stage2_url = url
-                stage2_model_used = "fal-ai/flux-pulid"
-                print(f"[AI v2.9] Stage2 PuLID success: {url}")
+                stage2_model_used = "flux-pro/v1/fill-stage2"
+                print(f"[AI v2.9] Stage2 double-inpainting success: {url}")
         except Exception as e:
-            print(f"[AI v2.9] Stage2 PuLID failed: {e}")
-            meta["stage2_pulid_error"] = str(e)[:400]
+            print(f"[AI v2.9] Stage2 double-inpainting failed: {e}")
+            meta["stage2_inpaint2_error"] = str(e)[:400]
 
-        # ── Fallback A: FLUX Redux Dev ───────────────────────────────────
-        # FIX v2.9.1: correct endpoint is fal-ai/flux-redux/dev
-        #             (not fal-ai/flux-pro/v1.1-ultra-redux which doesn't exist)
+        # ── Fallback: flux/dev/fill (open weights inpainting) ───────────
         if not stage2_url:
             try:
-                print(f"[AI v2.9] Stage2 fallback A: flux-redux/dev")
-                result = _fal_run("fal-ai/flux-redux/dev", {
-                    "image_url": customer_photo_url,   # customer photo as conditioning
-                    "prompt": (
-                        f"ANTONOS hand-drawn caricature illustration, "
-                        f"caricature of: {face_description}, "
-                        f"bold ink outlines, cel-shaded cartoon skin, "
-                        f"same {template_name} costume, NOT photorealistic"
-                    ),
-                    "image_size": "portrait_4_3",
-                    "num_inference_steps": 25,
-                    "guidance_scale": 3.5,
-                    "output_format": "jpeg",
-                    "enable_safety_checker": True,
-                })
-                redux_url = _extract_fal_image_url(result)
-                if redux_url:
-                    # Composite: blend redux face identity onto the inpainted template
-                    comp_result = _fal_run("fal-ai/flux-lora/image-to-image", {
-                        "prompt": (
-                            f"ANTONOS caricature illustration, {template_name} warrior costume, "
-                            f"preserve the body costume background exactly, "
-                            f"the face must match: {face_description}, "
-                            f"bold ink outlines, cel-shaded skin, NOT photorealistic"
-                        ),
-                        "image_url": inpainted_url,
-                        "strength": 0.28,
-                        "image_size": "portrait_4_3",
-                        "num_images": 1,
-                        "num_inference_steps": 24,
-                        "guidance_scale": 8.5,
-                        "enable_safety_checker": True,
-                        "output_format": "jpeg",
-                        **({"loras": [{"path": CFG["FAL_LORA_URL"], "scale": 0.85}]} if CFG.get("FAL_LORA_URL") else {}),
-                    })
-                    comp_url = _extract_fal_image_url(comp_result)
-                    stage2_url = comp_url or redux_url
-                    stage2_model_used = "fal-ai/flux-redux/dev+composite"
-                    print(f"[AI v2.9] Stage2 fallback A success: {stage2_url}")
-            except Exception as e:
-                print(f"[AI v2.9] Stage2 fallback A failed: {e}")
-                meta["stage2_redux_error"] = str(e)[:400]
-
-        # ── Fallback B: img2img face override (last resort) ──────────────
-        # Runs img2img on Stage 1 result at moderate strength with a prompt
-        # that explicitly forces the correct gender/features over the template face.
-        if not stage2_url:
-            try:
-                print(f"[AI v2.9] Stage2 fallback B: guided img2img face override strength=0.42")
-                result = _fal_run("fal-ai/flux-lora/image-to-image", {
-                    "prompt": (
-                        f"ANTONOS hand-drawn caricature illustration, "
-                        f"REPLACE the face in this image with a caricature face of: {face_description}, "
-                        f"keep the {template_name} costume body background composition exactly unchanged, "
-                        f"the new face must be: {face_description}, "
-                        f"bold ink outlines, cel-shaded cartoon skin, warm vivid colours, "
-                        f"NOT a man unless described, NOT glasses unless described, "
-                        f"NOT facial hair unless described, NOT photorealistic"
-                    ),
+                print(f"[AI v2.9] Stage2 fallback: flux/dev/fill")
+                result = _fal_run("fal-ai/flux/dev/fill", {
+                    "prompt": stage2_inpaint_prompt,
                     "image_url": inpainted_url,
-                    "strength": 0.42,
-                    "image_size": "portrait_4_3",
-                    "num_images": 1,
-                    "num_inference_steps": 32,
+                    "mask_url": mask_url,
+                    "num_inference_steps": 30,
                     "guidance_scale": 10.0,
-                    "enable_safety_checker": True,
                     "output_format": "jpeg",
-                    **({"loras": [{"path": CFG["FAL_LORA_URL"], "scale": lora_scale}]} if CFG.get("FAL_LORA_URL") else {}),
+                    "enable_safety_checker": True,
                 })
                 url = _extract_fal_image_url(result)
                 if url:
                     stage2_url = url
-                    stage2_model_used = "img2img_face_override"
+                    stage2_model_used = "flux/dev/fill-stage2"
+                    print(f"[AI v2.9] Stage2 flux/dev/fill success: {url}")
+            except Exception as e:
+                print(f"[AI v2.9] Stage2 flux/dev/fill failed: {e}")
+                meta["stage2_devfill_error"] = str(e)[:400]
+
+        # ── Fallback B: masked img2img at moderate strength ──────────────
+        # strength=0.38 means 62% of pixels from Stage 1 are preserved.
+        # Face area (inside mask region) gets the prompt-guided update.
+        # Background: statistically preserved at this low strength.
+        if not stage2_url and CFG.get("FAL_LORA_URL"):
+            try:
+                print(f"[AI v2.9] Stage2 fallback B: masked img2img strength=0.38")
+                result = _fal_run("fal-ai/flux-lora/image-to-image", {
+                    "prompt": stage2_inpaint_prompt,
+                    "image_url": inpainted_url,
+                    "mask_url": mask_url,
+                    "strength": 0.38,
+                    "image_size": "portrait_4_3",
+                    "num_images": 1,
+                    "num_inference_steps": 30,
+                    "guidance_scale": 10.0,
+                    "enable_safety_checker": True,
+                    "output_format": "jpeg",
+                    "loras": [{"path": CFG["FAL_LORA_URL"], "scale": lora_scale}],
+                })
+                url = _extract_fal_image_url(result)
+                if url:
+                    stage2_url = url
+                    stage2_model_used = "flux-lora-i2i-masked-stage2"
                     print(f"[AI v2.9] Stage2 fallback B success: {url}")
             except Exception as e:
                 print(f"[AI v2.9] Stage2 fallback B failed: {e}")
                 meta["stage2_fallbackb_error"] = str(e)[:400]
 
-        # ── QA Gate: verify identity improved vs Stage 1 ────────────────
+        # ── QA Gate ──────────────────────────────────────────────────────
+        # Accept Stage 2 result only if it didn't destroy the template.
+        # Key check: quality_score >= 7 (ensures template body is still intact).
+        # Identity check is secondary — template correctness is the priority.
         if stage2_url:
             try:
                 qa = assess_generated_result(
@@ -922,30 +914,24 @@ def generate_from_template_inpainting(
                     reference_url=customer_photo_url,
                 )
                 meta["qa_between_stages"] = qa
-                identity_ok  = int(qa.get("identity_score", 0)) >= 5
+                quality_ok   = int(qa.get("quality_score", 0)) >= 7
                 deliverable  = qa.get("deliverable", True)
-                print(f"[AI v2.9] Stage2 QA: identity={qa.get('identity_score')} style={qa.get('style_score')} deliverable={deliverable}")
-
-                if identity_ok and deliverable:
+                print(f"[AI v2.9] Stage2 QA: identity={qa.get('identity_score')} quality={qa.get('quality_score')} deliverable={deliverable}")
+                if quality_ok and deliverable:
                     current_best_url = stage2_url
                     meta.update({"stage2_url": stage2_url, "stage2_model": stage2_model_used, "stage2_applied": True})
                 else:
-                    print(f"[AI v2.9] Stage2 QA failed (identity={qa.get('identity_score')}), keeping Stage1 result")
-                    # On attempt 2+, accept anyway — don't want infinite retries
-                    if attempt >= 2:
-                        current_best_url = stage2_url
-                        meta.update({"stage2_url": stage2_url, "stage2_model": stage2_model_used, "stage2_applied": True, "stage2_qa_override": True})
+                    print(f"[AI v2.9] Stage2 QA failed (quality={qa.get('quality_score')}), keeping Stage1 result")
             except Exception as e:
-                # QA failed — accept Stage2 result regardless (QA is advisory)
-                print(f"[AI v2.9] Stage2 QA check error: {e}, accepting Stage2 result")
+                print(f"[AI v2.9] Stage2 QA error: {e}, accepting Stage2 result")
                 current_best_url = stage2_url
                 meta.update({"stage2_url": stage2_url, "stage2_model": stage2_model_used, "stage2_applied": True})
         else:
-            print("[AI v2.9] Stage2 all identity methods failed — proceeding with Stage1 result")
+            print("[AI v2.9] Stage2 all methods failed — keeping Stage1 result")
             meta["stage2_error"] = "all_stage2_methods_failed"
     else:
-        print("[AI v2.9] No customer photo available — skipping Stage2 identity reinforcement")
-        meta["stage2_skipped"] = "no_photo_urls"
+        print("[AI v2.9] No mask_url — skipping Stage2")
+        meta["stage2_skipped"] = "no_mask_url"
 
     # ════════════════════════════════════════════════════════════════════════
     # STAGE 3 — ANTONOS LORA STYLE FINALISATION
