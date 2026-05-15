@@ -1,0 +1,13 @@
+gcloud run deploy caricature-api ^
+--source . ^
+--platform managed ^
+--region us-central1 ^
+--allow-unauthenticated ^
+--memory 2Gi ^
+--cpu 2 ^
+--concurrency 20 ^
+--max-instances 10 ^
+--timeout 300 ^
+--project caricature-online-495715 ^
+--set-env-vars="GCS_BUCKET=caricature-files,BASE_URL=https://caricature.online,AI_OUTPUT_MODE=4k,MAX_GENERATION_RETRIES=2,LORA_SCALE_1=1.45,LORA_SCALE_2=1.55,LORA_SCALE_3=1.65,MIN_STYLE_SCORE=5,MIN_IDENTITY_SCORE=5,MIN_QUALITY_SCORE=5,STYLE_UNIFY_STRENGTH=0.22,STYLE_UNIFY_LORA_SCALE=0.90,STYLE_UNIFY_STEPS=28,STYLE_UNIFY_GUIDANCE=8.0,TEMPLATE_IMAGES_FOLDER=template_bases" ^
+--set-secrets="STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest,STRIPE_PUBLISHABLE_KEY=STRIPE_PUBLISHABLE_KEY:latest,STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest,FAL_API_KEY=FAL_API_KEY:latest,FAL_LORA_URL=FAL_LORA_URL:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,RESEND_API_KEY=RESEND_API_KEY:latest,ADMIN_SECRET=ADMIN_SECRET:latest"
