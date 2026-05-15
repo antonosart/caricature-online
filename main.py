@@ -751,7 +751,7 @@ def generate_from_template_inpainting(
     """
     meta = {
         "attempted": False, "success": False, "error": None,
-        "method": "template_inpainting_v2.9.6_template_preservation_qa", "pipeline_version": "2.9.6-template-preservation-qa",
+        "method": "template_inpainting_v3.0.0_layer_template_composite", "pipeline_version": "3.0.0-layer-template-composite",
         "template_url": template_url, "mask_url": mask_url,
         "has_photo_reference": bool(photo_urls),
         "stage1_url": None, "stage2_url": None, "stage3_url": None,
@@ -846,8 +846,8 @@ def generate_from_template_inpainting(
     meta.update({
         "success": True,
         "result_url": inpainted_url,
-        "stage2_skipped": "disabled_v2.9.6_template_preservation_qa",
-        "stage3_skipped": "disabled_v2.9.6_template_preservation_qa",
+        "stage2_skipped": "disabled_v3.0.0_layer_template_composite",
+        "stage3_skipped": "disabled_v3.0.0_layer_template_composite",
     })
     print(f"[AI v2.9] Stage1-only result (template locked): {inpainted_url}")
     return inpainted_url, meta
@@ -1284,6 +1284,21 @@ def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, stri
     meta = {"pipeline": "v2.9.5_template_lock_no_text", "attempt": attempt, "stages": [],
             "template_id": template_id, "face_description": face_description}
 
+    # ══ PRIMARY-PLUS: v3.0.0 layer-template composite (fallback-safe) ════════
+    if template_id and face_description:
+        layer_url, layer_meta = generate_from_template_layers(
+            template_id=template_id,
+            template_name=(template_name or template_id),
+            photo_urls=photo_urls,
+            face_description=face_description,
+            output_id=f"{template_id}_{attempt}_{uuid.uuid4().hex[:8]}",
+        )
+        meta["stages"].append({"stage": "layer_template_composite", **layer_meta})
+        if layer_url:
+            meta["pipeline"] = "v3.0.0-layer-template-composite"
+            print(f"[AI v3.0] Layer template composite success attempt={attempt}")
+            return layer_url, meta
+
     # ══ PRIMARY: Template img2img ═══════════════════════════════════════════
     template_base_url = get_template_base_image(template_id) if template_id else None
     meta["template_base_url"] = template_base_url
@@ -1555,6 +1570,152 @@ def get_template_base_image(template_id: str) -> str | None:
         return None
 
 
+def get_template_layer_assets(template_id: str) -> dict:
+    """Return template layer asset URLs when available in GCS.
+
+    Required:
+    - template_layers/{template_id}_body.png
+    - template_metadata/{template_id}.json
+    Optional:
+    - template_guides/{template_id}_face_guide.png
+    - template_previews/{template_id}_preview.jpg
+    """
+    out = {
+        "available": False,
+        "body_url": None,
+        "metadata_url": None,
+        "face_guide_url": None,
+        "preview_url": None,
+        "metadata": None,
+    }
+    try:
+        bucket = gcs_client.bucket(CFG["GCS_BUCKET"])
+        body_blob_name = f"template_layers/{template_id}_body.png"
+        metadata_blob_name = f"template_metadata/{template_id}.json"
+        body_blob = bucket.blob(body_blob_name)
+        metadata_blob = bucket.blob(metadata_blob_name)
+        if not (body_blob.exists() and metadata_blob.exists()):
+            return out
+        out["body_url"] = f"https://storage.googleapis.com/{CFG['GCS_BUCKET']}/{body_blob_name}"
+        out["metadata_url"] = f"https://storage.googleapis.com/{CFG['GCS_BUCKET']}/{metadata_blob_name}"
+        raw = metadata_blob.download_as_text()
+        out["metadata"] = json.loads(raw)
+        out["available"] = True
+        guide_blob_name = f"template_guides/{template_id}_face_guide.png"
+        preview_blob_name = f"template_previews/{template_id}_preview.jpg"
+        if bucket.blob(guide_blob_name).exists():
+            out["face_guide_url"] = f"https://storage.googleapis.com/{CFG['GCS_BUCKET']}/{guide_blob_name}"
+        if bucket.blob(preview_blob_name).exists():
+            out["preview_url"] = f"https://storage.googleapis.com/{CFG['GCS_BUCKET']}/{preview_blob_name}"
+        print(f"[LayerTemplate] Assets found for {template_id}")
+        return out
+    except Exception as e:
+        print(f"[LayerTemplate] Asset check failed for {template_id}: {e}")
+        return out
+
+
+def generate_caricature_head_only(photo_urls: list, face_description: str, template_name: str) -> tuple[str | None, dict]:
+    """Generate only the customer's caricature head."""
+    meta = {"attempted": False, "success": False, "model": None, "error": None}
+    prompt = (
+        f"ANTONOS hand-drawn caricature head portrait of: {face_description}. "
+        f"Head/face/hair only, centered, no neck below collarbone, no shoulders, no body, no hands, no props. "
+        f"Transparent or plain clean background, no scene elements, no text, no logos, no watermark, no signature. "
+        f"Match identity exactly, caricature style for {template_name}."
+    )
+    models = [
+        ("fal-ai/flux-pro/v1.1", {"prompt": prompt, "image_size": "square_hd", "num_images": 1, "output_format": "png"}),
+        ("fal-ai/flux/schnell", {"prompt": prompt, "image_size": "square_hd", "num_images": 1}),
+    ]
+    for model, args in models:
+        try:
+            meta["attempted"] = True
+            meta["model"] = model
+            result = _fal_run(model, args)
+            url = _extract_fal_image_url(result)
+            if url:
+                meta["success"] = True
+                return url, meta
+            meta["error"] = f"no_url:{model}"
+        except Exception as e:
+            meta["error"] = str(e)[:500]
+    return None, meta
+
+
+def composite_head_on_template(body_url: str, head_url: str, metadata: dict, output_id: str) -> tuple[str | None, dict]:
+    meta = {"attempted": False, "success": False, "error": None}
+    try:
+        from PIL import Image
+        from io import BytesIO
+        meta["attempted"] = True
+        body_raw = requests.get(body_url, timeout=30).content
+        head_raw = requests.get(head_url, timeout=30).content
+        body = Image.open(BytesIO(body_raw)).convert("RGBA")
+        head = Image.open(BytesIO(head_raw)).convert("RGBA")
+
+        # remove near-white background if no alpha
+        if head.getbbox():
+            px = head.load()
+            for y in range(head.height):
+                for x in range(head.width):
+                    r, g, b, a = px[x, y]
+                    if a > 0 and r > 245 and g > 245 and b > 245:
+                        px[x, y] = (r, g, b, 0)
+
+        face_x = int(float(metadata.get("face_x", 0)))
+        face_y = int(float(metadata.get("face_y", 0)))
+        face_w = max(1, int(float(metadata.get("face_w", 1))))
+        face_h = max(1, int(float(metadata.get("face_h", 1))))
+        rotation = float(metadata.get("rotation", 0.0))
+
+        head = head.resize((face_w, face_h), Image.Resampling.LANCZOS)
+        if rotation:
+            head = head.rotate(rotation, resample=Image.Resampling.BICUBIC, expand=True)
+        paste_x = face_x - (head.width - face_w) // 2
+        paste_y = face_y - (head.height - face_h) // 2
+        body.alpha_composite(head, (paste_x, paste_y))
+
+        out = BytesIO()
+        body.convert("RGB").save(out, format="JPEG", quality=95, optimize=True)
+        url = upload_to_gcs(out.getvalue(), f"layer_comp_{output_id}.jpg", "image/jpeg", folder="results")
+        meta.update({"success": True, "result_url": url})
+        return url, meta
+    except Exception as e:
+        meta["error"] = str(e)[:800]
+        print(f"[LayerTemplate] Composite failed: {e}")
+        return None, meta
+
+
+def generate_from_template_layers(template_id: str, template_name: str, photo_urls: list, face_description: str, output_id: str) -> tuple[str | None, dict]:
+    meta = {"attempted": False, "success": False, "pipeline": "v3.0.0-layer-template-composite", "template_id": template_id}
+    assets = get_template_layer_assets(template_id)
+    meta["layer_assets"] = {
+        "available": assets.get("available"),
+        "body_url": assets.get("body_url"),
+        "metadata_url": assets.get("metadata_url"),
+        "face_guide_url": assets.get("face_guide_url"),
+        "preview_url": assets.get("preview_url"),
+    }
+    if not assets.get("available"):
+        meta["error"] = "layer_assets_missing"
+        return None, meta
+    meta["attempted"] = True
+    head_url, head_meta = generate_caricature_head_only(photo_urls, face_description, template_name)
+    meta["head_generation"] = head_meta
+    if not head_url:
+        meta["error"] = "head_generation_failed"
+        return None, meta
+    comp_url, comp_meta = composite_head_on_template(assets["body_url"], head_url, assets.get("metadata") or {}, output_id)
+    meta["composite"] = comp_meta
+    meta["template_base_url"] = assets.get("body_url")
+    meta["template_url"] = assets.get("body_url")
+    if not comp_url:
+        meta["error"] = "composite_failed"
+        return None, meta
+    meta.update({"success": True, "result_url": comp_url})
+    return comp_url, meta
+
+
 def stylize_face_blend(image_url: str, prompt: str) -> tuple[str | None, dict]:
     """Stage 3 of v2.6.0 pipeline: style unification after face-swap.
 
@@ -1739,7 +1900,7 @@ def run_generation_pipeline(order_id: str):
         if not order:
             raise Exception("Order not found")
 
-        update_order_status(order_id, "generating", {"pipeline_version": "2.9.6-template-preservation-qa"})
+        update_order_status(order_id, "generating", {"pipeline_version": "3.0.0-layer-template-composite"})
         print(f"[Pipeline] Starting generation for {order_id}")
 
         template_id    = order["template_id"]
@@ -1825,7 +1986,7 @@ def run_generation_pipeline(order_id: str):
     except Exception as e:
         print(f"[Pipeline] ERROR for {order_id}: {e}")
         try:
-            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "2.9.6-template-preservation-qa"})
+            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "3.0.0-layer-template-composite"})
         except Exception:
             pass
         notify_admin(f"❌ Order {order_id} FAILED: {e}")
@@ -2238,7 +2399,7 @@ def create_payment_intent():
                 "template_id": template_id,
                 "plan_id": plan_id,
                 "persons": str(persons),
-                "pipeline": "v2.9.6-template-preservation-qa",
+                "pipeline": "v3.0.0-layer-template-composite",
             },
             description=f"Caricature — {template['name']} ({plan_id})"
         )
@@ -2264,7 +2425,7 @@ def create_payment_intent():
         "email": email,
         "name": name,
         "status": "pending",
-        "pipeline_version": "2.9.6-template-preservation-qa",
+        "pipeline_version": "3.0.0-layer-template-composite",
         "moderation": moderation,
         "created_at": datetime.utcnow().isoformat(),
     })
@@ -3499,7 +3660,7 @@ def admin_test_generate():
             "generation_prompt": working_prompt[:1800],
             "generation_qa": qa,
             "upscale_meta": upscale_meta,
-            "pipeline_version": "2.9.6-template-preservation-qa",
+            "pipeline_version": "3.0.0-layer-template-composite",
             "strict_mode": strict_mode,
             "debug_mode": debug_mode,
             "debug_candidate_urls": candidate_debug if debug_mode else [],
@@ -3538,7 +3699,7 @@ def admin_test_generate():
                 "created_at": started_at.isoformat(),
                 "status": "failed",
                 "error": str(e),
-                "pipeline_version": "2.9.6-template-preservation-qa",
+                "pipeline_version": "3.0.0-layer-template-composite",
             }, merge=True)
         except Exception:
             pass
@@ -3549,14 +3710,14 @@ def admin_test_generate():
 def health():
     return ok({
         "status":    "healthy",
-        "version":   "2.9.6-template-preservation-qa",
+        "version":   "3.0.0-layer-template-composite",
         "timestamp": datetime.utcnow().isoformat(),
         "lora_ready": bool(CFG["FAL_LORA_URL"]),
     })
 
 @app.route("/", methods=["GET"])
 def root():
-    return ok({"service": "Caricature API", "version": "2.9.6-template-preservation-qa", "docs": "/health"})
+    return ok({"service": "Caricature API", "version": "3.0.0-layer-template-composite", "docs": "/health"})
 
 
 if __name__ == "__main__":
