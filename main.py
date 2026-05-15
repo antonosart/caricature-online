@@ -1,6 +1,6 @@
 # ══════════════════════════════════════════════════════════════
-#   CARICATURE.ONLINE — Backend v2.7.0 TEMPLATE IMG2IMG PIPELINE
-#   Antonos Template → img2img face replace (no face-swap needed)
+#   CARICATURE.ONLINE — Backend v3.0.1 LAYER TEMPLATE COMPOSITE
+#   Photo → clean caricature head → fixed template body composite
 #   Stack: Flask · Firestore · GCS · fal.ai LoRA · Stripe · Resend
 # ══════════════════════════════════════════════════════════════
 
@@ -751,7 +751,7 @@ def generate_from_template_inpainting(
     """
     meta = {
         "attempted": False, "success": False, "error": None,
-        "method": "template_inpainting_v3.0.0_layer_template_composite", "pipeline_version": "3.0.0-layer-template-composite",
+        "method": "template_inpainting_v3.0.1_layer_alpha_fix", "pipeline_version": "3.0.1-layer-alpha-fix",
         "template_url": template_url, "mask_url": mask_url,
         "has_photo_reference": bool(photo_urls),
         "stage1_url": None, "stage2_url": None, "stage3_url": None,
@@ -846,8 +846,8 @@ def generate_from_template_inpainting(
     meta.update({
         "success": True,
         "result_url": inpainted_url,
-        "stage2_skipped": "disabled_v3.0.0_layer_template_composite",
-        "stage3_skipped": "disabled_v3.0.0_layer_template_composite",
+        "stage2_skipped": "disabled_v3.0.1_layer_alpha_fix",
+        "stage3_skipped": "disabled_v3.0.1_layer_alpha_fix",
     })
     print(f"[AI v2.9] Stage1-only result (template locked): {inpainted_url}")
     return inpainted_url, meta
@@ -1284,7 +1284,7 @@ def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, stri
     meta = {"pipeline": "v2.9.5_template_lock_no_text", "attempt": attempt, "stages": [],
             "template_id": template_id, "face_description": face_description}
 
-    # ══ PRIMARY-PLUS: v3.0.0 layer-template composite (fallback-safe) ════════
+    # ══ PRIMARY-PLUS: v3.0.1 layer-alpha-fix (fallback-safe) ════════
     if template_id and face_description:
         layer_url, layer_meta = generate_from_template_layers(
             template_id=template_id,
@@ -1295,7 +1295,7 @@ def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, stri
         )
         meta["stages"].append({"stage": "layer_template_composite", **layer_meta})
         if layer_url:
-            meta["pipeline"] = "v3.0.0-layer-template-composite"
+            meta["pipeline"] = "v3.0.1-layer-alpha-fix"
             print(f"[AI v3.0] Layer template composite success attempt={attempt}")
             return layer_url, meta
 
@@ -1614,72 +1614,218 @@ def get_template_layer_assets(template_id: str) -> dict:
         return out
 
 
-def generate_caricature_head_only(photo_urls: list, face_description: str, template_name: str) -> tuple[str | None, dict]:
-    """Generate only the customer's caricature head."""
-    meta = {"attempted": False, "success": False, "model": None, "error": None}
+def generate_caricature_head_only(photo_urls: list, face_description: str, template_name: str, attempt: int = 1) -> tuple[str | None, dict]:
+    """v3.0.1-layer-alpha-fix: Generate only a clean caricature head cutout.
+
+    The layer pipeline must NOT generate body/costume/background. The output is
+    later alpha-composited onto a fixed Antonos template body/background layer.
+    """
+    meta = {
+        "attempted": False,
+        "success": False,
+        "model": None,
+        "error": None,
+        "pipeline": "3.0.1-layer-alpha-fix",
+        "used_reference_photo": bool(photo_urls),
+    }
+
     prompt = (
-        f"ANTONOS hand-drawn caricature head portrait of: {face_description}. "
-        f"Head/face/hair only, centered, no neck below collarbone, no shoulders, no body, no hands, no props. "
-        f"Transparent or plain clean background, no scene elements, no text, no logos, no watermark, no signature. "
-        f"Match identity exactly, caricature style for {template_name}."
+        "Generate ONLY a transparent PNG caricature head cutout: head, face, ears, hair and a very small neck only. "
+        "No shoulders, no torso, no hands, no costume, no cape, no helmet, no props, no background, no frame, no halo, no white box. "
+        "If true transparency is not possible, use a pure white background only so it can be removed later. "
+        "Preserve the exact identity from the reference photo and description: face shape, eyelids, eyebrow shape, eye spacing, nose bridge and tip, lips, chin, jawline, hairline, hair colour, hair length, age and distinctive marks. "
+        "Avoid generic pretty cartoon girl, Disney, anime, glamour, beauty portrait, celebrity face, model-like face or adultification. "
+        "Use Antonos hand-drawn caricature style: bold confident ink outlines, cel-shaded skin, warm editorial colour, expressive but recognisable features. "
+        f"Identity description: {face_description}. "
+        f"Template context only for mood, not costume: {template_name}. "
+        "No text, no logo, no watermark, no letters, no captions, no signature."
     )
-    models = [
-        ("fal-ai/flux-pro/v1.1", {"prompt": prompt, "image_size": "square_hd", "num_images": 1, "output_format": "png"}),
-        ("fal-ai/flux/schnell", {"prompt": prompt, "image_size": "square_hd", "num_images": 1}),
-    ]
+
+    step_count = 24 if attempt <= 1 else 28 if attempt == 2 else 32
+    models: list[tuple[str, dict]] = []
+
+    # Best effort identity-preserving path: start from the real photo, but ask
+    # the model to remove everything except a head cutout.
+    if photo_urls and CFG.get("FAL_LORA_URL"):
+        models.append(("fal-ai/flux-lora/image-to-image", {
+            "prompt": prompt,
+            "image_url": photo_urls[0],
+            "strength": 0.62 if attempt <= 1 else 0.70,
+            "image_size": "square_hd",
+            "num_images": 1,
+            "num_inference_steps": step_count,
+            "guidance_scale": 7.5,
+            "enable_safety_checker": True,
+            "output_format": "png",
+            "loras": [{"path": CFG["FAL_LORA_URL"], "scale": float(CFG.get(f"LORA_SCALE_{min(max(int(attempt), 1), 3)}", 1.45))}],
+        }))
+
+    # Text-to-image fallback: relies on Claude's face_description.
+    if CFG.get("FAL_LORA_URL"):
+        models.append(("fal-ai/flux-lora", {
+            "prompt": prompt,
+            "loras": [{"path": CFG["FAL_LORA_URL"], "scale": float(CFG.get(f"LORA_SCALE_{min(max(int(attempt), 1), 3)}", 1.45))}],
+            "image_size": "square_hd",
+            "num_images": 1,
+            "num_inference_steps": step_count,
+            "guidance_scale": 8.0,
+            "output_format": "png",
+            "enable_safety_checker": True,
+        }))
+
+    models.append(("fal-ai/flux/schnell", {
+        "prompt": prompt,
+        "image_size": "square_hd",
+        "num_images": 1,
+        "num_inference_steps": 8,
+    }))
+
     for model, args in models:
         try:
             meta["attempted"] = True
             meta["model"] = model
+            print(f"[LayerTemplate] Head-only generation via {model} attempt={attempt}")
             result = _fal_run(model, args)
             url = _extract_fal_image_url(result)
             if url:
-                meta["success"] = True
+                meta.update({"success": True, "result_url": url})
                 return url, meta
-            meta["error"] = f"no_url:{model}"
+            meta["error"] = f"no_url:{model}:{str(result)[:300]}"
         except Exception as e:
             meta["error"] = str(e)[:500]
+            print(f"[LayerTemplate] Head generation failed via {model}: {e}")
+
     return None, meta
 
 
 def composite_head_on_template(body_url: str, head_url: str, metadata: dict, output_id: str) -> tuple[str | None, dict]:
-    meta = {"attempted": False, "success": False, "error": None}
+    """v3.0.1-layer-alpha-fix: Alpha-composite generated head over fixed body PNG.
+
+    Supports both absolute metadata:
+      face_x, face_y, face_w, face_h, rotation, scale
+    and normalized metadata:
+      face_center_x, face_center_y, face_width, face_height, face_angle, head_scale
+    """
+    meta = {
+        "attempted": False,
+        "success": False,
+        "error": None,
+        "white_bg_removed": False,
+        "head_alpha_bbox": None,
+        "composite_mode": "alpha_head_over_fixed_body_layer",
+        "metadata_used": metadata or {},
+    }
+
     try:
-        from PIL import Image
+        from PIL import Image, ImageFilter, ImageOps
         from io import BytesIO
+
         meta["attempted"] = True
-        body_raw = requests.get(body_url, timeout=30).content
-        head_raw = requests.get(head_url, timeout=30).content
-        body = Image.open(BytesIO(body_raw)).convert("RGBA")
-        head = Image.open(BytesIO(head_raw)).convert("RGBA")
+        body_resp = requests.get(body_url, timeout=30)
+        body_resp.raise_for_status()
+        head_resp = requests.get(head_url, timeout=30)
+        head_resp.raise_for_status()
 
-        # remove near-white background if no alpha
-        if head.getbbox():
-            px = head.load()
-            for y in range(head.height):
-                for x in range(head.width):
-                    r, g, b, a = px[x, y]
-                    if a > 0 and r > 245 and g > 245 and b > 245:
-                        px[x, y] = (r, g, b, 0)
+        body = Image.open(BytesIO(body_resp.content)).convert("RGBA")
+        head = Image.open(BytesIO(head_resp.content)).convert("RGBA")
+        body_w, body_h = body.size
 
-        face_x = int(float(metadata.get("face_x", 0)))
-        face_y = int(float(metadata.get("face_y", 0)))
-        face_w = max(1, int(float(metadata.get("face_w", 1))))
-        face_h = max(1, int(float(metadata.get("face_h", 1))))
-        rotation = float(metadata.get("rotation", 0.0))
+        # ── Robust white/light background removal ───────────────────────
+        # FLUX often returns a white square around the head even when asked for
+        # transparency. Remove pure white and low-saturation near-white pixels.
+        px = head.load()
+        removed = 0
+        for y in range(head.height):
+            for x in range(head.width):
+                r, g, b, a = px[x, y]
+                if a <= 0:
+                    continue
+                maxc = max(r, g, b)
+                minc = min(r, g, b)
+                light = (r + g + b) / 3.0
+                sat = (maxc - minc) / max(maxc, 1)
+                is_white = r > 245 and g > 245 and b > 245
+                is_light_gray = light > 238 and sat < 0.16
+                if is_white or is_light_gray:
+                    px[x, y] = (r, g, b, 0)
+                    removed += 1
 
-        head = head.resize((face_w, face_h), Image.Resampling.LANCZOS)
+        meta["white_bg_removed"] = removed > 0
+        meta["removed_pixels"] = removed
+
+        # Feather alpha edge to suppress halos without destroying linework.
+        alpha = head.split()[-1]
+        bbox = alpha.getbbox()
+        if not bbox:
+            raise Exception("head_alpha_empty_after_background_removal")
+
+        # Crop before blur so resizing is based on the actual head.
+        head = head.crop(bbox)
+        meta["head_alpha_bbox"] = [int(v) for v in bbox]
+
+        # Soft alpha edge.
+        alpha = head.split()[-1]
+        alpha = alpha.filter(ImageFilter.GaussianBlur(radius=2))
+        head.putalpha(alpha)
+
+        # ── Metadata normalization ───────────────────────────────────────
+        scale = float(metadata.get("scale", metadata.get("head_scale", 1.0)) or 1.0)
+        rotation = float(metadata.get("rotation", metadata.get("face_angle", 0.0)) or 0.0)
+
+        if all(k in metadata for k in ("face_x", "face_y", "face_w", "face_h")):
+            face_w = max(1, int(float(metadata.get("face_w")) * scale))
+            face_h = max(1, int(float(metadata.get("face_h")) * scale))
+            face_x = int(float(metadata.get("face_x")) - (face_w - float(metadata.get("face_w"))) / 2)
+            face_y = int(float(metadata.get("face_y")) - (face_h - float(metadata.get("face_h"))) / 2)
+        elif all(k in metadata for k in ("face_center_x", "face_center_y", "face_width", "face_height")):
+            face_w = max(1, int(float(metadata.get("face_width")) * body_w * scale))
+            face_h = max(1, int(float(metadata.get("face_height")) * body_h * scale))
+            cx = int(float(metadata.get("face_center_x")) * body_w)
+            cy = int(float(metadata.get("face_center_y")) * body_h)
+            face_x = cx - face_w // 2
+            face_y = cy - face_h // 2
+        else:
+            raise Exception("invalid_template_metadata_missing_face_bbox")
+
+        # Resize and rotate the head cutout.
+        head = ImageOps.contain(head, (face_w, face_h), Image.Resampling.LANCZOS)
+        canvas = Image.new("RGBA", (face_w, face_h), (0, 0, 0, 0))
+        canvas.alpha_composite(head, ((face_w - head.width) // 2, (face_h - head.height) // 2))
+        head = canvas
+
         if rotation:
             head = head.rotate(rotation, resample=Image.Resampling.BICUBIC, expand=True)
-        paste_x = face_x - (head.width - face_w) // 2
-        paste_y = face_y - (head.height - face_h) // 2
+
+        paste_x = int(face_x - (head.width - face_w) // 2)
+        paste_y = int(face_y - (head.height - face_h) // 2)
+
+        # Clamp softly to canvas bounds to prevent crashes on bad metadata.
+        paste_x = max(-head.width + 1, min(body_w - 1, paste_x))
+        paste_y = max(-head.height + 1, min(body_h - 1, paste_y))
+
         body.alpha_composite(head, (paste_x, paste_y))
 
         out = BytesIO()
         body.convert("RGB").save(out, format="JPEG", quality=95, optimize=True)
-        url = upload_to_gcs(out.getvalue(), f"layer_comp_{output_id}.jpg", "image/jpeg", folder="results")
-        meta.update({"success": True, "result_url": url})
+        out_folder = "admin_tests/results" if str(output_id).startswith("test_") else "results"
+        url = upload_to_gcs(out.getvalue(), f"layer_comp_{output_id}.jpg", "image/jpeg", folder=out_folder)
+
+        meta.update({
+            "success": True,
+            "result_url": url,
+            "body_size": [body_w, body_h],
+            "head_size_after_fit": [head.width, head.height],
+            "paste_x": paste_x,
+            "paste_y": paste_y,
+            "face_x": face_x,
+            "face_y": face_y,
+            "face_w": face_w,
+            "face_h": face_h,
+            "rotation": rotation,
+            "scale": scale,
+        })
         return url, meta
+
     except Exception as e:
         meta["error"] = str(e)[:800]
         print(f"[LayerTemplate] Composite failed: {e}")
@@ -1687,7 +1833,7 @@ def composite_head_on_template(body_url: str, head_url: str, metadata: dict, out
 
 
 def generate_from_template_layers(template_id: str, template_name: str, photo_urls: list, face_description: str, output_id: str) -> tuple[str | None, dict]:
-    meta = {"attempted": False, "success": False, "pipeline": "v3.0.0-layer-template-composite", "template_id": template_id}
+    meta = {"attempted": False, "success": False, "pipeline": "v3.0.1-layer-alpha-fix", "template_id": template_id}
     assets = get_template_layer_assets(template_id)
     meta["layer_assets"] = {
         "available": assets.get("available"),
@@ -1900,7 +2046,7 @@ def run_generation_pipeline(order_id: str):
         if not order:
             raise Exception("Order not found")
 
-        update_order_status(order_id, "generating", {"pipeline_version": "3.0.0-layer-template-composite"})
+        update_order_status(order_id, "generating", {"pipeline_version": "3.0.1-layer-alpha-fix"})
         print(f"[Pipeline] Starting generation for {order_id}")
 
         template_id    = order["template_id"]
@@ -1986,7 +2132,7 @@ def run_generation_pipeline(order_id: str):
     except Exception as e:
         print(f"[Pipeline] ERROR for {order_id}: {e}")
         try:
-            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "3.0.0-layer-template-composite"})
+            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "3.0.1-layer-alpha-fix"})
         except Exception:
             pass
         notify_admin(f"❌ Order {order_id} FAILED: {e}")
@@ -2399,7 +2545,7 @@ def create_payment_intent():
                 "template_id": template_id,
                 "plan_id": plan_id,
                 "persons": str(persons),
-                "pipeline": "v3.0.0-layer-template-composite",
+                "pipeline": "v3.0.1-layer-alpha-fix",
             },
             description=f"Caricature — {template['name']} ({plan_id})"
         )
@@ -2425,7 +2571,7 @@ def create_payment_intent():
         "email": email,
         "name": name,
         "status": "pending",
-        "pipeline_version": "3.0.0-layer-template-composite",
+        "pipeline_version": "3.0.1-layer-alpha-fix",
         "moderation": moderation,
         "created_at": datetime.utcnow().isoformat(),
     })
@@ -3660,7 +3806,7 @@ def admin_test_generate():
             "generation_prompt": working_prompt[:1800],
             "generation_qa": qa,
             "upscale_meta": upscale_meta,
-            "pipeline_version": "3.0.0-layer-template-composite",
+            "pipeline_version": "3.0.1-layer-alpha-fix",
             "strict_mode": strict_mode,
             "debug_mode": debug_mode,
             "debug_candidate_urls": candidate_debug if debug_mode else [],
@@ -3699,7 +3845,7 @@ def admin_test_generate():
                 "created_at": started_at.isoformat(),
                 "status": "failed",
                 "error": str(e),
-                "pipeline_version": "3.0.0-layer-template-composite",
+                "pipeline_version": "3.0.1-layer-alpha-fix",
             }, merge=True)
         except Exception:
             pass
@@ -3710,14 +3856,14 @@ def admin_test_generate():
 def health():
     return ok({
         "status":    "healthy",
-        "version":   "3.0.0-layer-template-composite",
+        "version":   "3.0.1-layer-alpha-fix",
         "timestamp": datetime.utcnow().isoformat(),
         "lora_ready": bool(CFG["FAL_LORA_URL"]),
     })
 
 @app.route("/", methods=["GET"])
 def root():
-    return ok({"service": "Caricature API", "version": "3.0.0-layer-template-composite", "docs": "/health"})
+    return ok({"service": "Caricature API", "version": "3.0.1-layer-alpha-fix", "docs": "/health"})
 
 
 if __name__ == "__main__":
