@@ -543,18 +543,19 @@ def extract_face_description(photo_urls: list) -> str:
             content.append({"type": "image", "source": {"type": "base64", "media_type": media_type, "data": base64.b64encode(img_data).decode()}})
 
         content.append({"type": "text", "text": (
-            "Describe ONLY this person's physical appearance for an AI art face-replacement prompt.\n"
+            "Describe ONLY this person's physical appearance for a strict caricature face inpainting prompt.\n"
             "Be specific and concise. One sentence, comma-separated, all lowercase.\n"
-            "Include: gender, approximate age, hair color+length+style, eye color+shape, "
-            "skin tone, glasses (yes/no and description), beard/facial hair (yes/no), distinctive features.\n"
-            "Explicitly state absences: 'no glasses', 'no beard', 'smooth skin' etc.\n"
-            "Example: young woman mid-20s, shoulder-length brown hair, blue-green almond eyes, "
-            "fair skin with rosy cheeks, no glasses, no beard, soft round face, full lips\n"
+            "Include: perceived gender presentation, approximate age, head/face shape, forehead size, jawline/chin shape, "
+            "hair color+length+style+hairline, eyebrow density/shape, eye color+shape+spacing, nose bridge/tip width, "
+            "lip fullness/shape, skin tone + undertone, facial hair details, glasses details or 'no glasses', ears prominence, "
+            "and distinctive marks/features (freckles, dimples, moles, scars).\n"
+            "Explicitly state absences when relevant: 'no beard', 'no moustache', 'no makeup', 'no glasses'.\n"
+            "Do not mention clothing, background, text, logo, typography, watermark, or accessories outside the face/head.\n"
             "Return ONLY the description. No preamble, no quotes."
         )})
         msg = claude_client.messages.create(
             model="claude-opus-4-20250514",
-            max_tokens=120,
+            max_tokens=220,
             messages=[{"role": "user", "content": content}]
         )
         desc = msg.content[0].text.strip().strip('"').strip("'")
@@ -566,7 +567,7 @@ def extract_face_description(photo_urls: list) -> str:
 
 
 def create_face_mask_for_template(template_url: str, template_id: str) -> str | None:
-    """v2.9.4: Robust face mask with minimum size guarantee.
+    """v2.9.5-template-lock-no-text: Robust face mask with minimum size guarantee.
 
     KEY FIXES vs v2.8.0:
     - Minimum mask size: always >= 45% of image width, >= 55% of image height
@@ -680,7 +681,7 @@ def create_face_mask_for_template(template_url: str, template_id: str) -> str | 
         mask_rgb.save(out, format="PNG")
         mask_blob.upload_from_string(out.getvalue(), content_type="image/png")
         mask_url = f"https://storage.googleapis.com/{CFG['GCS_BUCKET']}/{mask_blob_name}"
-        print(f"[Mask] v2.9.4 mask saved (rect {x2-x1}x{y2-y1}px, blur={blur_radius}px): {mask_url}")
+        print(f"[Mask] v2.9.5-template-lock-no-text mask saved (rect {x2-x1}x{y2-y1}px, blur={blur_radius}px): {mask_url}")
         return mask_url
 
     except Exception as e:
@@ -750,7 +751,7 @@ def generate_from_template_inpainting(
     """
     meta = {
         "attempted": False, "success": False, "error": None,
-        "method": "template_inpainting_v2.9", "pipeline_version": "2.9.0-expert",
+        "method": "template_inpainting_v2.9.5_template_lock_no_text", "pipeline_version": "2.9.5-template-lock-no-text",
         "template_url": template_url, "mask_url": mask_url,
         "has_photo_reference": bool(photo_urls),
         "stage1_url": None, "stage2_url": None, "stage3_url": None,
@@ -777,12 +778,15 @@ def generate_from_template_inpainting(
     # Template body/background: 100% preserved pixel-for-pixel.
     # ════════════════════════════════════════════════════════════════════════
     inpaint_prompt = (
-        f"ANTONOS hand-drawn caricature illustration, "
-        f"caricature face of: {face_description}, "
-        f"bold confident ink outlines, cel-shaded cartoon skin, "
-        f"exaggerated expressive eyes, warm vivid editorial colours, "
-        f"same {template_name} costume art style around the face, "
-        f"NOT photorealistic, premium gift caricature illustration"
+        f"ANTONOS hand-drawn caricature illustration. "
+        f"Replace ONLY the masked head/face/hair area using this exact identity description: {face_description}. "
+        f"Keep everything outside the mask unchanged: body, armor, cape, sword, shield, hands, background. "
+        f"Preserve the uploaded person's exact identity; avoid a generic blonde heroine, celebrity, glamour, or model-like face. "
+        f"Do not invent freckles, makeup, smile, blue eyes, or model-like features unless clearly stated in face_description. "
+        f"Match face shape, eyelids, eyebrows, nose, lips, chin, jawline, age, and hairline exactly from face_description. "
+        f"Maintain the same {template_name} costume art style around the face. "
+        f"NOT photorealistic, premium gift caricature illustration, clean background, no visible text, no artist signature. "
+        f"NO text, NO logo, NO watermark, NO letters, NO typography, NO signature, NO words, NO captions, NO background writing."
     )
 
     stage1_models = [
@@ -842,8 +846,8 @@ def generate_from_template_inpainting(
     meta.update({
         "success": True,
         "result_url": inpainted_url,
-        "stage2_skipped": "disabled_v2.9.4_template_lock",
-        "stage3_skipped": "disabled_v2.9.4_template_lock",
+        "stage2_skipped": "disabled_v2.9.5_template_lock_no_text",
+        "stage3_skipped": "disabled_v2.9.5_template_lock_no_text",
     })
     print(f"[AI v2.9] Stage1-only result (template locked): {inpainted_url}")
     return inpainted_url, meta
@@ -1675,12 +1679,14 @@ def assess_generated_result(prompt: str, result_url: str, reference_url: str | N
             content.append({"type": "image", "source": {"type": "base64", "media_type": ref_media, "data": base64.b64encode(ref_bytes).decode()}})
         content.append({"type": "text", "text": (
             "Assess this generated image for customer delivery as an AI CARICATURE product. "
-            "Return ONLY JSON: {\"deliverable\":true/false,\"quality_score\":1-10,\"identity_score\":1-10,\"style_score\":1-10,\"reason\":\"...\"}. "
+            "Return ONLY JSON: {\"deliverable\":true/false,\"quality_score\":1-10,\"identity_score\":1-10,\"style_score\":1-10,"
+            "\"has_text_or_logo\":true/false,\"reason\":\"...\"}. "
             "quality_score = technical completeness, clean image, no corruption, no missing face/body. "
             "identity_score = likeness to the reference: face shape, eyes, nose, mouth, hairline/hair, age, expression, distinctive features. "
             "style_score = how clearly it is a hand-drawn cartoon/caricature illustration with visible linework, stylised shading, exaggerated proportions, and non-photorealistic finish. "
+            "CRITICAL RULE: visible words, letters, numbers, signatures, captions, badges, stamps, or logo/watermark marks anywhere in the output must set has_text_or_logo=true and deliverable=false. "
             "IMPORTANT: If the result looks like a retouched photo, selfie, realistic portrait, beauty filter, or simple face enhancement, style_score must be 1-3 and deliverable must be false even if identity is good. "
-            "Caricature exaggeration is allowed, but wrong subject, weak likeness, photorealism, blank/corrupted image, no face, or generic beauty portrait should fail."
+            "Caricature exaggeration is allowed, but wrong subject, weak likeness, photorealism, blank/corrupted image, no face, generic beauty portrait, or any text/logo artifact should fail."
         )})
         msg = claude_client.messages.create(model="claude-opus-4-20250514", max_tokens=180, messages=[{"role": "user", "content": content}])
         raw = msg.content[0].text.strip()
@@ -1690,7 +1696,10 @@ def assess_generated_result(prompt: str, result_url: str, reference_url: str | N
         data["quality_score"] = int(data.get("quality_score", 7))
         data["identity_score"] = int(data.get("identity_score", 7))
         data["style_score"] = int(data.get("style_score", 1))
-        if data["style_score"] < int(CFG.get("MIN_STYLE_SCORE", 6)):
+        data["has_text_or_logo"] = bool(data.get("has_text_or_logo", False))
+        if data["has_text_or_logo"]:
+            data["deliverable"] = False
+        elif data["style_score"] < int(CFG.get("MIN_STYLE_SCORE", 6)):
             data["deliverable"] = False
         else:
             data["deliverable"] = bool(data.get("deliverable", True))
@@ -1717,7 +1726,7 @@ def run_generation_pipeline(order_id: str):
         if not order:
             raise Exception("Order not found")
 
-        update_order_status(order_id, "generating", {"pipeline_version": "2.8.0-inpainting"})
+        update_order_status(order_id, "generating", {"pipeline_version": "2.9.5-template-lock-no-text"})
         print(f"[Pipeline] Starting generation for {order_id}")
 
         template_id    = order["template_id"]
@@ -1798,7 +1807,7 @@ def run_generation_pipeline(order_id: str):
     except Exception as e:
         print(f"[Pipeline] ERROR for {order_id}: {e}")
         try:
-            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "2.8.0-inpainting"})
+            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "2.9.5-template-lock-no-text"})
         except Exception:
             pass
         notify_admin(f"❌ Order {order_id} FAILED: {e}")
@@ -2211,7 +2220,7 @@ def create_payment_intent():
                 "template_id": template_id,
                 "plan_id": plan_id,
                 "persons": str(persons),
-                "pipeline": "v2.8.0-inpainting",
+                "pipeline": "v2.9.5-template-lock-no-text",
             },
             description=f"Caricature — {template['name']} ({plan_id})"
         )
@@ -2237,7 +2246,7 @@ def create_payment_intent():
         "email": email,
         "name": name,
         "status": "pending",
-        "pipeline_version": "2.8.0-inpainting",
+        "pipeline_version": "2.9.5-template-lock-no-text",
         "moderation": moderation,
         "created_at": datetime.utcnow().isoformat(),
     })
@@ -3467,7 +3476,7 @@ def admin_test_generate():
             "generation_prompt": working_prompt[:1800],
             "generation_qa": qa,
             "upscale_meta": upscale_meta,
-            "pipeline_version": "2.8.0-inpainting",
+            "pipeline_version": "2.9.5-template-lock-no-text",
             "strict_mode": strict_mode,
             "debug_mode": debug_mode,
             "debug_candidate_urls": candidate_debug if debug_mode else [],
@@ -3506,7 +3515,7 @@ def admin_test_generate():
                 "created_at": started_at.isoformat(),
                 "status": "failed",
                 "error": str(e),
-                "pipeline_version": "2.8.0-inpainting",
+                "pipeline_version": "2.9.5-template-lock-no-text",
             }, merge=True)
         except Exception:
             pass
@@ -3517,14 +3526,14 @@ def admin_test_generate():
 def health():
     return ok({
         "status":    "healthy",
-        "version":   "2.8.0-inpainting",
+        "version":   "2.9.5-template-lock-no-text",
         "timestamp": datetime.utcnow().isoformat(),
         "lora_ready": bool(CFG["FAL_LORA_URL"]),
     })
 
 @app.route("/", methods=["GET"])
 def root():
-    return ok({"service": "Caricature API", "version": "2.8.0-inpainting", "docs": "/health"})
+    return ok({"service": "Caricature API", "version": "2.9.5-template-lock-no-text", "docs": "/health"})
 
 
 if __name__ == "__main__":
