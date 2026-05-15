@@ -570,7 +570,7 @@ def extract_face_description(photo_urls: list) -> str:
 
 
 def create_face_mask_for_template(template_url: str, template_id: str) -> str | None:
-    """v3.0.3-identity-lock-qa: create a conservative head/hair mask.
+    """v3.0.5-identity-crop-and-head-guard: create a conservative head/hair mask.
 
     The old v2.9.5 mask was intentionally large (45% width / 55% height) to avoid
     missing the head, but for fixed templates it repainted too much costume/body.
@@ -750,7 +750,7 @@ def generate_from_template_inpainting(
 
     meta = {
         "attempted": False, "success": False, "error": None,
-        "method": "template_inpainting_v3.0.3_identity_lock_qa", "pipeline_version": "3.0.3-identity-lock-qa",
+        "method": "template_inpainting_v3.0.3_identity_lock_qa", "pipeline_version": "3.0.5-identity-crop-and-head-guard",
         "identity_guard_version": "v3.0.3",
         "no_facial_hair_guard_applied": no_facial_hair_guard_applied,
         "glasses_guard_applied": glasses_guard_applied,
@@ -959,6 +959,7 @@ def generate_from_template_inpainting(
                     prompt=f"{template_name} caricature",
                     result_url=stage2_url,
                     reference_url=customer_photo_url,
+                    face_description=face_description,
                 )
                 meta["qa_between_stages"] = qa
                 identity_ok  = int(qa.get("identity_score", 0)) >= 7
@@ -1288,7 +1289,7 @@ def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, stri
     FALLBACK PATH (no template base image):
       T2I with LoRA → face-swap (best effort)
     """
-    meta = {"pipeline": "v3.0.3-identity-lock-qa", "attempt": attempt, "stages": [],
+    meta = {"pipeline": "v3.0.5-identity-crop-and-head-guard", "attempt": attempt, "stages": [],
             "template_id": template_id, "face_description": face_description}
 
     # ══ PRIMARY-PLUS: v3.0.0 layer-template composite (fallback-safe) ════════
@@ -1302,7 +1303,7 @@ def generate_candidate_art(prompt: str, photo_urls: list, attempt: int = 1, stri
         )
         meta["stages"].append({"stage": "layer_template_composite", **layer_meta})
         if layer_url:
-            meta["pipeline"] = "v3.0.3-identity-lock-qa"
+            meta["pipeline"] = "v3.0.5-identity-crop-and-head-guard"
             print(f"[AI v3.0] Layer template composite success attempt={attempt}")
             return layer_url, meta
 
@@ -1620,9 +1621,89 @@ def get_template_layer_assets(template_id: str) -> dict:
         print(f"[LayerTemplate] Asset check failed for {template_id}: {e}")
         return out
 
+def preprocess_identity_reference(photo_urls: list, output_id: str) -> tuple[str | None, dict]:
+    """v3.0.5-identity-crop-and-head-guard: build a portrait head identity crop from customer photo."""
+    meta = {
+        "identity_preprocess_applied": False,
+        "identity_crop_valid": False,
+        "identity_crop_validation_reason": None,
+        "identity_crop_face_coverage": None,
+        "identity_crop_url": None,
+        "identity_crop_bbox": None,
+        "identity_crop_method": None,
+        "error": None,
+    }
+    if not photo_urls:
+        meta["error"] = "no_photo_urls"
+        return None, meta
+    try:
+        from PIL import Image
+        from io import BytesIO
+        resp = requests.get(photo_urls[0], timeout=30)
+        resp.raise_for_status()
+        im = Image.open(BytesIO(resp.content)).convert("RGB")
+        w, h = im.size
 
-def generate_caricature_head_only(photo_urls: list, face_description: str, template_name: str, attempt: int = 1) -> tuple[str | None, dict]:
-    """v3.0.3-identity-lock-qa: generate only a transparent caricature head.
+        # Portrait head crop with explicit top+bottom margins to keep full head and jaw/chin.
+        crop_w = max(96, int(w * 0.64))
+        crop_h = max(128, int(h * 0.82))
+        cx = w // 2
+        cy = int(h * 0.44)
+        x0 = max(0, min(w - crop_w, cx - crop_w // 2))
+        y0 = max(0, min(h - crop_h, cy - crop_h // 2))
+        x1 = min(w, x0 + crop_w)
+        y1 = min(h, y0 + crop_h)
+
+        # If lower face is near crop bottom, expand downward so mouth/chin are not cut.
+        if y1 < h and (h - y1) < int(h * 0.12):
+            extra_down = min(h - y1, int(h * 0.08))
+            y1 += extra_down
+            y0 = max(0, y1 - crop_h)
+
+        crop = im.crop((x0, y0, x1, y1))
+        crop_h_px = max(1, y1 - y0)
+        crop_w_px = max(1, x1 - x0)
+        face_coverage = round(crop_h_px / float(max(1, h)), 4)
+        bottom_margin_ratio = round((h - y1) / float(max(1, h)), 4)
+        aspect = crop_h_px / float(crop_w_px)
+
+        # Validation: reject likely upper-face-only / missing mouth-chin crops.
+        validation_reason = "ok"
+        if face_coverage < 0.52:
+            validation_reason = "crop_height_too_small"
+        elif aspect < 1.05:
+            validation_reason = "crop_not_portrait_head"
+        elif bottom_margin_ratio > 0.22:
+            validation_reason = "upper_face_only_likely"
+
+        is_valid = validation_reason == "ok"
+
+        # Normalize to square canvas for stronger identity conditioning.
+        side = max(crop.width, crop.height)
+        canvas = Image.new("RGB", (side, side), (255, 255, 255))
+        canvas.paste(crop, ((side - crop.width) // 2, (side - crop.height) // 2))
+
+        out = BytesIO()
+        canvas.save(out, format="JPEG", quality=95, optimize=True)
+        folder = "admin_tests/identity_crops" if str(output_id).startswith("test_") else "results/identity_crops"
+        url = upload_to_gcs(out.getvalue(), f"identity_crop_{output_id}.jpg", "image/jpeg", folder=folder)
+        meta.update({
+            "identity_preprocess_applied": True,
+            "identity_crop_valid": is_valid,
+            "identity_crop_validation_reason": validation_reason,
+            "identity_crop_face_coverage": face_coverage,
+            "identity_crop_url": url,
+            "identity_crop_bbox": [int(x0), int(y0), int(x1 - x0), int(y1 - y0)],
+            "identity_crop_method": "portrait_head_crop_v2",
+        })
+        return url, meta
+    except Exception as e:
+        meta["error"] = str(e)[:500]
+        return None, meta
+
+
+def generate_caricature_head_only(photo_urls: list, face_description: str, template_name: str, attempt: int = 1, identity_ref_url: str | None = None) -> tuple[str | None, dict]:
+    """v3.0.5-identity-crop-and-head-guard: generate only a transparent caricature head.
 
     The output must be a usable cutout. The compositor will reject full-frame
     photo rectangles and fall back to safer inpainting when the cutout is invalid.
@@ -1632,17 +1713,24 @@ def generate_caricature_head_only(photo_urls: list, face_description: str, templ
         "success": False,
         "model": None,
         "error": None,
-        "pipeline": "3.0.3-identity-lock-qa",
+        "pipeline": "3.0.5-identity-crop-and-head-guard",
         "used_reference_photo": bool(photo_urls),
+        "identity_reference_url": identity_ref_url,
     }
+    face_desc_l = (face_description or "").lower()
+    no_facial_hair_guard_applied = any(k in face_desc_l for k in ["no facial hair", "no beard", "no moustache", "no mustache", "no goatee", "no stubble"])
+    glasses_guard_applied = "glasses" in face_desc_l and "no glasses" not in face_desc_l
 
     prompt = (
-        "Create a SINGLE transparent PNG cutout containing ONLY the person's caricature head: hair, ears, face, chin and a tiny neck base. "
+        "Transform the uploaded identity crop into a SINGLE transparent PNG cutout containing ONLY the same person's Antonos-style caricature head: hair, ears, face, chin and a tiny neck base. "
         "The canvas outside the head must be transparent. If transparency is impossible, use pure white background only. "
         "Absolutely no shoulders, torso, clothes, costume, cape, hands, props, helmet, background scene, photo rectangle, border, frame, halo, text, logo or watermark. "
-        "Use the uploaded reference photo identity exactly; do not beautify, adultify, glamorize, change age, change eye color, change nose, change mouth, change jaw, or invent a different person. "
+        "Preserve same person, same age, same gender presentation, hairline, forehead, eyes, eye spacing, nose, mouth, lips, chin, jaw, cheeks, wrinkles/fine lines, visible hair, and glasses details when present. "
+        "Do not invent mask, beard, moustache, mustache, goatee, stubble, glasses, earrings, makeup, smile, teeth, or age changes. "
         "Avoid generic pretty cartoon, Disney, anime, beauty portrait, celebrity face, model face, realistic selfie, pasted photograph. "
         "Antonos hand-drawn caricature style: bold confident ink outline, cel-shaded skin, warm editorial colors, expressive but recognisable face. "
+        f"{'ABSOLUTELY NO beard, no moustache, no mustache, no goatee, no stubble. ' if no_facial_hair_guard_applied else ''}"
+        f"{'If glasses are present in face_description, preserve the same frame color and frame shape exactly. ' if glasses_guard_applied else ''}"
         f"Identity description: {face_description}. "
         f"Template mood only: {template_name}. "
         "Return head cutout only."
@@ -1653,10 +1741,10 @@ def generate_caricature_head_only(photo_urls: list, face_description: str, templ
 
     # Prefer photo-conditioned img2img for identity, but keep denoise high enough
     # to avoid retaining the full original photo rectangle.
-    if photo_urls and CFG.get("FAL_LORA_URL"):
+    if (identity_ref_url or photo_urls) and CFG.get("FAL_LORA_URL"):
         models.append(("fal-ai/flux-lora/image-to-image", {
             "prompt": prompt,
-            "image_url": photo_urls[0],
+            "image_url": identity_ref_url or photo_urls[0],
             "strength": 0.76 if attempt <= 1 else 0.82,
             "image_size": "square_hd",
             "num_images": 1,
@@ -1703,7 +1791,7 @@ def generate_caricature_head_only(photo_urls: list, face_description: str, templ
     return None, meta
 
 def composite_head_on_template(body_url: str, head_url: str, metadata: dict, output_id: str) -> tuple[str | None, dict]:
-    """v3.0.3-identity-lock-qa: alpha-composite a valid head cutout over a fixed body.
+    """v3.0.5-identity-crop-and-head-guard: alpha-composite a valid head cutout over a fixed body.
 
     If the generated head is actually a full-frame photo/portrait, reject it so
     generate_candidate_art can fall back to template inpainting instead of
@@ -1797,6 +1885,29 @@ def composite_head_on_template(body_url: str, head_url: str, metadata: dict, out
         if bbox_ratio > 0.82 and meta["removed_ratio"] < 0.08:
             return _reject("invalid_head_cutout_low_background_removed")
 
+        # Guard 2b (v3.0.5): hard anti-photo-rectangle rejection.
+        # Reject if alpha covers too much, very dense nonzero alpha, low bg removal,
+        # or near-rectangular edges imply full photo card.
+        border_band = max(2, int(min(original_w, original_h) * 0.02))
+        alpha_data = alpha.load()
+        border_nonzero = 0
+        border_total = 0
+        for yy in range(original_h):
+            for xx in range(original_w):
+                if xx < border_band or yy < border_band or xx >= (original_w - border_band) or yy >= (original_h - border_band):
+                    border_total += 1
+                    if alpha_data[xx, yy] > 8:
+                        border_nonzero += 1
+        border_nonzero_ratio = (border_nonzero / float(max(1, border_total)))
+        meta["alpha_border_nonzero_ratio"] = round(border_nonzero_ratio, 4)
+        if (
+            bbox_ratio > 0.82
+            or nonzero_ratio > 0.88
+            or meta["removed_ratio"] < 0.18
+            or border_nonzero_ratio > 0.40
+        ):
+            return _reject("invalid_head_cutout_photo_rectangle")
+
         # Guard 3: tiny/fragmented output is unusable.
         if bbox_ratio < 0.04 or nonzero_ratio < 0.025:
             return _reject("invalid_head_cutout_too_small")
@@ -1873,7 +1984,7 @@ def composite_head_on_template(body_url: str, head_url: str, metadata: dict, out
         return None, meta
 
 def generate_from_template_layers(template_id: str, template_name: str, photo_urls: list, face_description: str, output_id: str) -> tuple[str | None, dict]:
-    meta = {"attempted": False, "success": False, "pipeline": "v3.0.3-identity-lock-qa", "template_id": template_id}
+    meta = {"attempted": False, "success": False, "pipeline": "v3.0.5-identity-crop-and-head-guard", "template_id": template_id}
     assets = get_template_layer_assets(template_id)
     meta["layer_assets"] = {
         "available": assets.get("available"),
@@ -1887,11 +1998,19 @@ def generate_from_template_layers(template_id: str, template_name: str, photo_ur
         return None, meta
 
     meta["attempted"] = True
+    identity_ref_url, preprocess_meta = preprocess_identity_reference(photo_urls, output_id)
+    meta["identity_preprocess"] = preprocess_meta
+    meta["identity_preprocess_applied"] = bool(preprocess_meta.get("identity_preprocess_applied"))
+    meta["identity_crop_url"] = preprocess_meta.get("identity_crop_url")
+    meta["identity_crop_bbox"] = preprocess_meta.get("identity_crop_bbox")
+    meta["identity_crop_method"] = preprocess_meta.get("identity_crop_method")
+    if preprocess_meta.get("identity_crop_valid") is False:
+        meta["error"] = "identity_crop_invalid"
 
     # Two attempts maximum: if the first head is a bad cutout, try once more;
     # after that, fail hard so caller automatically falls back to inpainting.
     for head_attempt in (1, 2):
-        head_url, head_meta = generate_caricature_head_only(photo_urls, face_description, template_name, attempt=head_attempt)
+        head_url, head_meta = generate_caricature_head_only(photo_urls, face_description, template_name, attempt=head_attempt, identity_ref_url=identity_ref_url)
         meta.setdefault("head_attempts", []).append(head_meta)
         meta["head_generation"] = head_meta
         if not head_url:
@@ -2022,7 +2141,7 @@ def upscale_to_4k(image_url: str, order_id: str) -> tuple[bytes, dict]:
     return raw, meta
 
 
-def assess_generated_result(prompt: str, result_url: str, reference_url: str | None = None, template_url: str | None = None) -> dict:
+def assess_generated_result(prompt: str, result_url: str, reference_url: str | None = None, template_url: str | None = None, face_description: str = "") -> dict:
     """Lightweight post-generation QA. Does not block delivery unless generation obviously failed."""
     try:
         content = []
@@ -2057,7 +2176,7 @@ def assess_generated_result(prompt: str, result_url: str, reference_url: str | N
             "CRITICAL RULE: visible words, letters, numbers, signatures, captions, badges, stamps, or logo/watermark marks anywhere in the output must set has_text_or_logo=true and deliverable=false. "
             "IMPORTANT: If the result looks like a retouched photo, selfie, realistic portrait, beauty filter, or simple face enhancement, style_score must be 1-3 and deliverable must be false even if identity is good. "
             "Caricature exaggeration is allowed, but wrong subject, weak likeness, photorealism, blank/corrupted image, no face, generic beauty portrait, template body/pose/background not preserved, or any text/logo artifact should fail. "
-            "Hard reject if the result changes gender presentation, changes age category, invents beard/moustache/goatee/stubble when absent in the reference, removes required glasses, or looks like a different person."
+            "Hard reject if mask covers face, wrong gender presentation, wrong age group, invented beard/moustache/goatee/stubble when absent, invented glasses when absent, missing glasses when present, or different person."
         )})
         msg = claude_client.messages.create(model="claude-opus-4-20250514", max_tokens=180, messages=[{"role": "user", "content": content}])
         raw = msg.content[0].text.strip()
@@ -2070,12 +2189,19 @@ def assess_generated_result(prompt: str, result_url: str, reference_url: str | N
         data["template_preservation_score"] = int(data.get("template_preservation_score", 10 if template_url else 7))
         data["has_text_or_logo"] = bool(data.get("has_text_or_logo", False))
         reason_txt = str(data.get("reason", "")).lower()
-        identity_terms = ["wrong gender", "different gender", "facial hair", "beard", "moustache", "mustache", "goatee", "stubble", "different person", "wrong subject", "appears younger", "age mismatch", "removes glasses", "missing glasses"]
+        identity_terms = ["mask covering face", "wearing a mask", "wrong gender", "different gender", "facial hair", "beard", "moustache", "mustache", "goatee", "stubble", "different person", "wrong subject", "appears younger", "age mismatch", "wrong age", "removes glasses", "missing glasses", "invented glasses"]
+        face_desc_l = (face_description or "").lower()
+        no_glasses_expected = "no glasses" in face_desc_l
+        glasses_expected = "glasses" in face_desc_l and "no glasses" not in face_desc_l
         qa_rejected_reason = None
         if data["has_text_or_logo"]:
             qa_rejected_reason = "text_or_logo_artifact"
-        elif data["identity_score"] < int(CFG.get("MIN_IDENTITY_SCORE", 6)):
+        elif data["identity_score"] < 6:
             qa_rejected_reason = "identity_below_threshold"
+        elif no_glasses_expected and "glasses" in reason_txt:
+            qa_rejected_reason = "invented_glasses_when_absent"
+        elif glasses_expected and ("missing glasses" in reason_txt or "removes glasses" in reason_txt):
+            qa_rejected_reason = "missing_required_glasses"
         elif any(k in reason_txt for k in identity_terms):
             qa_rejected_reason = "identity_mismatch_reason"
         elif data["style_score"] < int(CFG.get("MIN_STYLE_SCORE", 6)):
@@ -2110,7 +2236,7 @@ def run_generation_pipeline(order_id: str):
         if not order:
             raise Exception("Order not found")
 
-        update_order_status(order_id, "generating", {"pipeline_version": "3.0.3-identity-lock-qa"})
+        update_order_status(order_id, "generating", {"pipeline_version": "3.0.5-identity-crop-and-head-guard"})
         print(f"[Pipeline] Starting generation for {order_id}")
 
         template_id    = order["template_id"]
@@ -2158,7 +2284,8 @@ def run_generation_pipeline(order_id: str):
                 prompt,
                 candidate_url,
                 photo_urls[0] if photo_urls else None,
-                template_url=(generation_meta.get("template_base_url") or generation_meta.get("template_url"))
+                template_url=(generation_meta.get("template_base_url") or generation_meta.get("template_url")),
+                face_description=face_description,
             )
             qa["generation_meta"] = generation_meta
             if not qa.get("deliverable", False):
@@ -2198,7 +2325,7 @@ def run_generation_pipeline(order_id: str):
     except Exception as e:
         print(f"[Pipeline] ERROR for {order_id}: {e}")
         try:
-            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "3.0.3-identity-lock-qa"})
+            update_order_status(order_id, "failed", {"error": str(e), "pipeline_version": "3.0.5-identity-crop-and-head-guard"})
         except Exception:
             pass
         notify_admin(f"❌ Order {order_id} FAILED: {e}")
@@ -2611,7 +2738,7 @@ def create_payment_intent():
                 "template_id": template_id,
                 "plan_id": plan_id,
                 "persons": str(persons),
-                "pipeline": "v3.0.3-identity-lock-qa",
+                "pipeline": "v3.0.5-identity-crop-and-head-guard",
             },
             description=f"Caricature — {template['name']} ({plan_id})"
         )
@@ -2637,7 +2764,7 @@ def create_payment_intent():
         "email": email,
         "name": name,
         "status": "pending",
-        "pipeline_version": "3.0.3-identity-lock-qa",
+        "pipeline_version": "3.0.5-identity-crop-and-head-guard",
         "moderation": moderation,
         "created_at": datetime.utcnow().isoformat(),
     })
@@ -3800,7 +3927,8 @@ def admin_test_generate():
                 working_prompt,
                 candidate_url,
                 photo_urls[0] if photo_urls else None,
-                template_url=(generation_meta.get("template_base_url") or generation_meta.get("template_url"))
+                template_url=(generation_meta.get("template_base_url") or generation_meta.get("template_url")),
+                face_description=face_description,
             )
             qa["generation_meta"] = generation_meta
             if not qa.get("deliverable", False):
@@ -3874,7 +4002,7 @@ def admin_test_generate():
             "generation_prompt": working_prompt[:1800],
             "generation_qa": qa,
             "upscale_meta": upscale_meta,
-            "pipeline_version": "3.0.3-identity-lock-qa",
+            "pipeline_version": "3.0.5-identity-crop-and-head-guard",
             "strict_mode": strict_mode,
             "debug_mode": debug_mode,
             "debug_candidate_urls": candidate_debug if debug_mode else [],
@@ -3913,7 +4041,7 @@ def admin_test_generate():
                 "created_at": started_at.isoformat(),
                 "status": "failed",
                 "error": str(e),
-                "pipeline_version": "3.0.3-identity-lock-qa",
+                "pipeline_version": "3.0.5-identity-crop-and-head-guard",
             }, merge=True)
         except Exception:
             pass
@@ -3924,14 +4052,14 @@ def admin_test_generate():
 def health():
     return ok({
         "status":    "healthy",
-        "version":   "3.0.3-identity-lock-qa",
+        "version":   "3.0.5-identity-crop-and-head-guard",
         "timestamp": datetime.utcnow().isoformat(),
         "lora_ready": bool(CFG["FAL_LORA_URL"]),
     })
 
 @app.route("/", methods=["GET"])
 def root():
-    return ok({"service": "Caricature API", "version": "3.0.3-identity-lock-qa", "docs": "/health"})
+    return ok({"service": "Caricature API", "version": "3.0.5-identity-crop-and-head-guard", "docs": "/health"})
 
 
 if __name__ == "__main__":
